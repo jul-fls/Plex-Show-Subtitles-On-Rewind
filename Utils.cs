@@ -15,4 +15,29 @@ internal class Utils
         string pattern = "^" + Regex.Escape(stringToCheckWithWildcard).Replace("\\*", ".*") + "$";
         return Regex.IsMatch(stringToCheckAgainst, pattern);
     }
-}
+
+    /// <summary>
+    /// Returns a query string (used for HTTP URLs) where only the value is URL encoded.
+    /// Example return value: '?genre=action&type=1337'.
+    /// </summary>
+    /// <param name="args">Arguments to include in query string.</param>
+    /// <returns>A query string with URL-encoded values.</returns>
+    public static string JoinArgs(Dictionary<string, object> args)
+    {
+        if (args == null || args.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var argList = new List<string>();
+        foreach (var key in args.Keys.OrderBy(k => k.ToLower()))
+        {
+            string value = args[key]?.ToString() ?? string.Empty;
+            argList.Add($"{key}={System.Web.HttpUtility.UrlEncode(value)}");
+        }
+
+        return $"?{string.Join("&", argList)}";
+    }
+
+
+} // ---------- End of Utils Class -----------

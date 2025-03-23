@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Xml;
 using System.Xml.Serialization;
 
 namespace PlexShowSubtitlesOnRewind;
@@ -69,36 +70,103 @@ public class PlexPlayer
 
 public class PlexClient
 {
-    public string DeviceName { get; set; }
-    public string MachineIdentifier { get; set; }
-    public string ClientAppName { get; set; }
-    public string DeviceClass { get; set; }
-    public string Platform { get; set; }
-    public HttpClient HttpClient { get; set; }
-    public string BaseUrl { get; set; }
+    public string DeviceName { get; private set; }
+    public string MachineIdentifier { get; private set; }
+    public string ClientAppName { get; private set; }
+    public string DeviceClass { get; private set; }
+    public string Platform { get; private set; }
+    public HttpClient HttpClient { get; private set; }
+    public string BaseUrl { get; private set; }
+    public PlexServer PlexServer { get; private set; }
 
-    public async Task SetSubtitleStreamAsync(int streamId, string mediaType = "video")
+
+    public PlexClient(string deviceName, string machineIdentifier, string clientAppName, string deviceClass, string platform, HttpClient httpClient, string baseUrl, PlexServer plexServer)
     {
-        try
-        {
-            // Send command to the Plex client
-            string command = $"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}";
-            Console.WriteLine($"Sending command: {command}");
+        DeviceName = deviceName;
+        MachineIdentifier = machineIdentifier;
+        ClientAppName = clientAppName;
+        DeviceClass = deviceClass;
+        Platform = platform;
+        HttpClient = httpClient;
+        BaseUrl = baseUrl;
+        PlexServer = plexServer;
+    }
 
-            HttpResponseMessage response = await HttpClient.GetAsync(command);
-            if (response.IsSuccessStatusCode)
-            {
-                Console.WriteLine($"Successfully set subtitle stream {streamId} on client {DeviceName}");
-            }
-            else
-            {
-                Console.WriteLine($"Failed to set subtitle stream {streamId} on client {DeviceName}. Status: {response.StatusCode}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error setting subtitle stream: {ex.Message}");
-        }
+    //public async Task SetSubtitleStreamAsync(int streamId, string mediaType = "video")
+    //{
+    //    try
+    //    {
+    //        // Send command to the Plex client
+    //        string command = $"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}";
+    //        Console.WriteLine($"Sending command: {command}");
+
+    //        HttpResponseMessage response = await HttpClient.GetAsync(command);
+    //        if (response.IsSuccessStatusCode)
+    //        {
+    //            Console.WriteLine($"Successfully set subtitle stream {streamId} on client {DeviceName}");
+    //        }
+    //        else
+    //        {
+    //            Console.WriteLine($"Failed to set subtitle stream {streamId} on client {DeviceName}. Status: {response.StatusCode}");
+    //        }
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        Console.WriteLine($"Error setting subtitle stream: {ex.Message}");
+    //    }
+    //}
+
+    /// <summary>
+    /// Select multiple playback streams at once.
+    /// </summary>
+    /// <param name="audioStreamID">ID of the audio stream from the media object</param>
+    /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
+    /// <param name="videoStreamID">ID of the video stream from the media object</param>
+    /// <param name="mediaType">Media type to take action against (default: video)</param>
+    /// <param name="server">The PlexServer instance to send the command through</param>
+    /// <returns>Task representing the asynchronous operation</returns>
+    public async Task<XmlDocument?> SetStreamsAsync(
+        PlexServer server,
+        int? audioStreamID = null,
+        int? subtitleStreamID = null,
+        int? videoStreamID = null,
+        string mediaType = "video")
+    {
+        // Create dictionary for additional parameters
+        Dictionary<string, string> parameters = new();
+
+        // Add parameters only if they're not null
+        if (audioStreamID.HasValue)
+            parameters["audioStreamID"] = audioStreamID.Value.ToString();
+
+        if (subtitleStreamID.HasValue)
+            parameters["subtitleStreamID"] = subtitleStreamID.Value.ToString();
+
+        if (videoStreamID.HasValue)
+            parameters["videoStreamID"] = videoStreamID.Value.ToString();
+
+        if (!string.IsNullOrEmpty(mediaType))
+            parameters["type"] = mediaType;
+
+        // Send the command through the PlexServer
+        return await server.SendCommandAsync(this, "playback/setStreams", additionalParams: parameters);
+    }
+
+    /// <summary>
+    /// Select the subtitle stream for the current playback item (only video).
+    /// </summary>
+    /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
+    /// <param name="mediaType">Media type to take action against (default: video)</param>
+    /// <returns>Task representing the asynchronous operation</returns>
+    public async Task<XmlDocument?> SetSubtitleStreamAsync(
+        int subtitleStreamID,
+        string mediaType = "video")
+    {
+        // Simply call the SetStreamsAsync method with only the subtitle stream ID parameter
+        return await SetStreamsAsync(
+            server: PlexServer,
+            subtitleStreamID: subtitleStreamID,
+            mediaType: mediaType);
     }
 }
 
@@ -293,18 +361,19 @@ public class PlexClientXml
     public string Platform { get; set; }
 
     // Convert to your existing PlexClient class
-    public PlexClient ToPlexClient(HttpClient httpClient, string baseUrl)
+    public PlexClient ToPlexClient(HttpClient httpClient, string baseUrl, PlexServer plexServer)
     {
         return new PlexClient
-        {
-            DeviceName = DeviceName,
-            MachineIdentifier = MachineIdentifier,
-            ClientAppName = ClientAppName,
-            DeviceClass = DeviceClass,
-            Platform = Platform ?? ClientAppName, // Handle the fallback
-            HttpClient = httpClient,
-            BaseUrl = baseUrl
-        };
+        (
+            deviceName: DeviceName,
+            machineIdentifier: MachineIdentifier,
+            clientAppName: ClientAppName,
+            deviceClass: DeviceClass,
+            platform: Platform ?? ClientAppName, // Handle the fallback
+            httpClient: httpClient,
+            baseUrl: baseUrl,
+            plexServer: plexServer
+        );
     }
 }
 
