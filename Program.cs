@@ -89,7 +89,11 @@
                 }
             }
         }
+
+
     }
+
+
 
     // Represents a Plex server
     public class PlexServer
@@ -224,6 +228,78 @@
             return clients;
         }
 
+        public async Task<List<SubtitleStream>> GetAvailableSubtitlesForMediaAsync(string mediaKey)
+        {
+            try
+            {
+                // Make a direct call to the media metadata endpoint
+                string response = await _httpClient.GetStringAsync($"{_url}{mediaKey}");
+                List<SubtitleStream> subtitles = new List<SubtitleStream>();
+
+                // Parse XML response
+                System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
+                xmlDoc.LoadXml(response);
+
+                // Get the media item node
+                System.Xml.XmlNode? mediaContainer = xmlDoc.SelectSingleNode("//MediaContainer");
+                System.Xml.XmlNode? videoNode = mediaContainer?.SelectSingleNode("Video") ??
+                        mediaContainer?.SelectSingleNode("Track") ??
+                        mediaContainer?.SelectSingleNode("Episode");
+
+                if (videoNode != null)
+                {
+                    // Find all Media nodes
+                    System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
+                    if (mediaNodes != null)
+                    {
+                        foreach (System.Xml.XmlNode mediaNode in mediaNodes)
+                        {
+                            // Find all Part nodes
+                            System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
+                            if (partNodes != null)
+                            {
+                                foreach (System.Xml.XmlNode partNode in partNodes)
+                                {
+                                    // Find all Stream nodes with streamType=3 (subtitles)
+                                    System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
+                                    if (streamNodes != null)
+                                    {
+                                        foreach (System.Xml.XmlNode streamNode in streamNodes)
+                                        {
+                                            SubtitleStream subtitle = new SubtitleStream
+                                            {
+                                                Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
+                                                Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
+                                                ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
+                                                Language = GetAttribute(streamNode, "language"),
+                                                Selected = GetAttribute(streamNode, "selected") == "1"
+                                            };
+
+                                            // Add additional subtitle details
+                                            subtitle.Format = GetAttribute(streamNode, "format");
+                                            subtitle.Title = GetAttribute(streamNode, "title");
+                                            subtitle.Location = GetAttribute(streamNode, "location");
+                                            subtitle.IsExternal = GetAttribute(streamNode, "external") == "1";
+
+                                            subtitles.Add(subtitle);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Console.WriteLine($"Found {subtitles.Count} available subtitle streams for media key: {mediaKey}");
+                return subtitles;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting available subtitles: {ex.Message}");
+                return new List<SubtitleStream>();
+            }
+        }
+
         private string GetAttribute(System.Xml.XmlNode node, string attributeName)
         {
             if (node == null || node.Attributes == null)
@@ -235,79 +311,92 @@
 
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
-            string response = await _httpClient.GetStringAsync($"{_url}{key}");
-            PlexMediaItem mediaItem = new PlexMediaItem { Key = key };
-
-            // Parse XML response
-            System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
-            xmlDoc.LoadXml(response);
-
-
-
-            System.Xml.XmlNode? videoNode = xmlDoc.SelectSingleNode("//MediaContainer/Video");
-            if (videoNode != null)
+            try
             {
-                mediaItem.Title = GetAttribute(videoNode, "title");
-                mediaItem.Type = GetAttribute(videoNode, "type");
+                string response = await _httpClient.GetStringAsync($"{_url}{key}");
+                PlexMediaItem mediaItem = new PlexMediaItem { Key = key };
 
-                // Extract media information
-                System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
-                if (mediaNodes != null)
+                // Parse XML response
+                System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
+                xmlDoc.LoadXml(response);
+
+                // Get the media item node
+                System.Xml.XmlNode? mediaContainer = xmlDoc.SelectSingleNode("//MediaContainer");
+                System.Xml.XmlNode? videoNode = mediaContainer?.SelectSingleNode("Video") ??
+                        mediaContainer?.SelectSingleNode("Track") ??
+                        mediaContainer?.SelectSingleNode("Episode");
+
+                if (videoNode != null)
                 {
-                    foreach (System.Xml.XmlNode mediaNode in mediaNodes)
+                    mediaItem.Title = GetAttribute(videoNode, "title");
+                    mediaItem.Type = GetAttribute(videoNode, "type");
+
+                    // Extract media information
+                    System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
+                    if (mediaNodes != null)
                     {
-                        Media media = new Media
+                        foreach (System.Xml.XmlNode mediaNode in mediaNodes)
                         {
-                            Id = GetAttribute(mediaNode, "id"),
-                            Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
-                            VideoCodec = GetAttribute(mediaNode, "videoCodec"),
-                            AudioCodec = GetAttribute(mediaNode, "audioCodec"),
-                            Container = GetAttribute(mediaNode, "container")
-                        };
-
-                        // Extract part information
-                        System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
-                        if (partNodes != null)
-                        {
-                            foreach (System.Xml.XmlNode partNode in partNodes)
+                            Media media = new Media
                             {
-                                MediaPart part = new MediaPart
-                                {
-                                    Id = GetAttribute(partNode, "id"),
-                                    Key = GetAttribute(partNode, "key"),
-                                    Duration = int.TryParse(GetAttribute(partNode, "duration"), out int partDuration) ? partDuration : 0,
-                                    File = GetAttribute(partNode, "file")
-                                };
+                                Id = GetAttribute(mediaNode, "id"),
+                                Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
+                                VideoCodec = GetAttribute(mediaNode, "videoCodec"),
+                                AudioCodec = GetAttribute(mediaNode, "audioCodec"),
+                                Container = GetAttribute(mediaNode, "container")
+                            };
 
-                                // Extract subtitle streams
-                                System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
-                                if (streamNodes != null)
+                            // Extract part information
+                            System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
+                            if (partNodes != null)
+                            {
+                                foreach (System.Xml.XmlNode partNode in partNodes)
                                 {
-                                    foreach (System.Xml.XmlNode streamNode in streamNodes)
+                                    MediaPart part = new MediaPart
                                     {
-                                        SubtitleStream subtitle = new SubtitleStream
+                                        Id = GetAttribute(partNode, "id"),
+                                        Key = GetAttribute(partNode, "key"),
+                                        Duration = int.TryParse(GetAttribute(partNode, "duration"), out int partDuration) ? partDuration : 0,
+                                        File = GetAttribute(partNode, "file")
+                                    };
+
+                                    // Extract ALL subtitle streams (streamType=3)
+                                    System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
+                                    if (streamNodes != null)
+                                    {
+                                        foreach (System.Xml.XmlNode streamNode in streamNodes)
                                         {
-                                            Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
-                                            Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
-                                            ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
-                                            Language = GetAttribute(streamNode, "language"),
-                                            Selected = GetAttribute(streamNode, "selected") == "1"
-                                        };
-                                        part.Subtitles.Add(subtitle);
+                                            SubtitleStream subtitle = new SubtitleStream
+                                            {
+                                                Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
+                                                Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
+                                                ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
+                                                Language = GetAttribute(streamNode, "language"),
+                                                Selected = GetAttribute(streamNode, "selected") == "1"
+                                            };
+                                            part.Subtitles.Add(subtitle);
+                                        }
                                     }
+
+                                    media.Parts.Add(part);
                                 }
-
-                                media.Parts.Add(part);
                             }
-                        }
 
-                        mediaItem.Media.Add(media);
+                            mediaItem.Media.Add(media);
+                        }
                     }
                 }
-            }
 
-            Console.WriteLine($"Fetched media item: {mediaItem.Title} with {mediaItem.GetSubtitleStreams().Count} subtitle streams");
-            return mediaItem;
+                int subtitleCount = mediaItem.GetSubtitleStreams().Count;
+                Console.WriteLine($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
+
+                return mediaItem;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching media item: {ex.Message}");
+                return new PlexMediaItem { Key = key };
+            }
         }
     }
 
@@ -438,6 +527,10 @@
         public string ExtendedDisplayTitle { get; set; }
         public string Language { get; set; }
         public bool Selected { get; set; }
+        public string Format { get; set; }  // Added
+        public string Title { get; set; }   // Added
+        public string Location { get; set; } // Added
+        public bool IsExternal { get; set; } // Added
     }
 
     // Class to hold session objects and associated subtitles
@@ -893,32 +986,36 @@
 
         public static async Task<List<ActiveSession>> LoadActiveSessionsAsync(PlexServer plexServer)
         {
-            List<PlexSession> sessionsList = await plexServer.GetSessionsAsync();
+            var sessionsList = await plexServer.GetSessionsAsync();
+            var newActiveSessionList = new List<ActiveSession>();
+
+            foreach (var session in sessionsList)
+            {
+                string deviceName = session.Player.Title;
+                string machineID = session.Player.MachineIdentifier;
+
+                // Get active subtitles directly from the session Media
+                var activeSubs = GetActiveSubtitlesFromMedia(session);
+
+                // Get ALL available subtitles with a separate metadata call
+                var availableSubs = await GetAllAvailableSubtitlesAsync(session, plexServer);
+
+                string mediaTitle = session.GrandparentTitle ?? session.Title;
+
+                newActiveSessionList.Add(new ActiveSession(
+                    session: session,
+                    availableSubtitles: availableSubs,
+                    activeSubtitles: activeSubs,
+                    deviceName: deviceName,
+                    machineID: machineID,
+                    mediaTitle: mediaTitle
+                ));
+            }
 
             lock (_lockObject)
             {
                 _activeSessionList.Clear();
-
-                foreach (PlexSession session in sessionsList)
-                {
-                    string deviceName = session.Player.Title;
-                    string machineID = session.Player.MachineIdentifier;
-
-                    // Get active subtitles directly from the session Media if available
-                    List<SubtitleStream> activeSubs = GetActiveSubtitlesFromMedia(session);
-                    List<SubtitleStream> availableSubs = GetAvailableSubtitlesFromMedia(session);
-
-                    string mediaTitle = session.GrandparentTitle ?? session.Title;
-
-                    _activeSessionList.Add(new ActiveSession(
-                        session: session,
-                        availableSubtitles: availableSubs,
-                        activeSubtitles: activeSubs,
-                        deviceName: deviceName,
-                        machineID: machineID,
-                        mediaTitle: mediaTitle
-                    ));
-                }
+                _activeSessionList.AddRange(newActiveSessionList);
             }
 
             await ClientManager.LoadClientsAsync(plexServer);
@@ -938,6 +1035,27 @@
             }
         }
 
+        private static async Task<List<SubtitleStream>> GetAllAvailableSubtitlesAsync(PlexSession session, PlexServer plexServer)
+        {
+            try
+            {
+                // Make a separate call to get the full media metadata including all subtitle tracks
+                string mediaKey = session.Key; // Like '/library/metadata/20884'
+                var mediaItem = await plexServer.FetchItemAsync(mediaKey);
+
+                // Get all subtitle streams from the media item
+                var subtitles = mediaItem.GetSubtitleStreams();
+
+                Console.WriteLine($"Found {subtitles.Count} available subtitle tracks for {session.Title}");
+                return subtitles;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting available subtitles: {ex.Message}");
+                return new List<SubtitleStream>();
+            }
+        }
+
         public static async Task<List<SubtitleStream>> GetAvailableSubtitlesAsync(PlexSession session, PlexServer plexServer)
         {
             try
@@ -949,10 +1067,9 @@
                     return subsFromMedia;
                 }
 
-                // Otherwise fetch from the server
+                // Otherwise fetch all available subtitles from the server
                 string mediaKey = session.Key; // Like '/library/metadata/20884'
-                PlexMediaItem mediaItem = await session.FetchItemAsync(mediaKey, plexServer);
-                return mediaItem.GetSubtitleStreams();
+                return await plexServer.GetAvailableSubtitlesForMediaAsync(mediaKey);
             }
             catch (Exception ex)
             {
