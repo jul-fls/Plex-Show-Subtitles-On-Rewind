@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace PlexShowSubtitlesOnRewind
+﻿namespace PlexShowSubtitlesOnRewind
 {
     public static class SessionManager
     {

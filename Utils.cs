@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace PlexShowSubtitlesOnRewind;
 internal class Utils
@@ -29,8 +24,8 @@ internal class Utils
             return string.Empty;
         }
 
-        var argList = new List<string>();
-        foreach (var key in args.Keys.OrderBy(k => k.ToLower()))
+        List<string> argList = [];
+        foreach (string? key in args.Keys.OrderBy(k => k.ToLower()))
         {
             string value = args[key]?.ToString() ?? string.Empty;
             argList.Add($"{key}={System.Web.HttpUtility.UrlEncode(value)}");

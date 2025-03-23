@@ -48,16 +48,6 @@
             await client.SetSubtitleStreamAsync(0);
         }
 
-        public static async Task EnableSubtitlesByClientAsync(PlexClient client, int subtitleStreamID)
-        {
-            await EnableSubtitlesAsync(client, subtitleStreamID);
-        }
-
-        public static async Task DisableSubtitlesByClientAsync(PlexClient client)
-        {
-            await DisableSubtitlesAsync(client);
-        }
-
         public static PlexClient GetClient(object inputObj)
         {
             string machineID;
@@ -122,7 +112,7 @@
             }
             else if (session is ActiveSession activeSession && activeSession.AvailableSubtitles.Count > 0)
             {
-                await EnableSubtitlesAsync(client, activeSession.AvailableSubtitles[0].Id);
+                await EnableSubtitlesAsync(client, activeSession.AvailableSubtitles[0].Id); // Assume first available subtitle stream
             }
             else
             {

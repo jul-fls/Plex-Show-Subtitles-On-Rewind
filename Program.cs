@@ -1,6 +1,4 @@
-﻿using System.Runtime.InteropServices;
-
-namespace PlexShowSubtitlesOnRewind
+﻿namespace PlexShowSubtitlesOnRewind
 {
     static class Program
     {
@@ -124,4 +122,4 @@ namespace PlexShowSubtitlesOnRewind
         public const string TokenPlaceholder = "whatever_your_app_token_is";
     }
 
-    } // --------------- End namespace PlexShowSubtitlesOnRewind ---------------
+} // --------------- End namespace PlexShowSubtitlesOnRewind ---------------

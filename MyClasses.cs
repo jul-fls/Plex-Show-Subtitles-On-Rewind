@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices;
-using System.Xml;
+﻿using System.Xml;
 using System.Xml.Serialization;
 
 namespace PlexShowSubtitlesOnRewind;
@@ -92,30 +91,6 @@ public class PlexClient
         PlexServer = plexServer;
     }
 
-    //public async Task SetSubtitleStreamAsync(int streamId, string mediaType = "video")
-    //{
-    //    try
-    //    {
-    //        // Send command to the Plex client
-    //        string command = $"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}";
-    //        Console.WriteLine($"Sending command: {command}");
-
-    //        HttpResponseMessage response = await HttpClient.GetAsync(command);
-    //        if (response.IsSuccessStatusCode)
-    //        {
-    //            Console.WriteLine($"Successfully set subtitle stream {streamId} on client {DeviceName}");
-    //        }
-    //        else
-    //        {
-    //            Console.WriteLine($"Failed to set subtitle stream {streamId} on client {DeviceName}. Status: {response.StatusCode}");
-    //        }
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        Console.WriteLine($"Error setting subtitle stream: {ex.Message}");
-    //    }
-    //}
-
     /// <summary>
     /// Select multiple playback streams at once.
     /// </summary>
@@ -125,7 +100,7 @@ public class PlexClient
     /// <param name="mediaType">Media type to take action against (default: video)</param>
     /// <param name="server">The PlexServer instance to send the command through</param>
     /// <returns>Task representing the asynchronous operation</returns>
-    public async Task<XmlDocument?> SetStreamsAsync(
+    public async Task<CommandResult> SetStreamsAsync(
         PlexServer server,
         int? audioStreamID = null,
         int? subtitleStreamID = null,
@@ -158,7 +133,7 @@ public class PlexClient
     /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
     /// <param name="mediaType">Media type to take action against (default: video)</param>
     /// <returns>Task representing the asynchronous operation</returns>
-    public async Task<XmlDocument?> SetSubtitleStreamAsync(
+    public async Task<CommandResult> SetSubtitleStreamAsync(
         int subtitleStreamID,
         string mediaType = "video")
     {
@@ -196,10 +171,10 @@ public class SubtitleStream
     public string ExtendedDisplayTitle { get; set; }
     public string Language { get; set; }
     public bool Selected { get; set; }
-    public string Format { get; set; }  
-    public string Title { get; set; }   
-    public string Location { get; set; } 
-    public bool IsExternal { get; set; } 
+    public string Format { get; set; }
+    public string Title { get; set; }
+    public string Location { get; set; }
+    public bool IsExternal { get; set; }
 }
 
 // Class to hold session objects and associated subtitles
@@ -265,6 +240,15 @@ public class ActiveSession
     }
 }
 
+public class CommandResult(bool success, string responseErrorMessage, XmlDocument? responseXml)
+{
+    public bool Success { get; set; } = success;
+    public string Message { get; set; } = responseErrorMessage;
+    public XmlDocument? ResponseXml { get; set; } = responseXml;
+}
+
+// ----------------- XML Classes -----------------
+
 // XML-specific versions of your model classes
 [XmlRoot("Video")]
 public class PlexSessionXml
@@ -322,7 +306,7 @@ public class PlexSessionXml
 
         if (Media != null)
         {
-            foreach (var mediaXml in Media)
+            foreach (MediaXml mediaXml in Media)
             {
                 session.Media.Add(mediaXml.ToMedia());
             }
@@ -401,7 +385,7 @@ public class MediaXml
     // Convert to your existing Media class
     public Media ToMedia()
     {
-        var media = new Media
+        Media media = new Media
         {
             Id = Id,
             Duration = Duration,
@@ -412,7 +396,7 @@ public class MediaXml
 
         if (Parts != null)
         {
-            foreach (var partXml in Parts)
+            foreach (MediaPartXml partXml in Parts)
             {
                 media.Parts.Add(partXml.ToMediaPart());
             }
@@ -443,7 +427,7 @@ public class MediaPartXml
     // Convert to your existing MediaPart class
     public MediaPart ToMediaPart()
     {
-        var part = new MediaPart
+        MediaPart part = new MediaPart
         {
             Id = Id,
             Key = Key,
@@ -453,7 +437,7 @@ public class MediaPartXml
 
         if (Subtitles != null)
         {
-            foreach (var subtitleXml in Subtitles)
+            foreach (SubtitleStreamXml subtitleXml in Subtitles)
             {
                 if (subtitleXml.StreamType == 3) // Only add subtitle streams
                 {
