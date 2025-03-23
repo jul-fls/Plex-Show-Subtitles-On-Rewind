@@ -5,7 +5,6 @@
         // Replace with your Plex server details
         private const string PLEX_URL = "http://192.168.1.103:32400";
         private static string PLEX_APP_TOKEN;
-        private static string PLEX_PERSONAL_TOKEN;
 
         static async Task Main(string[] args)
         {
@@ -25,7 +24,9 @@
                         try
                         {
                             Console.WriteLine("Loading active sessions...");
-                            await SessionManager.LoadActiveSessionsAsync(plexServer);
+                            List<ActiveSession> activeSessionList = await SessionManager.LoadActiveSessionsAsync(plexServer);
+                            await ClientManager.LoadClientsAsync(plexServer);
+                            MonitorManager.StartMonitoringAllSessions(activeSessionList);
                         }
                         catch (Exception ex)
                         {
@@ -84,8 +85,6 @@
                 {
                     if (line.StartsWith("AppToken="))
                         PLEX_APP_TOKEN = line.Substring("AppToken=".Length);
-                    else if (line.StartsWith("PersonalToken="))
-                        PLEX_PERSONAL_TOKEN = line.Substring("PersonalToken=".Length);
                 }
             }
         }

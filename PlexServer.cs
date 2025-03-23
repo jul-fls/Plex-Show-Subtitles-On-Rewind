@@ -15,15 +15,16 @@
             _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", token);
         }
 
+        // Fetches active sessions from the Plex server, parses the resulting XML, and returns a list of custom PlexSession objects
         public async Task<List<PlexSession>> GetSessionsAsync()
         {
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
-                List<PlexSession> sessions = new List<PlexSession>();
+                List<PlexSession> sessions = [];
 
                 // Parse XML response
-                System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
+                System.Xml.XmlDocument xmlDoc = new();
                 xmlDoc.LoadXml(response);
 
                 System.Xml.XmlNodeList? videoNodes = xmlDoc.SelectNodes("//MediaContainer/Video");
@@ -36,13 +37,13 @@
                         // Extract video attributes
                         session.Key = GetAttribute(videoNode, "key");
                         session.Title = GetAttribute(videoNode, "title");
-                        session.GrandparentTitle = GetAttribute(videoNode, "grandparentTitle");
+                        session.GrandparentTitle = GetAttribute(videoNode, "grandparentTitle"); // Usually the name of the show
                         session.Type = GetAttribute(videoNode, "type");
                         session.RatingKey = GetAttribute(videoNode, "ratingKey");
                         session.SessionKey = GetAttribute(videoNode, "sessionKey");
 
-                        // Parse viewOffset as int
-                        int.TryParse(GetAttribute(videoNode, "viewOffset"), out int viewOffset);
+                        // Parse viewOffset as int. ViewOffset is the current position of the playhead in the video (in milliseconds)
+                        _ = int.TryParse(GetAttribute(videoNode, "viewOffset"), out int viewOffset);
                         session.ViewOffset = viewOffset;
 
                         // Extract media information
@@ -84,7 +85,7 @@
                                                 {
                                                     Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
                                                     Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
-                                                    ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
+                                                    ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"), // Usually includes language and other info like if "SDH"
                                                     Language = GetAttribute(streamNode, "language"),
                                                     Selected = GetAttribute(streamNode, "selected") == "1"
                                                 };

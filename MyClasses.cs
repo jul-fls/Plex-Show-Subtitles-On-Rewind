@@ -126,10 +126,10 @@ public class SubtitleStream
     public string ExtendedDisplayTitle { get; set; }
     public string Language { get; set; }
     public bool Selected { get; set; }
-    public string Format { get; set; }  // Added
-    public string Title { get; set; }   // Added
-    public string Location { get; set; } // Added
-    public bool IsExternal { get; set; } // Added
+    public string Format { get; set; }  
+    public string Title { get; set; }   
+    public string Location { get; set; } 
+    public bool IsExternal { get; set; } 
 }
 
 // Class to hold session objects and associated subtitles
@@ -166,23 +166,4 @@ public class ActiveSession
         return positionSec;
     }
 
-    public void SetActiveSubtitles(List<SubtitleStream> activeSubtitles)
-    {
-        ActiveSubtitles = activeSubtitles;
-    }
-
-    public void SetAvailableSubtitles(List<SubtitleStream> availableSubtitles)
-    {
-        AvailableSubtitles = availableSubtitles;
-    }
-
-    public List<SubtitleStream> GetActiveSubtitles()
-    {
-        return ActiveSubtitles;
-    }
-
-    public List<SubtitleStream> GetAvailableSubtitles()
-    {
-        return AvailableSubtitles;
-    }
 }

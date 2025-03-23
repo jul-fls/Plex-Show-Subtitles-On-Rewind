@@ -2,7 +2,7 @@
 {
     public static class ClientManager
     {
-        private static List<PlexClient> _clientList = new List<PlexClient>();
+        private static List<PlexClient> _clientList = [];
         private static readonly object _lockObject = new object();
 
         public static async Task<List<PlexClient>> LoadClientsAsync(PlexServer plexServer)

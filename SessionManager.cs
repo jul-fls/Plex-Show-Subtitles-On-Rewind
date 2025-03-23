@@ -8,7 +8,7 @@
         public static async Task<List<ActiveSession>> LoadActiveSessionsAsync(PlexServer plexServer)
         {
             List<PlexSession> sessionsList = await plexServer.GetSessionsAsync();
-            List<ActiveSession> newActiveSessionList = new List<ActiveSession>();
+            List<ActiveSession> newActiveSessionList = [];
 
             foreach (PlexSession session in sessionsList)
             {
@@ -16,7 +16,7 @@
                 string machineID = session.Player.MachineIdentifier;
 
                 // Get active subtitles directly from the session Media
-                List<SubtitleStream> activeSubs = GetActiveSubtitlesFromMedia(session);
+                List<SubtitleStream> activeSubs = GetActiveSubtitlesForSession(session);
 
                 // Get ALL available subtitles with a separate metadata call
                 List<SubtitleStream> availableSubs = await GetAllAvailableSubtitlesAsync(session, plexServer);
@@ -39,9 +39,6 @@
                 _activeSessionList.AddRange(newActiveSessionList);
             }
 
-            await ClientManager.LoadClientsAsync(plexServer);
-            MonitorManager.StartMonitoringAllSessions(_activeSessionList);
-
             Console.WriteLine($"Loaded {_activeSessionList.Count} active sessions");
             PrintSubtitles(); // Print initial subtitle status
 
@@ -52,7 +49,7 @@
         {
             lock (_lockObject)
             {
-                return new List<ActiveSession>(_activeSessionList);
+                return _activeSessionList;
             }
         }
 
@@ -77,52 +74,9 @@
             }
         }
 
-        public static async Task<List<SubtitleStream>> GetAvailableSubtitlesAsync(PlexSession session, PlexServer plexServer)
+        private static List<SubtitleStream> GetActiveSubtitlesForSession(PlexSession session)
         {
-            try
-            {
-                // First check if we already have this information in the session
-                List<SubtitleStream> subsFromMedia = GetAvailableSubtitlesFromMedia(session);
-                if (subsFromMedia.Count > 0)
-                {
-                    return subsFromMedia;
-                }
-
-                // Otherwise fetch all available subtitles from the server
-                string mediaKey = session.Key; // Like '/library/metadata/20884'
-                return await plexServer.GetAvailableSubtitlesForMediaAsync(mediaKey);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error getting available subtitles: {ex.Message}");
-                return new List<SubtitleStream>();
-            }
-        }
-
-        private static List<SubtitleStream> GetAvailableSubtitlesFromMedia(PlexSession session)
-        {
-            List<SubtitleStream> result = new List<SubtitleStream>();
-
-            if (session.Media != null && session.Media.Count > 0)
-            {
-                foreach (Media media in session.Media)
-                {
-                    if (media.Parts != null && media.Parts.Count > 0)
-                    {
-                        foreach (MediaPart part in media.Parts)
-                        {
-                            result.AddRange(part.Subtitles);
-                        }
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        private static List<SubtitleStream> GetActiveSubtitlesFromMedia(PlexSession session)
-        {
-            List<SubtitleStream> result = new List<SubtitleStream>();
+            List<SubtitleStream> result = [];
 
             if (session.Media != null && session.Media.Count > 0)
             {
@@ -140,36 +94,6 @@
             }
 
             return result;
-        }
-
-        public static async Task<List<SubtitleStream>> GetActiveSubtitlesAsync(PlexSession session, PlexServer plexServer)
-        {
-            try
-            {
-                // First check if we already have this information in the session
-                List<SubtitleStream> subsFromMedia = GetActiveSubtitlesFromMedia(session);
-                if (subsFromMedia.Count > 0)
-                {
-                    return subsFromMedia;
-                }
-
-                // Otherwise fetch from the server
-                if (session.Media != null && session.Media.Count > 0)
-                {
-                    Media media = session.Media[0];
-                    if (media.Parts != null && media.Parts.Count > 0)
-                    {
-                        return media.Parts[0].Subtitles.Where(s => s.Selected).ToList();
-                    }
-                }
-
-                return new List<SubtitleStream>();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error getting active subtitles: {ex.Message}");
-                return new List<SubtitleStream>();
-            }
         }
 
         public static void PrintSubtitles()
