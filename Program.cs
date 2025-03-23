@@ -7,8 +7,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-#nullable enable
-
 namespace PlexSubtitleMonitor
 {
     class Program
@@ -20,17 +18,59 @@ namespace PlexSubtitleMonitor
 
         static async Task Main(string[] args)
         {
-            LoadTokens();
+            try
+            {
+                LoadTokens();
 
-            var plexServer = new PlexServer(PLEX_URL, PLEX_APP_TOKEN);
-            await SessionManager.LoadActiveSessionsAsync(plexServer);
+                Console.WriteLine($"Connecting to Plex server at {PLEX_URL}");
+                var plexServer = new PlexServer(PLEX_URL, PLEX_APP_TOKEN);
 
-            // Keep program running
-            Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+                // Setup periodic session refresh
+                var tokenSource = new CancellationTokenSource();
+                var refreshTask = Task.Run(async () =>
+                {
+                    while (!tokenSource.Token.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            Console.WriteLine("Loading active sessions...");
+                            await SessionManager.LoadActiveSessionsAsync(plexServer);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error refreshing sessions: {ex.Message}");
+                        }
+                        
+                        // Wait 30 seconds before refreshing again
+                        await Task.Delay(TimeSpan.FromSeconds(30), tokenSource.Token);
+                    }
+                }, tokenSource.Token);
 
-            // Clean up when exiting
-            MonitorManager.StopAllMonitors();
+                // Keep program running
+                Console.WriteLine("Monitoring active Plex sessions for rewinding. Press any key to exit...");
+                Console.ReadKey();
+
+                // Clean up when exiting
+                Console.WriteLine("Shutting down...");
+                tokenSource.Cancel();
+                MonitorManager.StopAllMonitors();
+
+                try
+                {
+                    await refreshTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation token is triggered
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Fatal error: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+            }
         }
 
         static void LoadTokens()
@@ -77,27 +117,101 @@ namespace PlexSubtitleMonitor
 
         public async Task<List<PlexSession>> GetSessionsAsync()
         {
-            string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
-            // Here you would parse the XML response from Plex
-            // For simplicity, we'll simulate sessions
-            List<PlexSession> sessions = new List<PlexSession>();
-
-            // In a real implementation, you would parse XML and create proper sessions
-            Console.WriteLine("USING PLACEHOLDER DATA...");
-            sessions.Add(new PlexSession
+            try
             {
-                Key = "/library/metadata/12345",
-                Title = "Sample Media",
-                GrandparentTitle = "Sample Show",
-                ViewOffset = 100000, // 100 seconds
-                Player = new PlexPlayer
-                {
-                    Title = "Apple TV",
-                    MachineIdentifier = "sample-machine-id-1"
-                }
-            });
+                string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
+                List<PlexSession> sessions = new List<PlexSession>();
 
-            return sessions;
+                // Parse XML response
+                System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
+                xmlDoc.LoadXml(response);
+
+                System.Xml.XmlNodeList? videoNodes = xmlDoc.SelectNodes("//MediaContainer/Video");
+                if (videoNodes != null)
+                {
+                    foreach (System.Xml.XmlNode videoNode in videoNodes)
+                    {
+                        PlexSession session = new PlexSession();
+
+                        // Extract video attributes
+                        session.Key = GetAttribute(videoNode, "key");
+                        session.Title = GetAttribute(videoNode, "title");
+                        session.GrandparentTitle = GetAttribute(videoNode, "grandparentTitle");
+                        session.Type = GetAttribute(videoNode, "type");
+                        session.RatingKey = GetAttribute(videoNode, "ratingKey");
+                        session.SessionKey = GetAttribute(videoNode, "sessionKey");
+
+                        // Parse viewOffset as int
+                        int.TryParse(GetAttribute(videoNode, "viewOffset"), out int viewOffset);
+                        session.ViewOffset = viewOffset;
+
+                        // Extract media information
+                        var mediaNodes = videoNode.SelectNodes("Media");
+                        if (mediaNodes != null)
+                        {
+                            foreach (System.Xml.XmlNode mediaNode in mediaNodes)
+                            {
+                                var media = new Media
+                                {
+                                    Id = GetAttribute(mediaNode, "id"),
+                                    Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
+                                    VideoCodec = GetAttribute(mediaNode, "videoCodec"),
+                                    AudioCodec = GetAttribute(mediaNode, "audioCodec"),
+                                    Container = GetAttribute(mediaNode, "container")
+                                };
+
+                                // Extract part information
+                                System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
+                                if (partNodes != null)
+                                {
+                                    foreach (System.Xml.XmlNode partNode in partNodes)
+                                    {
+                                        MediaPart part = new MediaPart
+                                        {
+                                            Id = GetAttribute(partNode, "id"),
+                                            Key = GetAttribute(partNode, "key"),
+                                            Duration = int.TryParse(GetAttribute(partNode, "duration"), out int partDuration) ? partDuration : 0,
+                                            File = GetAttribute(partNode, "file")
+                                        };
+
+                                        // Extract enabled subtitle streams (streamType='3') - Won't show available subtitles, only active ones
+                                        var streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
+                                        if (streamNodes != null)
+                                        {
+                                            foreach (System.Xml.XmlNode streamNode in streamNodes)
+                                            {
+                                                var subtitle = new SubtitleStream
+                                                {
+                                                    Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
+                                                    Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
+                                                    ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
+                                                    Language = GetAttribute(streamNode, "language"),
+                                                    Selected = GetAttribute(streamNode, "selected") == "1"
+                                                };
+                                                part.Subtitles.Add(subtitle);
+                                            }
+                                        }
+
+                                        media.Parts.Add(part);
+                                    }
+                                }
+
+                                session.Media.Add(media);
+                            }
+                        }
+
+                        sessions.Add(session);
+                    }
+                }
+
+                Console.WriteLine($"Found {sessions.Count} active Plex sessions");
+                return sessions;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting sessions: {ex.Message}");
+                return new List<PlexSession>();
+            }
         }
 
         public async Task<List<PlexClient>> GetClientsAsync()
@@ -119,28 +233,89 @@ namespace PlexSubtitleMonitor
             return clients;
         }
 
+        private string GetAttribute(System.Xml.XmlNode node, string attributeName)
+        {
+            if (node == null || node.Attributes == null)
+                return string.Empty;
+
+            var attr = node.Attributes[attributeName];
+            return attr?.Value ?? string.Empty;
+        }
+
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
             var response = await _httpClient.GetStringAsync($"{_url}{key}");
-            // Here you would parse the XML response from Plex
-            // For simplicity, we'll simulate media items
-            var mediaItem = new PlexMediaItem
+            var mediaItem = new PlexMediaItem { Key = key };
+
+            // Parse XML response
+            var xmlDoc = new System.Xml.XmlDocument();
+            xmlDoc.LoadXml(response);
+
+
+
+            var videoNode = xmlDoc.SelectSingleNode("//MediaContainer/Video");
+            if (videoNode != null)
             {
-                Key = key,
-                Media = new List<Media> {
-                    new Media {
-                        Parts = new List<MediaPart> {
-                            new MediaPart {
-                                Subtitles = new List<SubtitleStream> {
-                                    new SubtitleStream { Id = 1, ExtendedDisplayTitle = "English (SRT)" },
-                                    new SubtitleStream { Id = 2, ExtendedDisplayTitle = "Spanish (SRT)" }
+                mediaItem.Title = GetAttribute(videoNode, "title");
+                mediaItem.Type = GetAttribute(videoNode, "type");
+
+                // Extract media information
+                var mediaNodes = videoNode.SelectNodes("Media");
+                if (mediaNodes != null)
+                {
+                    foreach (System.Xml.XmlNode mediaNode in mediaNodes)
+                    {
+                        var media = new Media
+                        {
+                            Id = GetAttribute(mediaNode, "id"),
+                            Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
+                            VideoCodec = GetAttribute(mediaNode, "videoCodec"),
+                            AudioCodec = GetAttribute(mediaNode, "audioCodec"),
+                            Container = GetAttribute(mediaNode, "container")
+                        };
+
+                        // Extract part information
+                        var partNodes = mediaNode.SelectNodes("Part");
+                        if (partNodes != null)
+                        {
+                            foreach (System.Xml.XmlNode partNode in partNodes)
+                            {
+                                var part = new MediaPart
+                                {
+                                    Id = GetAttribute(partNode, "id"),
+                                    Key = GetAttribute(partNode, "key"),
+                                    Duration = int.TryParse(GetAttribute(partNode, "duration"), out int partDuration) ? partDuration : 0,
+                                    File = GetAttribute(partNode, "file")
+                                };
+
+                                // Extract subtitle streams
+                                var streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
+                                if (streamNodes != null)
+                                {
+                                    foreach (System.Xml.XmlNode streamNode in streamNodes)
+                                    {
+                                        var subtitle = new SubtitleStream
+                                        {
+                                            Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
+                                            Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
+                                            ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
+                                            Language = GetAttribute(streamNode, "language"),
+                                            Selected = GetAttribute(streamNode, "selected") == "1"
+                                        };
+                                        part.Subtitles.Add(subtitle);
+                                    }
                                 }
+
+                                media.Parts.Add(part);
                             }
                         }
+
+                        mediaItem.Media.Add(media);
                     }
                 }
-            };
+            }
 
+            Console.WriteLine($"Fetched media item: {mediaItem.Title} with {mediaItem.GetSubtitleStreams().Count} subtitle streams");
             return mediaItem;
         }
     }
@@ -148,6 +323,8 @@ namespace PlexSubtitleMonitor
     public class PlexMediaItem
     {
         public string Key { get; set; }
+        public string Title { get; set; }
+        public string Type { get; set; }
         public List<Media> Media { get; set; } = new List<Media>();
 
         public List<SubtitleStream> GetSubtitleStreams()
@@ -169,11 +346,21 @@ namespace PlexSubtitleMonitor
     public class PlexSession
     {
         public string Key { get; set; }
+        public string RatingKey { get; set; }
+        public string SessionKey { get; set; }
         public string Title { get; set; }
         public string GrandparentTitle { get; set; }
+        public string Type { get; set; } // movie, episode, etc.
         public int ViewOffset { get; set; } // in milliseconds
         public PlexPlayer Player { get; set; }
+        public List<Media> Media { get; set; } = new List<Media>();
         private PlexMediaItem _cachedItem;
+
+        public PlexSession()
+        {
+            Player = new PlexPlayer();
+            Media = new List<Media>();
+        }
 
         public void Reload()
         {
@@ -190,6 +377,7 @@ namespace PlexSubtitleMonitor
             }
             return _cachedItem;
         }
+
     }
 
     public class PlexPlayer
@@ -202,31 +390,63 @@ namespace PlexSubtitleMonitor
     {
         public string Title { get; set; }
         public string MachineIdentifier { get; set; }
+        public string Device { get; set; }
+        public string Model { get; set; }
+        public string Platform { get; set; }
         public HttpClient HttpClient { get; set; }
         public string BaseUrl { get; set; }
 
         public async Task SetSubtitleStreamAsync(int streamId, string mediaType = "video")
         {
-            // In a real implementation, this would send a command to the Plex client
-            await HttpClient.GetAsync($"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}");
-            Console.WriteLine($"Setting subtitle stream {streamId} on client {Title}");
+            try
+            {
+                // Send command to the Plex client
+                var command = $"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}";
+                Console.WriteLine($"Sending command: {command}");
+
+                var response = await HttpClient.GetAsync(command);
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Successfully set subtitle stream {streamId} on client {Title}");
+                }
+                else
+                {
+                    Console.WriteLine($"Failed to set subtitle stream {streamId} on client {Title}. Status: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting subtitle stream: {ex.Message}");
+            }
         }
     }
 
     public class Media
     {
+        public string Id { get; set; }
+        public int Duration { get; set; }
+        public string VideoCodec { get; set; }
+        public string AudioCodec { get; set; }
+        public string Container { get; set; }
         public List<MediaPart> Parts { get; set; } = new List<MediaPart>();
     }
 
     public class MediaPart
     {
+        public string Id { get; set; }
+        public string Key { get; set; }
+        public int Duration { get; set; }
+        public string File { get; set; }
         public List<SubtitleStream> Subtitles { get; set; } = new List<SubtitleStream>();
     }
 
     public class SubtitleStream
     {
         public int Id { get; set; }
+        public int Index { get; set; }
         public string ExtendedDisplayTitle { get; set; }
+        public string Language { get; set; }
+        public bool Selected { get; set; }
     }
 
     // Class to hold session objects and associated subtitles
@@ -367,11 +587,12 @@ namespace PlexSubtitleMonitor
             {
                 while (_isMonitoring)
                 {
-                    double positionSec = _latestWatchedPosition;
+                    // Refresh
+                    double positionSec = _activeSession.GetPlayPositionSeconds();
+
                     try
                     {
-                        // Refresh
-                        positionSec = _activeSession.GetPlayPositionSeconds();
+                        
                         if (_printDebug)
                         {
                             Console.WriteLine($"Loop iteration - position: {positionSec} -- Previous: {_previousPosition} -- Latest: {_latestWatchedPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
@@ -537,21 +758,39 @@ namespace PlexSubtitleMonitor
     public static class ClientManager
     {
         private static List<PlexClient> _clientList = new List<PlexClient>();
+        private static readonly object _lockObject = new object();
 
         public static async Task<List<PlexClient>> LoadClientsAsync(PlexServer plexServer)
         {
-            var clientList = await plexServer.GetClientsAsync();
-            _clientList.Clear();
-            foreach (var client in clientList)
+            try
             {
-                _clientList.Add(client);
+                var clientList = await plexServer.GetClientsAsync();
+
+                lock (_lockObject)
+                {
+                    _clientList.Clear();
+                    foreach (var client in clientList)
+                    {
+                        _clientList.Add(client);
+                    }
+                }
+
+                Console.WriteLine($"Loaded {_clientList.Count} Plex clients");
+                return _clientList;
             }
-            return _clientList;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading clients: {ex.Message}");
+                return new List<PlexClient>();
+            }
         }
 
         public static List<PlexClient> Get()
         {
-            return _clientList;
+            lock (_lockObject)
+            {
+                return new List<PlexClient>(_clientList);
+            }
         }
 
         public static async Task EnableSubtitlesAsync(PlexClient client, int subtitleStreamID)
@@ -591,13 +830,23 @@ namespace PlexSubtitleMonitor
                 throw new Exception("Invalid input object type into ClientManager.GetClient().");
             }
 
-            return _clientList.FirstOrDefault(client => client.MachineIdentifier == machineID);
+            lock (_lockObject)
+            {
+                return _clientList.FirstOrDefault(client => client.MachineIdentifier == machineID);
+            }
         }
 
         public static async Task DisableSubtitlesBySessionAsync(object session)
         {
             var client = GetClient(session);
-            await DisableSubtitlesAsync(client);
+            if (client != null)
+            {
+                await DisableSubtitlesAsync(client);
+            }
+            else
+            {
+                Console.WriteLine("No client found for this session");
+            }
         }
 
         // For simplicity, also providing non-async versions
@@ -612,6 +861,11 @@ namespace PlexSubtitleMonitor
             SubtitleStream subtitleStream = null)
         {
             var client = GetClient(session);
+            if (client == null)
+            {
+                Console.WriteLine("No client found for this session");
+                return;
+            }
 
             if (subtitleStreamID.HasValue)
             {
@@ -644,52 +898,149 @@ namespace PlexSubtitleMonitor
     public static class SessionManager
     {
         private static List<ActiveSession> _activeSessionList = new List<ActiveSession>();
+        private static readonly object _lockObject = new object();
 
         public static async Task<List<ActiveSession>> LoadActiveSessionsAsync(PlexServer plexServer)
         {
             var sessionsList = await plexServer.GetSessionsAsync();
-            _activeSessionList.Clear();
 
-            foreach (var session in sessionsList)
+            lock (_lockObject)
             {
-                string deviceName = session.Player.Title;
-                string machineID = session.Player.MachineIdentifier;
-                var activeSubs = await GetActiveSubtitlesAsync(session, plexServer);
-                var availableSubs = await GetAvailableSubtitlesAsync(session, plexServer);
-                string mediaTitle = session.GrandparentTitle ?? session.Title;
+                _activeSessionList.Clear();
 
-                _activeSessionList.Add(new ActiveSession(
-                    session: session,
-                    availableSubtitles: availableSubs,
-                    activeSubtitles: activeSubs,
-                    deviceName: deviceName,
-                    machineID: machineID,
-                    mediaTitle: mediaTitle
-                ));
+                foreach (var session in sessionsList)
+                {
+                    string deviceName = session.Player.Title;
+                    string machineID = session.Player.MachineIdentifier;
+
+                    // Get active subtitles directly from the session Media if available
+                    var activeSubs = GetActiveSubtitlesFromMedia(session);
+                    var availableSubs = GetAvailableSubtitlesFromMedia(session);
+
+                    string mediaTitle = session.GrandparentTitle ?? session.Title;
+
+                    _activeSessionList.Add(new ActiveSession(
+                        session: session,
+                        availableSubtitles: availableSubs,
+                        activeSubtitles: activeSubs,
+                        deviceName: deviceName,
+                        machineID: machineID,
+                        mediaTitle: mediaTitle
+                    ));
+                }
             }
 
             await ClientManager.LoadClientsAsync(plexServer);
             MonitorManager.StartMonitoringAllSessions(_activeSessionList);
+
+            Console.WriteLine($"Loaded {_activeSessionList.Count} active sessions");
+            PrintSubtitles(); // Print initial subtitle status
+
             return _activeSessionList;
         }
 
         public static List<ActiveSession> Get()
         {
-            return _activeSessionList;
+            lock (_lockObject)
+            {
+                return new List<ActiveSession>(_activeSessionList);
+            }
         }
 
         public static async Task<List<SubtitleStream>> GetAvailableSubtitlesAsync(PlexSession session, PlexServer plexServer)
         {
-            string mediaKey = session.Key; // Like '/library/metadata/20884'
-            var mediaItem = await session.FetchItemAsync(mediaKey, plexServer);
-            return mediaItem.GetSubtitleStreams();
+            try
+            {
+                // First check if we already have this information in the session
+                var subsFromMedia = GetAvailableSubtitlesFromMedia(session);
+                if (subsFromMedia.Count > 0)
+                {
+                    return subsFromMedia;
+                }
+
+                // Otherwise fetch from the server
+                string mediaKey = session.Key; // Like '/library/metadata/20884'
+                var mediaItem = await session.FetchItemAsync(mediaKey, plexServer);
+                return mediaItem.GetSubtitleStreams();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting available subtitles: {ex.Message}");
+                return new List<SubtitleStream>();
+            }
+        }
+
+        private static List<SubtitleStream> GetAvailableSubtitlesFromMedia(PlexSession session)
+        {
+            var result = new List<SubtitleStream>();
+
+            if (session.Media != null && session.Media.Count > 0)
+            {
+                foreach (var media in session.Media)
+                {
+                    if (media.Parts != null && media.Parts.Count > 0)
+                    {
+                        foreach (var part in media.Parts)
+                        {
+                            result.AddRange(part.Subtitles);
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private static List<SubtitleStream> GetActiveSubtitlesFromMedia(PlexSession session)
+        {
+            var result = new List<SubtitleStream>();
+
+            if (session.Media != null && session.Media.Count > 0)
+            {
+                foreach (var media in session.Media)
+                {
+                    if (media.Parts != null && media.Parts.Count > 0)
+                    {
+                        foreach (var part in media.Parts)
+                        {
+                            // Only add subtitles that are marked as selected
+                            result.AddRange(part.Subtitles.Where(s => s.Selected));
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         public static async Task<List<SubtitleStream>> GetActiveSubtitlesAsync(PlexSession session, PlexServer plexServer)
         {
-            // In a real implementation, this would get the active subtitles
-            // For simplicity, we'll just return an empty list
-            return new List<SubtitleStream>();
+            try
+            {
+                // First check if we already have this information in the session
+                var subsFromMedia = GetActiveSubtitlesFromMedia(session);
+                if (subsFromMedia.Count > 0)
+                {
+                    return subsFromMedia;
+                }
+
+                // Otherwise fetch from the server
+                if (session.Media != null && session.Media.Count > 0)
+                {
+                    var media = session.Media[0];
+                    if (media.Parts != null && media.Parts.Count > 0)
+                    {
+                        return media.Parts[0].Subtitles.Where(s => s.Selected).ToList();
+                    }
+                }
+
+                return new List<SubtitleStream>();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting active subtitles: {ex.Message}");
+                return new List<SubtitleStream>();
+            }
         }
 
         public static void PrintSubtitles()
