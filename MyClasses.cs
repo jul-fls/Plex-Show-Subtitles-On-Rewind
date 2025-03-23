@@ -11,6 +11,8 @@ public class PlexMediaItem
     public PlexMediaItem(string key)
     {
         Key = key;
+        Title = string.Empty;
+        Type = string.Empty;
     }
 
     public string Key { get; set; }
@@ -36,17 +38,17 @@ public class PlexMediaItem
 
 public class PlexSession
 {
-    public string Key { get; set; }
-    public string SessionId { get; set; }
-    public string RatingKey { get; set; }
-    public string SessionKey { get; set; }
-    public string Title { get; set; }
-    public string GrandparentTitle { get; set; }
-    public string Type { get; set; } // movie, episode, etc.
+    public string Key { get; set; } = string.Empty;
+    public string SessionId { get; set; } = string.Empty;
+    public string RatingKey { get; set; } = string.Empty;
+    public string SessionKey { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string GrandparentTitle { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty; // movie, episode, etc.
     public int ViewOffset { get; set; } // in milliseconds
     public PlexPlayer Player { get; set; }
     public List<Media> Media { get; set; } = [];
-    private PlexMediaItem _cachedItem;
+    private PlexMediaItem? _cachedItem;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0028:Simplify collection initialization", Justification = "Simplifying obscures Media type")]
     public PlexSession()
@@ -57,20 +59,18 @@ public class PlexSession
 
     public async Task<PlexMediaItem> FetchItemAsync(string key, PlexServer server)
     {
-
         if (_cachedItem == null)
         {
             _cachedItem = await server.FetchItemAsync(key);
         }
         return _cachedItem;
     }
-
 }
 
 public class PlexPlayer
 {
-    public string Title { get; set; }
-    public string MachineIdentifier { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string MachineIdentifier { get; set; } = string.Empty;
 }
 
 public class PlexClient(string deviceName, string machineIdentifier, string clientAppName, string deviceClass, string platform, HttpClient httpClient, string baseUrl, PlexServer plexServer)
@@ -140,20 +140,20 @@ public class PlexClient(string deviceName, string machineIdentifier, string clie
 
 public class Media
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public int Duration { get; set; }
-    public string VideoCodec { get; set; }
-    public string AudioCodec { get; set; }
-    public string Container { get; set; }
+    public string VideoCodec { get; set; } = string.Empty;
+    public string AudioCodec { get; set; } = string.Empty;
+    public string Container { get; set; } = string.Empty;
     public List<MediaPart> Parts { get; set; } = [];
 }
 
 public class MediaPart
 {
-    public string Id { get; set; }
-    public string Key { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string Key { get; set; } = string.Empty;
     public int Duration { get; set; }
-    public string File { get; set; }
+    public string File { get; set; } = string.Empty;
     public List<SubtitleStream> Subtitles { get; set; } = [];
 }
 
@@ -161,12 +161,12 @@ public class SubtitleStream
 {
     public int Id { get; set; }
     public int Index { get; set; }
-    public string ExtendedDisplayTitle { get; set; }
-    public string Language { get; set; }
+    public string ExtendedDisplayTitle { get; set; } = string.Empty;
+    public string Language { get; set; } = string.Empty;
     public bool Selected { get; set; }
-    public string Format { get; set; }
-    public string Title { get; set; }
-    public string Location { get; set; }
+    public string Format { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
     public bool IsExternal { get; set; }
 }
 
@@ -234,34 +234,34 @@ public class CommandResult(bool success, string responseErrorMessage, XmlDocumen
 public class PlexSessionXml
 {
     [XmlAttribute("key")]
-    public string Key { get; set; }
+    public string Key { get; set; } = string.Empty;
 
     [XmlAttribute("ratingKey")]
-    public string RatingKey { get; set; }
+    public string RatingKey { get; set; } = string.Empty;
 
     [XmlAttribute("sessionKey")]
-    public string SessionKey { get; set; }
+    public string SessionKey { get; set; } = string.Empty;
 
     [XmlAttribute("title")]
-    public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     [XmlAttribute("grandparentTitle")]
-    public string GrandparentTitle { get; set; }
+    public string GrandparentTitle { get; set; } = string.Empty;
 
     [XmlAttribute("type")]
-    public string Type { get; set; }
+    public string Type { get; set; } = string.Empty;
 
     [XmlAttribute("viewOffset")]
     public int ViewOffset { get; set; }
 
     [XmlElement("Player")]
-    public PlexPlayerXml Player { get; set; }
+    public PlexPlayerXml Player { get; set; } = new();
 
     [XmlElement("Media")]
     public List<MediaXml> Media { get; set; } = [];
 
     [XmlElement("id")]
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     // Convert to your existing PlexSession class
     public PlexSession ToPlexSession()
@@ -300,29 +300,29 @@ public class PlexSessionXml
 public class PlexPlayerXml
 {
     [XmlAttribute("title")]
-    public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     [XmlAttribute("machineIdentifier")]
-    public string MachineIdentifier { get; set; }
+    public string MachineIdentifier { get; set; } = string.Empty;
 }
 
 [XmlRoot("Server")]
 public class PlexClientXml
 {
     [XmlAttribute("name")]
-    public string DeviceName { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
 
     [XmlAttribute("machineIdentifier")]
-    public string MachineIdentifier { get; set; }
+    public string MachineIdentifier { get; set; } = string.Empty;
 
     [XmlAttribute("product")]
-    public string ClientAppName { get; set; }
+    public string ClientAppName { get; set; } = string.Empty;
 
     [XmlAttribute("deviceClass")]
-    public string DeviceClass { get; set; }
+    public string DeviceClass { get; set; } = string.Empty;
 
     [XmlAttribute("platform")]
-    public string Platform { get; set; }
+    public string Platform { get; set; } = string.Empty;
 
     // Convert to your existing PlexClient class
     public PlexClient ToPlexClient(HttpClient httpClient, string baseUrl, PlexServer plexServer)
@@ -345,19 +345,19 @@ public class PlexClientXml
 public class MediaXml
 {
     [XmlAttribute("id")]
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     [XmlAttribute("duration")]
     public int Duration { get; set; }
 
     [XmlAttribute("videoCodec")]
-    public string VideoCodec { get; set; }
+    public string VideoCodec { get; set; } = string.Empty;
 
     [XmlAttribute("audioCodec")]
-    public string AudioCodec { get; set; }
+    public string AudioCodec { get; set; } = string.Empty;
 
     [XmlAttribute("container")]
-    public string Container { get; set; }
+    public string Container { get; set; } = string.Empty;
 
     [XmlElement("Part")]
     public List<MediaPartXml> Parts { get; set; } = [];
@@ -390,19 +390,19 @@ public class MediaXml
 public class MediaPartXml
 {
     [XmlAttribute("id")]
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     [XmlAttribute("key")]
-    public string Key { get; set; }
+    public string Key { get; set; } = string.Empty;
 
     [XmlAttribute("duration")]
     public int Duration { get; set; }
 
     [XmlAttribute("file")]
-    public string File { get; set; }
+    public string File { get; set; } = string.Empty;
 
     [XmlElement("Stream")]
-    public List<SubtitleStreamXml> Subtitles { get; set; } = [];
+    public List<SubtitleStreamXml> SubtitlesXml { get; set; } = [];
 
     // Convert to your existing MediaPart class
     public MediaPart ToMediaPart()
@@ -415,9 +415,9 @@ public class MediaPartXml
             File = File
         };
 
-        if (Subtitles != null)
+        if (SubtitlesXml != null)
         {
-            foreach (SubtitleStreamXml subtitleXml in Subtitles)
+            foreach (SubtitleStreamXml subtitleXml in SubtitlesXml)
             {
                 if (subtitleXml.StreamType == 3) // Only add subtitle streams
                 {
@@ -443,22 +443,22 @@ public class SubtitleStreamXml
     public int Index { get; set; }
 
     [XmlAttribute("extendedDisplayTitle")]
-    public string ExtendedDisplayTitle { get; set; }
+    public string ExtendedDisplayTitle { get; set; } = string.Empty;
 
     [XmlAttribute("language")]
-    public string Language { get; set; }
+    public string Language { get; set; } = string.Empty;
 
     [XmlAttribute("selected")]
-    public string SelectedValue { get; set; }
+    public string SelectedValue { get; set; } = string.Empty;
 
     [XmlAttribute("format")]
-    public string Format { get; set; }
+    public string Format { get; set; } = string.Empty;
 
     [XmlAttribute("title")]
-    public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     [XmlAttribute("location")]
-    public string Location { get; set; }
+    public string Location { get; set; } = string.Empty;
 
     // Convert to your existing SubtitleStream class
     public SubtitleStream ToSubtitleStream()
