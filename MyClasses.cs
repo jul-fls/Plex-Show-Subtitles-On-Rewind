@@ -4,11 +4,11 @@ public class PlexMediaItem
     public string Key { get; set; }
     public string Title { get; set; }
     public string Type { get; set; }
-    public List<Media> Media { get; set; } = new List<Media>();
+    public List<Media> Media { get; set; } = [];
 
     public List<SubtitleStream> GetSubtitleStreams()
     {
-        List<SubtitleStream> subtitles = new List<SubtitleStream>();
+        List<SubtitleStream> subtitles = [];
 
         foreach (Media media in Media)
         {
@@ -32,7 +32,7 @@ public class PlexSession
     public string Type { get; set; } // movie, episode, etc.
     public int ViewOffset { get; set; } // in milliseconds
     public PlexPlayer Player { get; set; }
-    public List<Media> Media { get; set; } = new List<Media>();
+    public List<Media> Media { get; set; } = [];
     private PlexMediaItem _cachedItem;
 
     public PlexSession()
@@ -107,7 +107,7 @@ public class Media
     public string VideoCodec { get; set; }
     public string AudioCodec { get; set; }
     public string Container { get; set; }
-    public List<MediaPart> Parts { get; set; } = new List<MediaPart>();
+    public List<MediaPart> Parts { get; set; } = [];
 }
 
 public class MediaPart
@@ -116,7 +116,7 @@ public class MediaPart
     public string Key { get; set; }
     public int Duration { get; set; }
     public string File { get; set; }
-    public List<SubtitleStream> Subtitles { get; set; } = new List<SubtitleStream>();
+    public List<SubtitleStream> Subtitles { get; set; } = [];
 }
 
 public class SubtitleStream

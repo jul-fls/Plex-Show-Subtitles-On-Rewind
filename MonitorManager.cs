@@ -2,7 +2,7 @@
 {
     public static class MonitorManager
     {
-        private static List<SessionRewindMonitor> _allMonitors = new List<SessionRewindMonitor>();
+        private static List<SessionRewindMonitor> _allMonitors = [];
 
         public static void StartMonitoringAllSessions(
             List<ActiveSession> activeSessionList,

@@ -34,7 +34,7 @@
         {
             lock (_lockObject)
             {
-                return new List<PlexClient>(_clientList);
+                return _clientList;
             }
         }
 
@@ -103,7 +103,7 @@
         public static async Task EnableSubtitlesBySessionAsync(
             object session,
             int? subtitleStreamID = null,
-            SubtitleStream subtitleStream = null)
+            SubtitleStream? subtitleStream = null)
         {
             PlexClient client = GetClient(session);
             if (client == null)
@@ -134,7 +134,7 @@
         public static void EnableSubtitlesBySession(
             object session,
             int? subtitleStreamID = null,
-            SubtitleStream subtitleStream = null)
+            SubtitleStream? subtitleStream = null)
         {
             EnableSubtitlesBySessionAsync(session, subtitleStreamID, subtitleStream).Wait();
         }

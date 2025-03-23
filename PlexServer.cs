@@ -32,15 +32,16 @@
                 {
                     foreach (System.Xml.XmlNode videoNode in videoNodes)
                     {
-                        PlexSession session = new PlexSession();
-
-                        // Extract video attributes
-                        session.Key = GetAttribute(videoNode, "key");
-                        session.Title = GetAttribute(videoNode, "title");
-                        session.GrandparentTitle = GetAttribute(videoNode, "grandparentTitle"); // Usually the name of the show
-                        session.Type = GetAttribute(videoNode, "type");
-                        session.RatingKey = GetAttribute(videoNode, "ratingKey");
-                        session.SessionKey = GetAttribute(videoNode, "sessionKey");
+                        PlexSession session = new()
+                        {
+                            // Extract video attributes
+                            Key = GetAttribute(videoNode, "key"),
+                            Title = GetAttribute(videoNode, "title"),
+                            GrandparentTitle = GetAttribute(videoNode, "grandparentTitle"), // Usually the name of the show
+                            Type = GetAttribute(videoNode, "type"),
+                            RatingKey = GetAttribute(videoNode, "ratingKey"),
+                            SessionKey = GetAttribute(videoNode, "sessionKey")
+                        };
 
                         // Parse viewOffset as int. ViewOffset is the current position of the playhead in the video (in milliseconds)
                         _ = int.TryParse(GetAttribute(videoNode, "viewOffset"), out int viewOffset);
@@ -120,8 +121,9 @@
             string response = await _httpClient.GetStringAsync($"{_url}/clients");
             // Here you would parse the XML response from Plex
             // For simplicity, we'll simulate clients
-            List<PlexClient> clients = new List<PlexClient>();
+            List<PlexClient> clients = [];
 
+            Console.WriteLine("--------------------- PLACEHOLDER DATA ---------------------");
             // In a real implementation, you would parse XML and create proper clients
             clients.Add(new PlexClient
             {
@@ -140,7 +142,7 @@
             {
                 // Make a direct call to the media metadata endpoint
                 string response = await _httpClient.GetStringAsync($"{_url}{mediaKey}");
-                List<SubtitleStream> subtitles = new List<SubtitleStream>();
+                List<SubtitleStream> subtitles = [];
 
                 // Parse XML response
                 System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
@@ -178,14 +180,14 @@
                                                 Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
                                                 ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
                                                 Language = GetAttribute(streamNode, "language"),
-                                                Selected = GetAttribute(streamNode, "selected") == "1"
-                                            };
+                                                Selected = GetAttribute(streamNode, "selected") == "1",
 
-                                            // Add additional subtitle details
-                                            subtitle.Format = GetAttribute(streamNode, "format");
-                                            subtitle.Title = GetAttribute(streamNode, "title");
-                                            subtitle.Location = GetAttribute(streamNode, "location");
-                                            subtitle.IsExternal = GetAttribute(streamNode, "external") == "1";
+                                                // Add additional subtitle details
+                                                Format = GetAttribute(streamNode, "format"),
+                                                Title = GetAttribute(streamNode, "title"),
+                                                Location = GetAttribute(streamNode, "location"),
+                                                IsExternal = GetAttribute(streamNode, "external") == "1"
+                                            };
 
                                             subtitles.Add(subtitle);
                                         }
@@ -206,7 +208,7 @@
             }
         }
 
-        private string GetAttribute(System.Xml.XmlNode node, string attributeName)
+        private static string GetAttribute(System.Xml.XmlNode node, string attributeName)
         {
             if (node == null || node.Attributes == null)
                 return string.Empty;

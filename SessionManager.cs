@@ -2,7 +2,7 @@
 {
     public static class SessionManager
     {
-        private static List<ActiveSession> _activeSessionList = new List<ActiveSession>();
+        private static List<ActiveSession> _activeSessionList = [];
         private static readonly object _lockObject = new object();
 
         public static async Task<List<ActiveSession>> LoadActiveSessionsAsync(PlexServer plexServer)
