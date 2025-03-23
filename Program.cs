@@ -1,13 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace PlexSubtitleMonitor
+﻿namespace PlexSubtitleMonitor
 {
     class Program
     {
@@ -23,11 +14,11 @@ namespace PlexSubtitleMonitor
                 LoadTokens();
 
                 Console.WriteLine($"Connecting to Plex server at {PLEX_URL}");
-                var plexServer = new PlexServer(PLEX_URL, PLEX_APP_TOKEN);
+                PlexServer plexServer = new PlexServer(PLEX_URL, PLEX_APP_TOKEN);
 
                 // Setup periodic session refresh
-                var tokenSource = new CancellationTokenSource();
-                var refreshTask = Task.Run(async () =>
+                CancellationTokenSource tokenSource = new CancellationTokenSource();
+                Task refreshTask = Task.Run(async () =>
                 {
                     while (!tokenSource.Token.IsCancellationRequested)
                     {
@@ -88,8 +79,8 @@ namespace PlexSubtitleMonitor
             else
             {
                 // Read tokens from file
-                var lines = File.ReadAllLines(tokenFilePath);
-                foreach (var line in lines)
+                string[] lines = File.ReadAllLines(tokenFilePath);
+                foreach (string line in lines)
                 {
                     if (line.StartsWith("AppToken="))
                         PLEX_APP_TOKEN = line.Substring("AppToken=".Length);
@@ -146,12 +137,12 @@ namespace PlexSubtitleMonitor
                         session.ViewOffset = viewOffset;
 
                         // Extract media information
-                        var mediaNodes = videoNode.SelectNodes("Media");
+                        System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
                         if (mediaNodes != null)
                         {
                             foreach (System.Xml.XmlNode mediaNode in mediaNodes)
                             {
-                                var media = new Media
+                                Media media = new Media
                                 {
                                     Id = GetAttribute(mediaNode, "id"),
                                     Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
@@ -175,12 +166,12 @@ namespace PlexSubtitleMonitor
                                         };
 
                                         // Extract enabled subtitle streams (streamType='3') - Won't show available subtitles, only active ones
-                                        var streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
+                                        System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
                                         if (streamNodes != null)
                                         {
                                             foreach (System.Xml.XmlNode streamNode in streamNodes)
                                             {
-                                                var subtitle = new SubtitleStream
+                                                SubtitleStream subtitle = new SubtitleStream
                                                 {
                                                     Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
                                                     Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
@@ -216,10 +207,10 @@ namespace PlexSubtitleMonitor
 
         public async Task<List<PlexClient>> GetClientsAsync()
         {
-            var response = await _httpClient.GetStringAsync($"{_url}/clients");
+            string response = await _httpClient.GetStringAsync($"{_url}/clients");
             // Here you would parse the XML response from Plex
             // For simplicity, we'll simulate clients
-            var clients = new List<PlexClient>();
+            List<PlexClient> clients = new List<PlexClient>();
 
             // In a real implementation, you would parse XML and create proper clients
             clients.Add(new PlexClient
@@ -238,34 +229,34 @@ namespace PlexSubtitleMonitor
             if (node == null || node.Attributes == null)
                 return string.Empty;
 
-            var attr = node.Attributes[attributeName];
+            System.Xml.XmlAttribute? attr = node.Attributes[attributeName];
             return attr?.Value ?? string.Empty;
         }
 
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
-            var response = await _httpClient.GetStringAsync($"{_url}{key}");
-            var mediaItem = new PlexMediaItem { Key = key };
+            string response = await _httpClient.GetStringAsync($"{_url}{key}");
+            PlexMediaItem mediaItem = new PlexMediaItem { Key = key };
 
             // Parse XML response
-            var xmlDoc = new System.Xml.XmlDocument();
+            System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
             xmlDoc.LoadXml(response);
 
 
 
-            var videoNode = xmlDoc.SelectSingleNode("//MediaContainer/Video");
+            System.Xml.XmlNode? videoNode = xmlDoc.SelectSingleNode("//MediaContainer/Video");
             if (videoNode != null)
             {
                 mediaItem.Title = GetAttribute(videoNode, "title");
                 mediaItem.Type = GetAttribute(videoNode, "type");
 
                 // Extract media information
-                var mediaNodes = videoNode.SelectNodes("Media");
+                System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
                 if (mediaNodes != null)
                 {
                     foreach (System.Xml.XmlNode mediaNode in mediaNodes)
                     {
-                        var media = new Media
+                        Media media = new Media
                         {
                             Id = GetAttribute(mediaNode, "id"),
                             Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
@@ -275,12 +266,12 @@ namespace PlexSubtitleMonitor
                         };
 
                         // Extract part information
-                        var partNodes = mediaNode.SelectNodes("Part");
+                        System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
                         if (partNodes != null)
                         {
                             foreach (System.Xml.XmlNode partNode in partNodes)
                             {
-                                var part = new MediaPart
+                                MediaPart part = new MediaPart
                                 {
                                     Id = GetAttribute(partNode, "id"),
                                     Key = GetAttribute(partNode, "key"),
@@ -289,12 +280,12 @@ namespace PlexSubtitleMonitor
                                 };
 
                                 // Extract subtitle streams
-                                var streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
+                                System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
                                 if (streamNodes != null)
                                 {
                                     foreach (System.Xml.XmlNode streamNode in streamNodes)
                                     {
-                                        var subtitle = new SubtitleStream
+                                        SubtitleStream subtitle = new SubtitleStream
                                         {
                                             Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
                                             Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
@@ -329,11 +320,11 @@ namespace PlexSubtitleMonitor
 
         public List<SubtitleStream> GetSubtitleStreams()
         {
-            var subtitles = new List<SubtitleStream>();
+            List<SubtitleStream> subtitles = new List<SubtitleStream>();
 
-            foreach (var media in Media)
+            foreach (Media media in Media)
             {
-                foreach (var part in media.Parts)
+                foreach (MediaPart part in media.Parts)
                 {
                     subtitles.AddRange(part.Subtitles);
                 }
@@ -401,10 +392,10 @@ namespace PlexSubtitleMonitor
             try
             {
                 // Send command to the Plex client
-                var command = $"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}";
+                string command = $"{BaseUrl}/player/playback/setSubtitleStream?id={streamId}&type={mediaType}&machineIdentifier={MachineIdentifier}";
                 Console.WriteLine($"Sending command: {command}");
 
-                var response = await HttpClient.GetAsync(command);
+                HttpResponseMessage response = await HttpClient.GetAsync(command);
                 if (response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"Successfully set subtitle stream {streamId} on client {Title}");
@@ -592,7 +583,7 @@ namespace PlexSubtitleMonitor
 
                     try
                     {
-                        
+
                         if (_printDebug)
                         {
                             Console.WriteLine($"Loop iteration - position: {positionSec} -- Previous: {_previousPosition} -- Latest: {_latestWatchedPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
@@ -738,17 +729,17 @@ namespace PlexSubtitleMonitor
             int? frequency = null,
             int? maxRewindAmount = null)
         {
-            foreach (var activeSession in activeSessionList)
+            foreach (ActiveSession activeSession in activeSessionList)
             {
                 bool printDebug = activeSession.DeviceName == "Apple TV";
-                var monitor = new SessionRewindMonitor(activeSession, printDebug: printDebug);
+                SessionRewindMonitor monitor = new SessionRewindMonitor(activeSession, printDebug: printDebug);
                 _allMonitors.Add(monitor);
             }
         }
 
         public static void StopAllMonitors()
         {
-            foreach (var monitor in _allMonitors)
+            foreach (SessionRewindMonitor monitor in _allMonitors)
             {
                 monitor.StopMonitoring();
             }
@@ -764,12 +755,12 @@ namespace PlexSubtitleMonitor
         {
             try
             {
-                var clientList = await plexServer.GetClientsAsync();
+                List<PlexClient> clientList = await plexServer.GetClientsAsync();
 
                 lock (_lockObject)
                 {
                     _clientList.Clear();
-                    foreach (var client in clientList)
+                    foreach (PlexClient client in clientList)
                     {
                         _clientList.Add(client);
                     }
@@ -838,7 +829,7 @@ namespace PlexSubtitleMonitor
 
         public static async Task DisableSubtitlesBySessionAsync(object session)
         {
-            var client = GetClient(session);
+            PlexClient client = GetClient(session);
             if (client != null)
             {
                 await DisableSubtitlesAsync(client);
@@ -860,7 +851,7 @@ namespace PlexSubtitleMonitor
             int? subtitleStreamID = null,
             SubtitleStream subtitleStream = null)
         {
-            var client = GetClient(session);
+            PlexClient client = GetClient(session);
             if (client == null)
             {
                 Console.WriteLine("No client found for this session");
@@ -902,20 +893,20 @@ namespace PlexSubtitleMonitor
 
         public static async Task<List<ActiveSession>> LoadActiveSessionsAsync(PlexServer plexServer)
         {
-            var sessionsList = await plexServer.GetSessionsAsync();
+            List<PlexSession> sessionsList = await plexServer.GetSessionsAsync();
 
             lock (_lockObject)
             {
                 _activeSessionList.Clear();
 
-                foreach (var session in sessionsList)
+                foreach (PlexSession session in sessionsList)
                 {
                     string deviceName = session.Player.Title;
                     string machineID = session.Player.MachineIdentifier;
 
                     // Get active subtitles directly from the session Media if available
-                    var activeSubs = GetActiveSubtitlesFromMedia(session);
-                    var availableSubs = GetAvailableSubtitlesFromMedia(session);
+                    List<SubtitleStream> activeSubs = GetActiveSubtitlesFromMedia(session);
+                    List<SubtitleStream> availableSubs = GetAvailableSubtitlesFromMedia(session);
 
                     string mediaTitle = session.GrandparentTitle ?? session.Title;
 
@@ -952,7 +943,7 @@ namespace PlexSubtitleMonitor
             try
             {
                 // First check if we already have this information in the session
-                var subsFromMedia = GetAvailableSubtitlesFromMedia(session);
+                List<SubtitleStream> subsFromMedia = GetAvailableSubtitlesFromMedia(session);
                 if (subsFromMedia.Count > 0)
                 {
                     return subsFromMedia;
@@ -960,7 +951,7 @@ namespace PlexSubtitleMonitor
 
                 // Otherwise fetch from the server
                 string mediaKey = session.Key; // Like '/library/metadata/20884'
-                var mediaItem = await session.FetchItemAsync(mediaKey, plexServer);
+                PlexMediaItem mediaItem = await session.FetchItemAsync(mediaKey, plexServer);
                 return mediaItem.GetSubtitleStreams();
             }
             catch (Exception ex)
@@ -972,15 +963,15 @@ namespace PlexSubtitleMonitor
 
         private static List<SubtitleStream> GetAvailableSubtitlesFromMedia(PlexSession session)
         {
-            var result = new List<SubtitleStream>();
+            List<SubtitleStream> result = new List<SubtitleStream>();
 
             if (session.Media != null && session.Media.Count > 0)
             {
-                foreach (var media in session.Media)
+                foreach (Media media in session.Media)
                 {
                     if (media.Parts != null && media.Parts.Count > 0)
                     {
-                        foreach (var part in media.Parts)
+                        foreach (MediaPart part in media.Parts)
                         {
                             result.AddRange(part.Subtitles);
                         }
@@ -993,15 +984,15 @@ namespace PlexSubtitleMonitor
 
         private static List<SubtitleStream> GetActiveSubtitlesFromMedia(PlexSession session)
         {
-            var result = new List<SubtitleStream>();
+            List<SubtitleStream> result = new List<SubtitleStream>();
 
             if (session.Media != null && session.Media.Count > 0)
             {
-                foreach (var media in session.Media)
+                foreach (Media media in session.Media)
                 {
                     if (media.Parts != null && media.Parts.Count > 0)
                     {
-                        foreach (var part in media.Parts)
+                        foreach (MediaPart part in media.Parts)
                         {
                             // Only add subtitles that are marked as selected
                             result.AddRange(part.Subtitles.Where(s => s.Selected));
@@ -1018,7 +1009,7 @@ namespace PlexSubtitleMonitor
             try
             {
                 // First check if we already have this information in the session
-                var subsFromMedia = GetActiveSubtitlesFromMedia(session);
+                List<SubtitleStream> subsFromMedia = GetActiveSubtitlesFromMedia(session);
                 if (subsFromMedia.Count > 0)
                 {
                     return subsFromMedia;
@@ -1027,7 +1018,7 @@ namespace PlexSubtitleMonitor
                 // Otherwise fetch from the server
                 if (session.Media != null && session.Media.Count > 0)
                 {
-                    var media = session.Media[0];
+                    Media media = session.Media[0];
                     if (media.Parts != null && media.Parts.Count > 0)
                     {
                         return media.Parts[0].Subtitles.Where(s => s.Selected).ToList();
@@ -1045,10 +1036,10 @@ namespace PlexSubtitleMonitor
 
         public static void PrintSubtitles()
         {
-            foreach (var activeSession in _activeSessionList)
+            foreach (ActiveSession activeSession in _activeSessionList)
             {
-                var activeSubtitles = activeSession.ActiveSubtitles;
-                var availableSubtitles = activeSession.AvailableSubtitles;
+                List<SubtitleStream> activeSubtitles = activeSession.ActiveSubtitles;
+                List<SubtitleStream> availableSubtitles = activeSession.AvailableSubtitles;
                 string deviceName = activeSession.DeviceName;
                 string mediaTitle = activeSession.MediaTitle;
 
@@ -1060,7 +1051,7 @@ namespace PlexSubtitleMonitor
                 }
                 else
                 {
-                    foreach (var subtitle in activeSubtitles)
+                    foreach (SubtitleStream subtitle in activeSubtitles)
                     {
                         Console.WriteLine(subtitle.ExtendedDisplayTitle);
                     }
@@ -1073,7 +1064,7 @@ namespace PlexSubtitleMonitor
                 }
                 else
                 {
-                    foreach (var subtitle in availableSubtitles)
+                    foreach (SubtitleStream subtitle in availableSubtitles)
                     {
                         Console.WriteLine(subtitle.ExtendedDisplayTitle);
                     }
