@@ -84,9 +84,9 @@ namespace PlexShowSubtitlesOnRewind
                 doc.LoadXml(response);
 
                 // Find the content node (Video, Track, or Episode)
-                XmlNode mediaNode = doc.SelectSingleNode("//MediaContainer/Video") ??
-                                   doc.SelectSingleNode("//MediaContainer/Track") ??
-                                   doc.SelectSingleNode("//MediaContainer/Episode");
+                XmlNode? mediaNode = doc.SelectSingleNode("//MediaContainer/Video") ??
+                   doc.SelectSingleNode("//MediaContainer/Track") ??
+                   doc.SelectSingleNode("//MediaContainer/Episode");
 
                 if (mediaNode != null)
                 {
@@ -127,7 +127,7 @@ namespace PlexShowSubtitlesOnRewind
             if (node?.Attributes == null)
                 return string.Empty;
 
-            XmlAttribute attr = node.Attributes[attributeName];
+            XmlAttribute? attr = node.Attributes[attributeName];
             return attr?.Value ?? string.Empty;
         }
 

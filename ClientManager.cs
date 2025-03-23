@@ -50,7 +50,7 @@ namespace PlexShowSubtitlesOnRewind
             await client.SetSubtitleStreamAsync(0);
         }
 
-        public static PlexClient GetClient(object inputObj)
+        public static PlexClient? GetClient(object inputObj)
         {
             string machineID;
 
@@ -75,7 +75,7 @@ namespace PlexShowSubtitlesOnRewind
 
         public static async Task DisableSubtitlesBySessionAsync(object session)
         {
-            PlexClient client = GetClient(session);
+            PlexClient? client = GetClient(session);
             if (client != null)
             {
                 await DisableSubtitlesAsync(client);
@@ -97,7 +97,7 @@ namespace PlexShowSubtitlesOnRewind
             int? subtitleStreamID = null,
             SubtitleStream? subtitleStream = null)
         {
-            PlexClient client = GetClient(session);
+            PlexClient? client = GetClient(session);
             if (client == null)
             {
                 Console.WriteLine("No client found for this session");
