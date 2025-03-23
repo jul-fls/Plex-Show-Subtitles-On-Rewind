@@ -77,7 +77,7 @@ namespace PlexShowSubtitlesOnRewind
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}{key}");
-                PlexMediaItem mediaItem = new PlexMediaItem { Key = key };
+                PlexMediaItem mediaItem = new PlexMediaItem(key:key);
 
                 // We need special handling to determine the media type first
                 XmlDocument doc = new XmlDocument();
@@ -93,9 +93,6 @@ namespace PlexShowSubtitlesOnRewind
                     // Get basic attributes
                     mediaItem.Title = GetAttributeValue(mediaNode, "title");
                     mediaItem.Type = GetAttributeValue(mediaNode, "type");
-
-                    // Parse media elements
-                    List<MediaXml> mediaElements;
 
                     // Determine the correct node type for deserialization
                     string nodeType = mediaNode.Name;
@@ -121,7 +118,7 @@ namespace PlexShowSubtitlesOnRewind
             catch (Exception ex)
             {
                 Console.WriteLine($"Error fetching media item: {ex.Message}");
-                return new PlexMediaItem { Key = key };
+                return new PlexMediaItem(key: key);
             }
         }
 

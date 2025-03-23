@@ -2,11 +2,17 @@
 using System.Xml.Serialization;
 
 #pragma warning disable IDE0074 // Use compound assignment
+#pragma warning disable IDE0290 // Use primary constructor
 
 namespace PlexShowSubtitlesOnRewind;
 
 public class PlexMediaItem
 {
+    public PlexMediaItem(string key)
+    {
+        Key = key;
+    }
+
     public string Key { get; set; }
     public string Title { get; set; }
     public string Type { get; set; }
