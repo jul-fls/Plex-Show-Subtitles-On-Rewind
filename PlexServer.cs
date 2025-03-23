@@ -1,6 +1,13 @@
-﻿namespace PlexShowSubtitlesOnRewind
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Serialization;
+
+namespace PlexShowSubtitlesOnRewind
 {
-    // Represents a Plex server
     public class PlexServer
     {
         private readonly string _url;
@@ -15,95 +22,21 @@
             _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", token);
         }
 
-        // Fetches active sessions from the Plex server, parses the resulting XML, and returns a list of custom PlexSession objects
+        // Using XmlSerializer to get sessions
         public async Task<List<PlexSession>> GetSessionsAsync()
         {
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
-                List<PlexSession> sessions = [];
 
-                // Parse XML response
-                System.Xml.XmlDocument xmlDoc = new();
-                xmlDoc.LoadXml(response);
+                // Deserialize the XML response to the MediaContainer
+                var mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
 
-                System.Xml.XmlNodeList? videoNodes = xmlDoc.SelectNodes("//MediaContainer/Video");
-                if (videoNodes != null)
+                // Convert to your existing PlexSession objects
+                List<PlexSession> sessions = new();
+                foreach (var sessionXml in mediaContainer.Sessions)
                 {
-                    foreach (System.Xml.XmlNode videoNode in videoNodes)
-                    {
-                        PlexSession session = new()
-                        {
-                            // Extract video attributes
-                            Key = GetAttribute(videoNode, "key"),
-                            Title = GetAttribute(videoNode, "title"),
-                            GrandparentTitle = GetAttribute(videoNode, "grandparentTitle"), // Usually the name of the show
-                            Type = GetAttribute(videoNode, "type"),
-                            RatingKey = GetAttribute(videoNode, "ratingKey"),
-                            SessionKey = GetAttribute(videoNode, "sessionKey")
-                        };
-
-                        // Parse viewOffset as int. ViewOffset is the current position of the playhead in the video (in milliseconds)
-                        _ = int.TryParse(GetAttribute(videoNode, "viewOffset"), out int viewOffset);
-                        session.ViewOffset = viewOffset;
-
-                        // Extract media information
-                        System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
-                        if (mediaNodes != null)
-                        {
-                            foreach (System.Xml.XmlNode mediaNode in mediaNodes)
-                            {
-                                Media media = new Media
-                                {
-                                    Id = GetAttribute(mediaNode, "id"),
-                                    Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
-                                    VideoCodec = GetAttribute(mediaNode, "videoCodec"),
-                                    AudioCodec = GetAttribute(mediaNode, "audioCodec"),
-                                    Container = GetAttribute(mediaNode, "container")
-                                };
-
-                                // Extract part information
-                                System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
-                                if (partNodes != null)
-                                {
-                                    foreach (System.Xml.XmlNode partNode in partNodes)
-                                    {
-                                        MediaPart part = new MediaPart
-                                        {
-                                            Id = GetAttribute(partNode, "id"),
-                                            Key = GetAttribute(partNode, "key"),
-                                            Duration = int.TryParse(GetAttribute(partNode, "duration"), out int partDuration) ? partDuration : 0,
-                                            File = GetAttribute(partNode, "file")
-                                        };
-
-                                        // Extract enabled subtitle streams (streamType='3') - Won't show available subtitles, only active ones
-                                        System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
-                                        if (streamNodes != null)
-                                        {
-                                            foreach (System.Xml.XmlNode streamNode in streamNodes)
-                                            {
-                                                SubtitleStream subtitle = new SubtitleStream
-                                                {
-                                                    Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
-                                                    Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
-                                                    ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"), // Usually includes language and other info like if "SDH"
-                                                    Language = GetAttribute(streamNode, "language"),
-                                                    Selected = GetAttribute(streamNode, "selected") == "1"
-                                                };
-                                                part.Subtitles.Add(subtitle);
-                                            }
-                                        }
-
-                                        media.Parts.Add(part);
-                                    }
-                                }
-
-                                session.Media.Add(media);
-                            }
-                        }
-
-                        sessions.Add(session);
-                    }
+                    sessions.Add(sessionXml.ToPlexSession());
                 }
 
                 Console.WriteLine($"Found {sessions.Count} active Plex sessions");
@@ -116,38 +49,21 @@
             }
         }
 
+        // Using XmlSerializer to get clients
         public async Task<List<PlexClient>> GetClientsAsync()
         {
             try
             {
-                string clientsResponse = await _httpClient.GetStringAsync($"{_url}/clients");
-                List<PlexClient> clients = [];
+                string response = await _httpClient.GetStringAsync($"{_url}/clients");
 
-                // Parse XML response
-                System.Xml.XmlDocument xmlDoc = new();
-                xmlDoc.LoadXml(clientsResponse);
+                // Deserialize the XML response to the MediaContainer
+                var mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
 
-                System.Xml.XmlNodeList? serverNodes = xmlDoc.SelectNodes("//MediaContainer/Server");
-                if (serverNodes != null)
+                // Convert to your existing PlexClient objects
+                List<PlexClient> clients = new();
+                foreach (var clientXml in mediaContainer.Clients)
                 {
-                    foreach (System.Xml.XmlNode serverNode in serverNodes)
-                    {
-                        PlexClient client = new()
-                        {
-                            // Extract server attributes based on the XML example
-                            DeviceName = GetAttribute(serverNode, "name"),
-                            MachineIdentifier = GetAttribute(serverNode, "machineIdentifier"),
-                            ClientAppName = GetAttribute(serverNode, "product"),
-                            DeviceClass = GetAttribute(serverNode, "deviceClass"),
-                            Platform = GetAttribute(serverNode, "platform") != string.Empty ?
-                               GetAttribute(serverNode, "platform") :
-                               GetAttribute(serverNode, "product"),
-                            HttpClient = _httpClient,
-                            BaseUrl = _url
-                        };
-
-                        clients.Add(client);
-                    }
+                    clients.Add(clientXml.ToPlexClient(_httpClient, _url));
                 }
 
                 Console.WriteLine($"Found {clients.Count} connected Plex clients");
@@ -160,15 +76,7 @@
             }
         }
 
-        private static string GetAttribute(System.Xml.XmlNode node, string attributeName)
-        {
-            if (node == null || node.Attributes == null)
-                return string.Empty;
-
-            System.Xml.XmlAttribute? attr = node.Attributes[attributeName];
-            return attr?.Value ?? string.Empty;
-        }
-
+        // This method is more complex due to the different possible root nodes
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
             try
@@ -176,73 +84,36 @@
                 string response = await _httpClient.GetStringAsync($"{_url}{key}");
                 PlexMediaItem mediaItem = new PlexMediaItem { Key = key };
 
-                // Parse XML response
-                System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
-                xmlDoc.LoadXml(response);
+                // We need special handling to determine the media type first
+                XmlDocument doc = new XmlDocument();
+                doc.LoadXml(response);
 
-                // Get the media item node
-                System.Xml.XmlNode? mediaContainer = xmlDoc.SelectSingleNode("//MediaContainer");
-                System.Xml.XmlNode? videoNode = mediaContainer?.SelectSingleNode("Video") ??
-                        mediaContainer?.SelectSingleNode("Track") ??
-                        mediaContainer?.SelectSingleNode("Episode");
+                // Find the content node (Video, Track, or Episode)
+                XmlNode mediaNode = doc.SelectSingleNode("//MediaContainer/Video") ??
+                                   doc.SelectSingleNode("//MediaContainer/Track") ??
+                                   doc.SelectSingleNode("//MediaContainer/Episode");
 
-                if (videoNode != null)
+                if (mediaNode != null)
                 {
-                    mediaItem.Title = GetAttribute(videoNode, "title");
-                    mediaItem.Type = GetAttribute(videoNode, "type");
+                    // Get basic attributes
+                    mediaItem.Title = GetAttributeValue(mediaNode, "title");
+                    mediaItem.Type = GetAttributeValue(mediaNode, "type");
 
-                    // Extract media information
-                    System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
-                    if (mediaNodes != null)
+                    // Parse media elements
+                    List<MediaXml> mediaElements;
+
+                    // Determine the correct node type for deserialization
+                    string nodeType = mediaNode.Name;
+
+                    // Deserialize the node using XPath to get its media children
+                    var plexSessionXml = XmlSerializerHelper.DeserializeXmlNodes<PlexSessionXml>(
+                        response, $"//MediaContainer/{nodeType}").FirstOrDefault();
+
+                    if (plexSessionXml != null && plexSessionXml.Media != null)
                     {
-                        foreach (System.Xml.XmlNode mediaNode in mediaNodes)
+                        foreach (var mediaXml in plexSessionXml.Media)
                         {
-                            Media media = new Media
-                            {
-                                Id = GetAttribute(mediaNode, "id"),
-                                Duration = int.TryParse(GetAttribute(mediaNode, "duration"), out int duration) ? duration : 0,
-                                VideoCodec = GetAttribute(mediaNode, "videoCodec"),
-                                AudioCodec = GetAttribute(mediaNode, "audioCodec"),
-                                Container = GetAttribute(mediaNode, "container")
-                            };
-
-                            // Extract part information
-                            System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
-                            if (partNodes != null)
-                            {
-                                foreach (System.Xml.XmlNode partNode in partNodes)
-                                {
-                                    MediaPart part = new MediaPart
-                                    {
-                                        Id = GetAttribute(partNode, "id"),
-                                        Key = GetAttribute(partNode, "key"),
-                                        Duration = int.TryParse(GetAttribute(partNode, "duration"), out int partDuration) ? partDuration : 0,
-                                        File = GetAttribute(partNode, "file")
-                                    };
-
-                                    // Extract ALL subtitle streams (streamType=3)
-                                    System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
-                                    if (streamNodes != null)
-                                    {
-                                        foreach (System.Xml.XmlNode streamNode in streamNodes)
-                                        {
-                                            SubtitleStream subtitle = new SubtitleStream
-                                            {
-                                                Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
-                                                Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
-                                                ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
-                                                Language = GetAttribute(streamNode, "language"),
-                                                Selected = GetAttribute(streamNode, "selected") == "1"
-                                            };
-                                            part.Subtitles.Add(subtitle);
-                                        }
-                                    }
-
-                                    media.Parts.Add(part);
-                                }
-                            }
-
-                            mediaItem.Media.Add(media);
+                            mediaItem.Media.Add(mediaXml.ToMedia());
                         }
                     }
                 }
@@ -257,6 +128,15 @@
                 Console.WriteLine($"Error fetching media item: {ex.Message}");
                 return new PlexMediaItem { Key = key };
             }
+        }
+
+        private static string GetAttributeValue(XmlNode node, string attributeName)
+        {
+            if (node?.Attributes == null)
+                return string.Empty;
+
+            XmlAttribute attr = node.Attributes[attributeName];
+            return attr?.Value ?? string.Empty;
         }
     }
 }

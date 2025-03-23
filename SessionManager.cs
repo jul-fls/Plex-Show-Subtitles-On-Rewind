@@ -1,46 +1,86 @@
-﻿namespace PlexShowSubtitlesOnRewind
+﻿using System.Collections.Generic;
+
+namespace PlexShowSubtitlesOnRewind
 {
     public static class SessionManager
     {
         private static List<ActiveSession> _activeSessionList = [];
         private static readonly object _lockObject = new object();
+        private static PlexServer? _plexServer = null;
 
-        public static async Task<List<ActiveSession>> LoadActiveSessionsAsync(PlexServer plexServer)
+        // This not only fetches the sessions, but also gets both active and available subtitles
+        public static async Task<List<ActiveSession>> ProcessActiveSessions(List<PlexSession> sessionsList, PlexServer plexServer)
         {
-            List<PlexSession> sessionsList = await plexServer.GetSessionsAsync();
             List<ActiveSession> newActiveSessionList = [];
 
             foreach (PlexSession session in sessionsList)
             {
-                string deviceName = session.Player.Title;
-                string machineID = session.Player.MachineIdentifier;
-
                 // Get active subtitles directly from the session Media
                 List<SubtitleStream> activeSubs = GetActiveSubtitlesForSession(session);
 
                 // Get ALL available subtitles with a separate metadata call
                 List<SubtitleStream> availableSubs = await GetAllAvailableSubtitlesAsync(session, plexServer);
 
-                string mediaTitle = session.GrandparentTitle ?? session.Title;
-
                 newActiveSessionList.Add(new ActiveSession(
                     session: session,
                     availableSubtitles: availableSubs,
-                    activeSubtitles: activeSubs,
-                    deviceName: deviceName,
-                    machineID: machineID,
-                    mediaTitle: mediaTitle
+                    activeSubtitles: activeSubs
                 ));
             }
+
+            return newActiveSessionList;
+        }
+
+        public static async Task<List<ActiveSession>> ClearAndLoadActiveSessionsAsync(PlexServer plexServer)
+        {
+            _plexServer = plexServer;
+            List<PlexSession> sessionsList = await _plexServer.GetSessionsAsync();
+            List <ActiveSession> activeSessions = await ProcessActiveSessions(sessionsList, plexServer);
 
             lock (_lockObject)
             {
                 _activeSessionList.Clear();
-                _activeSessionList.AddRange(newActiveSessionList);
+                _activeSessionList.AddRange(activeSessions);
             }
 
-            Console.WriteLine($"Loaded {_activeSessionList.Count} active sessions");
-            PrintSubtitles(); // Print initial subtitle status
+            return _activeSessionList;
+        }
+
+        public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync()
+        {
+            // Assume _plexServer is already set. Show error if not
+            if (_plexServer is not PlexServer plexServer)
+            {
+                Console.WriteLine("Error: PlexServer instance is null. Cannot refresh sessions. Must load sessions first.");
+                return _activeSessionList;
+            }
+            // -----------------------------------
+
+            List<PlexSession> sessionsList = await plexServer.GetSessionsAsync();
+
+            foreach (PlexSession fetchedSession in sessionsList)
+            {
+                // We'll need the active subs in any case
+                List<SubtitleStream> activeSubtitles = GetActiveSubtitlesForSession(fetchedSession);
+
+                // Check if the session already exists in the active session list, and update in place if so
+                ActiveSession? existingSession = _activeSessionList.FirstOrDefault(s => s.SessionID == fetchedSession.SessionId);
+                if (existingSession != null)
+                {
+                    existingSession.Refresh(fetchedSession, activeSubtitles);
+                }
+                else
+                {
+                    // If the session is not found in the existing list, add it as a new session
+                    // First need to get available subs
+                    List<SubtitleStream> availableSubs = await GetAllAvailableSubtitlesAsync(fetchedSession, plexServer);
+                    _activeSessionList.Add(new ActiveSession(
+                        session: fetchedSession,
+                        availableSubtitles: availableSubs,
+                        activeSubtitles: activeSubtitles
+                    ));
+                }
+            }
 
             return _activeSessionList;
         }
