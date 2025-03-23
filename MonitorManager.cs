@@ -10,7 +10,7 @@ namespace PlexShowSubtitlesOnRewind
         public const int DefaultIdleFrequency = 5;
         public const int DefaultSmallestResolution = 5; // iPhone has 5 second resolution apparently
 
-        private static List<SessionRewindMonitor> _allMonitors = [];
+        private static readonly List<SessionRewindMonitor> _allMonitors = [];
         private static int _activeFrequencyMs = DefaultActiveFrequency;
         private static int _idleFrequencyMs = DefaultIdleFrequency;
         private static bool _isRunning = false;

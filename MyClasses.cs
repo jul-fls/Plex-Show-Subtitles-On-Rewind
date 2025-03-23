@@ -1,7 +1,10 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
+#pragma warning disable IDE0074 // Use compound assignment
+
 namespace PlexShowSubtitlesOnRewind;
+
 public class PlexMediaItem
 {
     public string Key { get; set; }
@@ -39,19 +42,16 @@ public class PlexSession
     public List<Media> Media { get; set; } = [];
     private PlexMediaItem _cachedItem;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0028:Simplify collection initialization", Justification = "Simplifying obscures Media type")]
     public PlexSession()
     {
         Player = new PlexPlayer();
         Media = new List<Media>();
     }
 
-    public void Reload()
-    {
-        Console.WriteLine("PLEXSESSION RELOAD NOT YET IMPLEMENTED....");
-    }
-
     public async Task<PlexMediaItem> FetchItemAsync(string key, PlexServer server)
     {
+
         if (_cachedItem == null)
         {
             _cachedItem = await server.FetchItemAsync(key);
@@ -67,29 +67,16 @@ public class PlexPlayer
     public string MachineIdentifier { get; set; }
 }
 
-public class PlexClient
+public class PlexClient(string deviceName, string machineIdentifier, string clientAppName, string deviceClass, string platform, HttpClient httpClient, string baseUrl, PlexServer plexServer)
 {
-    public string DeviceName { get; private set; }
-    public string MachineIdentifier { get; private set; }
-    public string ClientAppName { get; private set; }
-    public string DeviceClass { get; private set; }
-    public string Platform { get; private set; }
-    public HttpClient HttpClient { get; private set; }
-    public string BaseUrl { get; private set; }
-    public PlexServer PlexServer { get; private set; }
-
-
-    public PlexClient(string deviceName, string machineIdentifier, string clientAppName, string deviceClass, string platform, HttpClient httpClient, string baseUrl, PlexServer plexServer)
-    {
-        DeviceName = deviceName;
-        MachineIdentifier = machineIdentifier;
-        ClientAppName = clientAppName;
-        DeviceClass = deviceClass;
-        Platform = platform;
-        HttpClient = httpClient;
-        BaseUrl = baseUrl;
-        PlexServer = plexServer;
-    }
+    public string DeviceName { get; private set; } = deviceName;
+    public string MachineIdentifier { get; private set; } = machineIdentifier;
+    public string ClientAppName { get; private set; } = clientAppName;
+    public string DeviceClass { get; private set; } = deviceClass;
+    public string Platform { get; private set; } = platform;
+    public HttpClient HttpClient { get; private set; } = httpClient;
+    public string BaseUrl { get; private set; } = baseUrl;
+    public PlexServer PlexServer { get; private set; } = plexServer;
 
     /// <summary>
     /// Select multiple playback streams at once.
@@ -108,7 +95,7 @@ public class PlexClient
         string mediaType = "video")
     {
         // Create dictionary for additional parameters
-        Dictionary<string, string> parameters = new();
+        Dictionary<string, string> parameters = [];
 
         // Add parameters only if they're not null
         if (audioStreamID.HasValue)
@@ -178,11 +165,16 @@ public class SubtitleStream
 }
 
 // Class to hold session objects and associated subtitles
-public class ActiveSession
+public class ActiveSession(PlexSession session, List<SubtitleStream> availableSubtitles, List<SubtitleStream> activeSubtitles)
 {
-    private PlexSession _session;
-    private List<SubtitleStream> _availableSubtitles;
-    private List<SubtitleStream> _activeSubtitles;
+    private PlexSession _session = session;
+    private List<SubtitleStream> _availableSubtitles = availableSubtitles;
+    private List<SubtitleStream> _activeSubtitles = activeSubtitles;
+
+    public string DeviceName { get; } = session.Player.Title;
+    public string MachineID { get; } = session.Player.MachineIdentifier;
+    public string MediaTitle { get; } = session.GrandparentTitle ?? session.Title;
+    public string SessionID { get; } = session.SessionId;
 
     // Properly implemented public properties that use the private fields
     public PlexSession Session
@@ -202,26 +194,8 @@ public class ActiveSession
         get => _activeSubtitles;
         private set => _activeSubtitles = value;
     }
-    public string DeviceName { get; }
-    public string MachineID { get; }
-    public string MediaTitle { get; }
-    public string SessionID { get; }
 
-    public ActiveSession(
-        PlexSession session,
-        List<SubtitleStream> availableSubtitles,
-        List<SubtitleStream> activeSubtitles
-        )
-    {
-        _session = session;
-        _availableSubtitles = availableSubtitles;
-        _activeSubtitles = activeSubtitles;
-
-        DeviceName = session.Player.Title;
-        MachineID = session.Player.MachineIdentifier;
-        MediaTitle = session.GrandparentTitle ?? session.Title;
-        SessionID = session.SessionId;
-    }
+    // ------------------ Methods ------------------
 
     public double GetPlayPositionSeconds()
     {
@@ -278,7 +252,7 @@ public class PlexSessionXml
     public PlexPlayerXml Player { get; set; }
 
     [XmlElement("Media")]
-    public List<MediaXml> Media { get; set; } = new List<MediaXml>();
+    public List<MediaXml> Media { get; set; } = [];
 
     [XmlElement("id")]
     public string Id { get; set; }
@@ -380,7 +354,7 @@ public class MediaXml
     public string Container { get; set; }
 
     [XmlElement("Part")]
-    public List<MediaPartXml> Parts { get; set; } = new List<MediaPartXml>();
+    public List<MediaPartXml> Parts { get; set; } = [];
 
     // Convert to your existing Media class
     public Media ToMedia()
@@ -422,7 +396,7 @@ public class MediaPartXml
     public string File { get; set; }
 
     [XmlElement("Stream")]
-    public List<SubtitleStreamXml> Subtitles { get; set; } = new List<SubtitleStreamXml>();
+    public List<SubtitleStreamXml> Subtitles { get; set; } = [];
 
     // Convert to your existing MediaPart class
     public MediaPart ToMediaPart()
@@ -502,8 +476,8 @@ public class SubtitleStreamXml
 public class MediaContainerXml
 {
     [XmlElement("Video")]
-    public List<PlexSessionXml> Sessions { get; set; } = new List<PlexSessionXml>();
+    public List<PlexSessionXml> Sessions { get; set; } = [];
 
     [XmlElement("Server")]
-    public List<PlexClientXml> Clients { get; set; } = new List<PlexClientXml>();
+    public List<PlexClientXml> Clients { get; set; } = [];
 }

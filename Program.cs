@@ -6,14 +6,17 @@
         private const string PLEX_URL = "http://192.168.1.103:32400";
         private static string PLEX_APP_TOKEN = "";
 
-        private static int _serverHeartbeatInterval = 30; // seconds
-
         static async Task Main(string[] args)
         {
             try
             {
                 LoadTokens(); // If tokens not found, will create empty template file, display message, and exit
                 //TODO: Add a flow to generate a token automatically and create the file
+
+                if (args.Length > 0)
+                {
+                    //TODO maybe - Add command line arguments
+                }
 
                 Console.WriteLine($"Connecting to Plex server at {PLEX_URL}");
                 PlexServer plexServer = new PlexServer(PLEX_URL, PLEX_APP_TOKEN);

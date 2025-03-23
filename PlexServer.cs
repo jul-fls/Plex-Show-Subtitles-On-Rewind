@@ -19,6 +19,8 @@ namespace PlexShowSubtitlesOnRewind
         // Using XmlSerializer to get sessions
         public async Task<List<PlexSession>> GetSessionsAsync()
         {
+            List<PlexSession> sessions = [];
+
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
@@ -26,8 +28,7 @@ namespace PlexShowSubtitlesOnRewind
                 // Deserialize the XML response to the MediaContainer
                 MediaContainerXml mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
 
-                // Convert to your existing PlexSession objects
-                List<PlexSession> sessions = new();
+                // Convert to PlexSession objects
                 foreach (PlexSessionXml sessionXml in mediaContainer.Sessions)
                 {
                     sessions.Add(sessionXml.ToPlexSession());
@@ -38,14 +39,15 @@ namespace PlexShowSubtitlesOnRewind
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting sessions: {ex.Message}");
-                return new List<PlexSession>();
+                Console.WriteLine($"Error getting sessions (Will return what it can): {ex.Message}");
+                return sessions;
             }
         }
 
         // Using XmlSerializer to get clients
         public async Task<List<PlexClient>> GetClientsAsync()
         {
+            List<PlexClient> clients = [];
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}/clients");
@@ -54,7 +56,6 @@ namespace PlexShowSubtitlesOnRewind
                 MediaContainerXml mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
 
                 // Convert to your existing PlexClient objects
-                List<PlexClient> clients = new();
                 foreach (PlexClientXml clientXml in mediaContainer.Clients)
                 {
                     clients.Add(clientXml.ToPlexClient(httpClient: _httpClient, baseUrl: _url, plexServer: this));
@@ -66,7 +67,7 @@ namespace PlexShowSubtitlesOnRewind
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting clients: {ex.Message}");
-                return new List<PlexClient>();
+                return clients;
             }
         }
 
@@ -140,6 +141,11 @@ namespace PlexShowSubtitlesOnRewind
 
             // Get the controller from the command
             //string controller = command.Split('/')[0];
+
+            if (proxy == null || proxy == false)
+            {
+                // TODO: Maybe implement 'proxy through server' functionality like in the python API
+            }
 
             // Create headers with machine identifier
             Dictionary<string, string> headers = new()
@@ -232,7 +238,7 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        private XmlDocument? ProcessXMLResponse(string responseData)
+        private static XmlDocument? ProcessXMLResponse(string responseData)
         {
             // Clean XML string and handle potential parsing issues
             responseData = CleanXmlString(responseData);
@@ -258,7 +264,7 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Helper methods that would be needed
-        private string CleanXmlString(string xml)
+        private static string CleanXmlString(string xml)
         {
             // Implement XML cleaning similar to Python's utils.cleanXMLString
             // This is a simple implementation - you might need to enhance it
@@ -266,10 +272,12 @@ namespace PlexShowSubtitlesOnRewind
                 return string.Empty;
 
             // Remove invalid XML characters
+            #pragma warning disable IDE0305 // Simplify collection initialization
             string cleanedXml = new string(xml.Where(c =>
                 (c >= 0x0020 && c <= 0xD7FF) ||
                 (c >= 0xE000 && c <= 0xFFFD) ||
                 c == 0x0009 || c == 0x000A || c == 0x000D).ToArray());
+            #pragma warning restore IDE0305
 
             return cleanedXml;
         }

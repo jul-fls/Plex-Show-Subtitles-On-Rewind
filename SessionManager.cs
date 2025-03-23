@@ -1,9 +1,10 @@
-﻿namespace PlexShowSubtitlesOnRewind
+﻿
+namespace PlexShowSubtitlesOnRewind
 {
     public static class SessionManager
     {
-        private static List<ActiveSession> _activeSessionList = [];
-        private static readonly object _lockObject = new object();
+        private readonly static List<ActiveSession> _activeSessionList = [];
+        private static readonly Lock _lockObject = new Lock();
         private static PlexServer? _plexServer = null;
 
         // This not only fetches the sessions, but also gets both active and available subtitles
@@ -93,6 +94,7 @@
 
         private static async Task<List<SubtitleStream>> GetAllAvailableSubtitlesAsync(PlexSession session, PlexServer plexServer)
         {
+            List<SubtitleStream> subtitles = [];
             try
             {
                 // Make a separate call to get the full media metadata including all subtitle tracks
@@ -100,7 +102,7 @@
                 PlexMediaItem mediaItem = await plexServer.FetchItemAsync(mediaKey);
 
                 // Get all subtitle streams from the media item
-                List<SubtitleStream> subtitles = mediaItem.GetSubtitleStreams();
+                subtitles = mediaItem.GetSubtitleStreams();
 
                 Console.WriteLine($"Found {subtitles.Count} available subtitle tracks for {session.Title}");
                 return subtitles;
@@ -108,7 +110,7 @@
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting available subtitles: {ex.Message}");
-                return new List<SubtitleStream>();
+                return subtitles;
             }
         }
 

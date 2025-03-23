@@ -1,15 +1,17 @@
-﻿namespace PlexShowSubtitlesOnRewind
+﻿
+namespace PlexShowSubtitlesOnRewind
 {
     public static class ClientManager
     {
-        private static List<PlexClient> _clientList = [];
-        private static readonly object _lockObject = new object();
+        private static readonly List<PlexClient> _clientList = [];
+        private static readonly Lock _lockObject = new Lock();
 
         public static async Task<List<PlexClient>> LoadClientsAsync(PlexServer plexServer)
         {
+            List<PlexClient> clientList = [];
             try
             {
-                List<PlexClient> clientList = await plexServer.GetClientsAsync();
+                clientList = await plexServer.GetClientsAsync();
 
                 lock (_lockObject)
                 {
@@ -26,7 +28,7 @@
             catch (Exception ex)
             {
                 Console.WriteLine($"Error loading clients: {ex.Message}");
-                return new List<PlexClient>();
+                return clientList;
             }
         }
 
