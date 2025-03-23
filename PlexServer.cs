@@ -118,93 +118,45 @@
 
         public async Task<List<PlexClient>> GetClientsAsync()
         {
-            string response = await _httpClient.GetStringAsync($"{_url}/clients");
-            // Here you would parse the XML response from Plex
-            // For simplicity, we'll simulate clients
-            List<PlexClient> clients = [];
-
-            Console.WriteLine("--------------------- PLACEHOLDER DATA ---------------------");
-            // In a real implementation, you would parse XML and create proper clients
-            clients.Add(new PlexClient
-            {
-                Title = "Apple TV",
-                MachineIdentifier = "sample-machine-id-1",
-                HttpClient = _httpClient,
-                BaseUrl = _url
-            });
-
-            return clients;
-        }
-
-        public async Task<List<SubtitleStream>> GetAvailableSubtitlesForMediaAsync(string mediaKey)
-        {
             try
             {
-                // Make a direct call to the media metadata endpoint
-                string response = await _httpClient.GetStringAsync($"{_url}{mediaKey}");
-                List<SubtitleStream> subtitles = [];
+                string clientsResponse = await _httpClient.GetStringAsync($"{_url}/clients");
+                List<PlexClient> clients = [];
 
                 // Parse XML response
-                System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
-                xmlDoc.LoadXml(response);
+                System.Xml.XmlDocument xmlDoc = new();
+                xmlDoc.LoadXml(clientsResponse);
 
-                // Get the media item node
-                System.Xml.XmlNode? mediaContainer = xmlDoc.SelectSingleNode("//MediaContainer");
-                System.Xml.XmlNode? videoNode = mediaContainer?.SelectSingleNode("Video") ??
-                        mediaContainer?.SelectSingleNode("Track") ??
-                        mediaContainer?.SelectSingleNode("Episode");
-
-                if (videoNode != null)
+                System.Xml.XmlNodeList? serverNodes = xmlDoc.SelectNodes("//MediaContainer/Server");
+                if (serverNodes != null)
                 {
-                    // Find all Media nodes
-                    System.Xml.XmlNodeList? mediaNodes = videoNode.SelectNodes("Media");
-                    if (mediaNodes != null)
+                    foreach (System.Xml.XmlNode serverNode in serverNodes)
                     {
-                        foreach (System.Xml.XmlNode mediaNode in mediaNodes)
+                        PlexClient client = new()
                         {
-                            // Find all Part nodes
-                            System.Xml.XmlNodeList? partNodes = mediaNode.SelectNodes("Part");
-                            if (partNodes != null)
-                            {
-                                foreach (System.Xml.XmlNode partNode in partNodes)
-                                {
-                                    // Find all Stream nodes with streamType=3 (subtitles)
-                                    System.Xml.XmlNodeList? streamNodes = partNode.SelectNodes("Stream[@streamType='3']");
-                                    if (streamNodes != null)
-                                    {
-                                        foreach (System.Xml.XmlNode streamNode in streamNodes)
-                                        {
-                                            SubtitleStream subtitle = new SubtitleStream
-                                            {
-                                                Id = int.TryParse(GetAttribute(streamNode, "id"), out int id) ? id : 0,
-                                                Index = int.TryParse(GetAttribute(streamNode, "index"), out int index) ? index : 0,
-                                                ExtendedDisplayTitle = GetAttribute(streamNode, "extendedDisplayTitle"),
-                                                Language = GetAttribute(streamNode, "language"),
-                                                Selected = GetAttribute(streamNode, "selected") == "1",
+                            // Extract server attributes based on the XML example
+                            DeviceName = GetAttribute(serverNode, "name"),
+                            MachineIdentifier = GetAttribute(serverNode, "machineIdentifier"),
+                            ClientAppName = GetAttribute(serverNode, "product"),
+                            DeviceClass = GetAttribute(serverNode, "deviceClass"),
+                            Platform = GetAttribute(serverNode, "platform") != string.Empty ?
+                               GetAttribute(serverNode, "platform") :
+                               GetAttribute(serverNode, "product"),
+                            HttpClient = _httpClient,
+                            BaseUrl = _url
+                        };
 
-                                                // Add additional subtitle details
-                                                Format = GetAttribute(streamNode, "format"),
-                                                Title = GetAttribute(streamNode, "title"),
-                                                Location = GetAttribute(streamNode, "location"),
-                                                IsExternal = GetAttribute(streamNode, "external") == "1"
-                                            };
-
-                                            subtitles.Add(subtitle);
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        clients.Add(client);
                     }
                 }
 
-                Console.WriteLine($"Found {subtitles.Count} available subtitle streams for media key: {mediaKey}");
-                return subtitles;
+                Console.WriteLine($"Found {clients.Count} connected Plex clients");
+                return clients;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting available subtitles: {ex.Message}");
-                return new List<SubtitleStream>();
+                Console.WriteLine($"Error getting clients: {ex.Message}");
+                return new List<PlexClient>();
             }
         }
 

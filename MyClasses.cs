@@ -67,10 +67,10 @@ public class PlexPlayer
 
 public class PlexClient
 {
-    public string Title { get; set; }
+    public string DeviceName { get; set; }
     public string MachineIdentifier { get; set; }
-    public string Device { get; set; }
-    public string Model { get; set; }
+    public string ClientAppName { get; set; }
+    public string DeviceClass { get; set; }
     public string Platform { get; set; }
     public HttpClient HttpClient { get; set; }
     public string BaseUrl { get; set; }
@@ -86,11 +86,11 @@ public class PlexClient
             HttpResponseMessage response = await HttpClient.GetAsync(command);
             if (response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"Successfully set subtitle stream {streamId} on client {Title}");
+                Console.WriteLine($"Successfully set subtitle stream {streamId} on client {DeviceName}");
             }
             else
             {
-                Console.WriteLine($"Failed to set subtitle stream {streamId} on client {Title}. Status: {response.StatusCode}");
+                Console.WriteLine($"Failed to set subtitle stream {streamId} on client {DeviceName}. Status: {response.StatusCode}");
             }
         }
         catch (Exception ex)
