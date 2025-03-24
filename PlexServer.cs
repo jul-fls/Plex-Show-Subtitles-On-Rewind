@@ -24,18 +24,26 @@ namespace PlexShowSubtitlesOnRewind
                 string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
 
                 // Deserialize directly to your model
-                MediaContainer container = XmlSerializerHelper.DeserializeXml<MediaContainer>(response);
+                MediaContainer? container = XmlSerializerHelper.DeserializeXml<MediaContainer>(response);
 
-                // Store raw XML if needed
-                foreach (PlexSession session in container.Sessions)
+                if (container != null)
                 {
-                    session.RawXml = response;
+                    // Store raw XML in case it's useful
+                    foreach (PlexSession session in container.Sessions)
+                    {
+                        session.RawXml = response;
+                    }
+
+                    if (printDebug)
+                        Console.WriteLine($"Found {container.Sessions.Count} active Plex sessions");
+
+                    return container.Sessions;
                 }
-
-                if (printDebug)
-                    Console.WriteLine($"Found {container.Sessions.Count} active Plex sessions");
-
-                return container.Sessions;
+                else
+                {
+                    Console.WriteLine("Something went wrong deserializing the sessions MediaContainer. It returned null.");
+                    return [];
+                }
             }
             catch (Exception ex)
             {

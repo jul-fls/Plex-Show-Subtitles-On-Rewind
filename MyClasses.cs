@@ -332,13 +332,13 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
             // Just use the first available subtitle stream for now
             SubtitleStream firstSubtitle = AvailableSubtitles[0];
             int subtitleID = firstSubtitle.Id;
-            await plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID);
+            await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID);
         }
     }
 
     public async void DisableSubtitles()
     {
-        await plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0);
+        await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0);
     }
 
 }

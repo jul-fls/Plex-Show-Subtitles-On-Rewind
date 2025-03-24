@@ -8,24 +8,24 @@ namespace PlexShowSubtitlesOnRewind
         /// <summary>
         /// Deserializes XML string to a specific type
         /// </summary>
-        public static T DeserializeXml<T>(string xml) where T : class, new()
+        public static T? DeserializeXml<T>(string xml) where T : class, new()
         {
             XmlSerializer serializer = new XmlSerializer(typeof(T));
 
             using StringReader reader = new StringReader(xml);
-            return (T)serializer.Deserialize(reader);
+            return serializer.Deserialize(reader) as T;
         }
 
         /// <summary>
         /// Deserializes XML string to a specific type with a custom root element name
         /// </summary>
-        public static T DeserializeXml<T>(string xml, string rootElementName) where T : class, new()
+        public static T? DeserializeXml_WithSpecifiedRootElement<T>(string xml, string rootElementName) where T : class, new()
         {
             XmlRootAttribute root = new XmlRootAttribute(rootElementName);
             XmlSerializer serializer = new XmlSerializer(typeof(T), root);
 
             using StringReader reader = new StringReader(xml);
-            return (T)serializer.Deserialize(reader);
+            return serializer.Deserialize(reader) as T;
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace PlexShowSubtitlesOnRewind
             XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
 
-            XmlNodeList nodes = doc.SelectNodes(xPath);
+            XmlNodeList? nodes = doc.SelectNodes(xPath);
             if (nodes != null)
             {
                 XmlSerializer serializer = new XmlSerializer(typeof(T));
@@ -46,7 +46,10 @@ namespace PlexShowSubtitlesOnRewind
                 foreach (XmlNode node in nodes)
                 {
                     using StringReader reader = new StringReader(node.OuterXml);
-                    results.Add((T)serializer.Deserialize(reader));
+                    if (serializer.Deserialize(reader) is T deserialized)
+                    {
+                        results.Add(deserialized);
+                    }
                 }
             }
 
