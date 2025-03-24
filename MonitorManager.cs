@@ -14,6 +14,7 @@ namespace PlexShowSubtitlesOnRewind
         private static int _activeFrequencyMs = DefaultActiveFrequency;
         private static int _idleFrequencyMs = DefaultIdleFrequency;
         private static bool _isRunning = false;
+        private static bool _printDebugAll = false;
 
         public static void CreateAllMonitoringAllSessions(
             List<ActiveSession> activeSessionList,
@@ -29,30 +30,63 @@ namespace PlexShowSubtitlesOnRewind
 
             foreach (ActiveSession activeSession in activeSessionList)
             {
-                string sessionID = activeSession.Session.SessionId;
-                bool printDebug = false;
-
-                //debugDeviceName = "Apple TV"; //DEBUG - Remove this later and use parameter / command line argument instead
-
                 // Enable/Disable debugging per session depending on variables. Either for all devices or just a specific one
-                if (printDebugAll == true || Utils.CompareStringsWithWildcards(debugDeviceName, activeSession.DeviceName))
-                {
-                    printDebug = true;
-                }
+                bool printDebug = printDebugAll || Utils.CompareStringsWithWildcards(debugDeviceName, activeSession.DeviceName);
 
-                // Check if a monitor already exists for this session, if not create a new one
-                if (_allMonitors.Any(m => m.SessionID == sessionID))
-                {
-                    continue;
-                }
-                else
-                {
-                    SessionRewindMonitor monitor = new SessionRewindMonitor(activeSession, frequency: activeFrequency, maxRewindAmount: maxRewindAmount, printDebug: printDebug);
-                    _allMonitors.Add(monitor);
-                }
+                if (printDebugAll)
+                    _printDebugAll = true; // Set global debug flag so that future monitors can use it
+
+                CreateMonitorForSession(
+                    activeSession: activeSession,
+                    activeFrequency: activeFrequency,
+                    idleFrequency: idleFrequency,
+                    maxRewindAmount: maxRewindAmount,
+                    printDebug: printDebug
+                );
             }
 
             StartRefreshLoop();
+        }
+
+        public static void CreateMonitorForSession(
+            ActiveSession activeSession,
+            int activeFrequency = DefaultActiveFrequency,
+            int idleFrequency = DefaultIdleFrequency,
+            int maxRewindAmount = DefaultMaxRewindAmount,
+            bool printDebug = false
+            )
+        {
+            _activeFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
+            _idleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
+            string sessionID = activeSession.Session.SessionId;
+
+            if (_printDebugAll)
+            {
+                printDebug = true;
+            }
+
+            // Check if a monitor already exists for this session, if not create a new one
+            if (_allMonitors.Any(m => m.SessionID == sessionID))
+            {
+                Console.WriteLine($"Monitor for session {sessionID} already exists. Not creating a new one.");
+                return;
+            }
+            else
+            {
+                SessionRewindMonitor monitor = new SessionRewindMonitor(activeSession, frequency: activeFrequency, maxRewindAmount: maxRewindAmount, printDebug: printDebug);
+                _allMonitors.Add(monitor);
+                Console.WriteLine($"Found and monitoring new session for {activeSession.DeviceName}");
+            }
+        }
+
+        public static List<string> GetMonitoredSessions()
+        {
+            List<string> sessionIDs = [];
+            foreach (SessionRewindMonitor monitor in _allMonitors)
+            {
+                sessionIDs.Add(monitor.SessionID);
+            }
+            return sessionIDs;
         }
 
         private static void StartRefreshLoop()

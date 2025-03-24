@@ -74,12 +74,23 @@ namespace PlexShowSubtitlesOnRewind
                     // If the session is not found in the existing list, add it as a new session
                     // First need to get available subs
                     List<SubtitleStream> availableSubs = await GetAllAvailableSubtitlesAsync(fetchedSession, plexServer);
-                    _activeSessionList.Add(new ActiveSession(
+
+                    ActiveSession newSession = new ActiveSession(
                         session: fetchedSession,
                         availableSubtitles: availableSubs,
                         activeSubtitles: activeSubtitles,
                         plexServer: plexServer
-                    ));
+                    );
+                    _activeSessionList.Add(newSession);
+
+                    // Create a new monitor for the newly found session. The method will automatically check for duplicates
+                    MonitorManager.CreateMonitorForSession(
+                        activeSession: newSession,
+                        activeFrequency: MonitorManager.DefaultActiveFrequency,
+                        idleFrequency: MonitorManager.DefaultIdleFrequency,
+                        maxRewindAmount: MonitorManager.DefaultMaxRewindAmount,
+                        printDebug: false // Set to true if you want to debug this session
+                    );
                 }
             }
 

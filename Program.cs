@@ -52,12 +52,15 @@
                 // Load active sessions and start monitoring
                 try
                 {
-                    Console.WriteLine("Loading active sessions...");
+                    if (debugMode)
+                        Console.WriteLine("Loading active sessions...");
+
                     List<ActiveSession> activeSessionList = await SessionManager.ClearAndLoadActiveSessionsAsync(plexServer);
 
                     if (debugMode)
                         SessionManager.PrintSubtitles();
 
+                    Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
                     MonitorManager.CreateAllMonitoringAllSessions(activeSessionList, printDebugAll: debugMode);
                 }
                 catch (Exception ex)
@@ -65,11 +68,7 @@
                     Console.WriteLine($"Error refreshing sessions: {ex.Message}");
                 }
 
-                // Keep program running
-                Console.WriteLine("Monitoring active Plex sessions for rewinding. Press any key to exit...");
-                Console.ReadKey();
-
-                // Clean up when exiting
+                // Clean up when exiting. At this point the main refresh loop would have stopped for whatever reason
                 Console.WriteLine("Shutting down...");
 
                 MonitorManager.StopAllMonitors();
