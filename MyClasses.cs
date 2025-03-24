@@ -172,6 +172,97 @@ public class PlexPlayer
     public string DirectUrlPath => $"http://{Address}:{Port}";
 }
 
+[XmlRoot("MediaContainer")]
+public class TimelineMediaContainer
+{
+    [XmlElement("Timeline")]
+    public List<PlexTimeline> Timeline { get; set; } = new(); // Added to hold timeline information
+    [XmlAttribute("size")]
+    public int Size { get; set; } = 0;
+}
+
+[XmlRoot("Timeline")]
+public class PlexTimeline
+{
+    [XmlAttribute("containerKey")]
+    public string ContainerKey { get; set; } = string.Empty;
+
+    [XmlAttribute("state")]
+    public string State { get; set; } = string.Empty;
+
+    [XmlAttribute("repeat")]
+    public string Repeat { get; set; } = string.Empty;
+
+    [XmlAttribute("address")]
+    public string Address { get; set; } = string.Empty;
+
+    [XmlAttribute("duration")]
+    public string Duration { get; set; } = string.Empty;
+
+    [XmlAttribute("subtitleStreamID")]
+    public string SubtitleStreamID { get; set; } = string.Empty;
+
+    [XmlAttribute("key")]
+    public string Key { get; set; } = string.Empty;
+
+    [XmlAttribute("playQueueVersion")]
+    public string PlayQueueVersion { get; set; } = string.Empty;
+
+    [XmlAttribute("time")]
+    public string Time { get; set; } = string.Empty;
+
+    [XmlAttribute("machineIdentifier")]
+    public string MachineIdentifier { get; set; } = string.Empty;
+
+    [XmlAttribute("type")]
+    public string Type { get; set; } = string.Empty;
+
+    [XmlAttribute("volume")]
+    public string Volume { get; set; } = string.Empty;
+
+    [XmlAttribute("controllable")]
+    public string Controllable { get; set; } = string.Empty;
+
+    [XmlAttribute("ratingKey")]
+    public string RatingKey { get; set; } = string.Empty;
+
+    [XmlAttribute("playQueueID")]
+    public string PlayQueueID { get; set; } = string.Empty;
+
+    [XmlAttribute("autoPlay")]
+    public string AutoPlay { get; set; } = string.Empty;
+
+    [XmlAttribute("seekRange")]
+    public string SeekRange { get; set; } = string.Empty;
+
+    [XmlAttribute("shuffle")]
+    public string Shuffle { get; set; } = string.Empty;
+
+    [XmlAttribute("playQueueItemID")]
+    public string PlayQueueItemID { get; set; } = string.Empty;
+
+    [XmlAttribute("port")]
+    public string Port { get; set; } = string.Empty;
+
+    [XmlAttribute("videoStreamID")]
+    public string VideoStreamID { get; set; } = string.Empty;
+
+    [XmlAttribute("providerIdentifier")]
+    public string ProviderIdentifier { get; set; } = string.Empty;
+
+    [XmlAttribute("guid")]
+    public string Guid { get; set; } = string.Empty;
+
+    [XmlAttribute("protocol")]
+    public string Protocol { get; set; } = string.Empty;
+
+    [XmlAttribute("subtitlePosition")]
+    public string SubtitlePosition { get; set; } = string.Empty;
+
+    [XmlAttribute("audioStreamID")]
+    public string AudioStreamID { get; set; } = string.Empty;
+}
+
 [XmlRoot("Media")]
 public class Media
 {
@@ -292,9 +383,15 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
 
     public string DeviceName { get; } = session.Player.Title;
     public string MachineID { get; } = session.Player.MachineIdentifier;
-    public string MediaTitle { get; } = session.GrandparentTitle ?? session.Title;
+    // MediaTitle is derived from GrandparentTitle or Title, whichever is available (not an empty string)
+    public string MediaTitle { get; } = !string.IsNullOrEmpty(session.GrandparentTitle)
+        ? session.GrandparentTitle
+        : !string.IsNullOrEmpty(session.Title) ? session.Title : string.Empty;
     public string SessionID { get; } = session.SessionId;
     public string RawXml { get; } = session.RawXml;
+
+    // Expression to get the direct URL path for the player
+    public string DirectUrlPath => session.Player.DirectUrlPath;
 
     // Properly implemented public properties that use the private fields
     public PlexSession Session
@@ -316,6 +413,11 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
     }
 
     // ------------------ Methods ------------------
+
+    public TimelineMediaContainer? GetTimelineContainer()
+    {
+        return plexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
+    }
 
     public double GetPlayPositionSeconds()
     {

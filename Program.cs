@@ -40,7 +40,7 @@
                 Settings config = SettingsHandler.LoadSettings();
 
                 Console.WriteLine($"Connecting to Plex server at {config.ServerURL}\n");
-                PlexServer plexServer = new PlexServer(config.ServerURL, PLEX_APP_TOKEN);
+                PlexServer plexServer = new PlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
                 // Test connection to Plex server by connecting to the base api endpoint
                 if (!await plexServer.TestConnectionAsync())

@@ -65,7 +65,6 @@
             }
             if (!_subtitlesUserEnabled)
             {
-                //ClientManager.DisableSubtitlesBySession(_activeSession);
                 _activeSession.DisableSubtitles();
             }
             _temporarilyDisplayingSubtitles = false;
@@ -73,8 +72,6 @@
 
         private void ForceStopShowingSubtitles()
         {
-
-            //ClientManager.DisableSubtitlesBySession(_activeSession);
             _activeSession.DisableSubtitles();
         }
 
@@ -87,8 +84,18 @@
                     double positionSec = _activeSession.GetPlayPositionSeconds();
                     if (_printDebug)
                     {
-                        Console.WriteLine($"{_deviceName}: Loop iteration - position: {positionSec} -- Previous: {_previousPosition} -- Latest: {_latestWatchedPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
+                        Console.Write($"{_deviceName}: Loop iteration - position: {positionSec} -- Previous: {_previousPosition} -- Latest: {_latestWatchedPosition} -- UserEnabledSubtitles: ");
+                        string appendString = "";
+                        if (_subtitlesUserEnabled)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            appendString = " (NEVER SHOWING SUBTITLES)";
+                        }
+                        Console.Write($"{_subtitlesUserEnabled}" + appendString);
+                        Console.ResetColor();
+                        Console.WriteLine();
                     }
+
 
                     // If the user had manually enabled subtitles, check if they disabled them
                     if (_subtitlesUserEnabled)
@@ -132,8 +139,9 @@
                             }
                         }
                         // Check if the position has gone back by 2 seconds. Using 2 seconds just for safety to be sure.
-                        // This also will be valid if the user rewinds multiple times up to the maximum rewind amount
-                        else if (positionSec < _latestWatchedPosition - 2)
+                        // This also will be valid if the user rewinds multiple times
+                        // But don't count it if the rewind amount is beyond the max
+                        else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec > _latestWatchedPosition - _maxRewindAmount))
                         {
                             RewindOccurred();
                         }

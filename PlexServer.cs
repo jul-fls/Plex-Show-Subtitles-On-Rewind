@@ -1,5 +1,7 @@
-﻿using System.Net.Http.Headers;
+﻿using System.ComponentModel;
+using System.Net.Http.Headers;
 using System.Xml;
+using System.Xml.Serialization;
 
 namespace PlexShowSubtitlesOnRewind
 {
@@ -7,14 +9,17 @@ namespace PlexShowSubtitlesOnRewind
     {
         private readonly string _url;
         private readonly string _token;
+        private readonly string _appClientID;
         private readonly HttpClient _httpClient;
 
-        public PlexServer(string url, string token)
+        public PlexServer(string url, string token, string appClientID)
         {
             _url = url;
             _token = token;
+            _appClientID = appClientID;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", token);
+            _httpClient.DefaultRequestHeaders.Add("X-Plex-Client-Identifier", appClientID);
         }
 
         // Using XmlSerializer to get sessions
@@ -198,6 +203,65 @@ namespace PlexShowSubtitlesOnRewind
 
             // Send the command through the PlexServer
             return await server.SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters, activeSession:activeSession);
+        }
+
+        // Overload
+        public async Task<TimelineMediaContainer?> GetTimelineAsync(PlexPlayer player)
+        {
+            return await GetTimelineAsync(player.MachineIdentifier, player.Device, player.DirectUrlPath);
+        }
+
+        // Overload
+        public async Task<TimelineMediaContainer?> GetTimelineAsync(ActiveSession activeSession)
+        {
+            return await GetTimelineAsync(activeSession.MachineID, activeSession.DeviceName, activeSession.DirectUrlPath);
+        }
+
+        public async Task<TimelineMediaContainer?> GetTimelineAsync(string machineID, string deviceName, string url)
+        {
+            // Create headers with machine identifier
+            Dictionary<string, string> headers = new()
+            {
+                { "X-Plex-Target-Client-Identifier", machineID },
+                { "X-Plex-Device-Name", deviceName },
+            };
+
+            // Build the command URL
+            string paramString = "?wait=0";
+            string path = $"{url}/player/timeline/poll{paramString}";
+
+            try
+            {
+                HttpRequestMessage timelineRequest = new HttpRequestMessage(HttpMethod.Get, path);
+                // Add the headers
+                foreach (KeyValuePair<string, string> header in headers)
+                {
+                    timelineRequest.Headers.Add(header.Key, header.Value);
+                }
+
+                TimelineMediaContainer? container = new();
+                HttpResponseMessage timelineResponse = await _httpClient.SendAsync(timelineRequest);
+
+                if (timelineResponse.IsSuccessStatusCode)
+                {
+                    string responseBody = timelineResponse.Content.ReadAsStringAsync().Result;
+                    XmlSerializer serializer = new(typeof(TimelineMediaContainer));
+                    using StringReader reader = new(responseBody);
+                    container = (TimelineMediaContainer?)serializer.Deserialize(reader);
+                    return container;
+                }
+                else
+                {
+                    // Handle error
+                    Console.WriteLine($"Error fetching timeline: {timelineResponse.ReasonPhrase}");
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching device timeline: {ex.Message}");
+                return null;
+            }
         }
 
         public async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice = false, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)

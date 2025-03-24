@@ -28,6 +28,9 @@ namespace PlexShowSubtitlesOnRewind
                 ));
             }
 
+            //DEBUG
+            TimelineMediaContainer? test = newActiveSessionList[0].GetTimelineContainer();
+
             return newActiveSessionList;
         }
 
