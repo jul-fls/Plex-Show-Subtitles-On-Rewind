@@ -5,23 +5,27 @@
         // Replace with your Plex server details
         private const string PLEX_URL = "http://192.168.1.103:32400";
         private static string PLEX_APP_TOKEN = "";
+        private static string PLEX_APP_IDENTIFIER = "";
 
         static async Task Main(string[] args)
         {
             try
             {
-                string? tokenResult = AuthTokenHandler.LoadTokens(); // If tokens not found, will create empty template file, display message, and exit
-                if (tokenResult != null)
+                (string, string)? resultTuple = AuthTokenHandler.LoadTokens(); // If tokens not found, will create empty template file, display message, and exit
+
+                if (resultTuple != null)
                 {
-                    PLEX_APP_TOKEN = tokenResult;
+                    string authToken = resultTuple.Value.Item1;
+                    string clientIdentifier = resultTuple.Value.Item2;
+
+                    PLEX_APP_TOKEN = authToken;
+                    PLEX_APP_IDENTIFIER = clientIdentifier;
                 }
                 else
                 {
                     // Messages and errors are already displayed within the LoadTokens method
                     return;
-                }
-
-                //TODO: Add a flow to generate a token automatically and create the file
+                }              
 
                 if (args.Length > 0)
                 {
