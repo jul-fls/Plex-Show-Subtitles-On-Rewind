@@ -1,4 +1,6 @@
-﻿using System.Xml;
+﻿using System;
+using System.Net.Http;
+using System.Xml;
 
 namespace PlexShowSubtitlesOnRewind
 {
@@ -19,31 +21,28 @@ namespace PlexShowSubtitlesOnRewind
         // Using XmlSerializer to get sessions
         public async Task<List<PlexSession>> GetSessionsAsync(bool printDebug = false)
         {
-            List<PlexSession> sessions = [];
-
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
 
-                // Deserialize the XML response to the MediaContainer
-                MediaContainerXml mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
+                // Deserialize directly to your model
+                MediaContainer container = XmlSerializerHelper.DeserializeXml<MediaContainer>(response);
 
-                // Convert to PlexSession objects
-                foreach (PlexSessionXml sessionXml in mediaContainer.Sessions)
+                // Store raw XML if needed
+                foreach (PlexSession session in container.Sessions)
                 {
-                    sessionXml.RawXml = response;
-                    sessions.Add(sessionXml.ToPlexSession());
+                    session.RawXml = response;
                 }
 
                 if (printDebug)
-                    Console.WriteLine($"Found {sessions.Count} active Plex sessions");
+                    Console.WriteLine($"Found {container.Sessions.Count} active Plex sessions");
 
-                return sessions;
+                return container.Sessions;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting sessions (Will return what it can): {ex.Message}");
-                return sessions;
+                return [];
             }
         }
 
@@ -105,16 +104,15 @@ namespace PlexShowSubtitlesOnRewind
                     string nodeType = mediaNode.Name;
 
                     // Deserialize the node using XPath to get its media children
-                    PlexSessionXml? plexSessionXml = XmlSerializerHelper.DeserializeXmlNodes<PlexSessionXml>(response, $"//MediaContainer/{nodeType}").FirstOrDefault();
+                    // Now we use the unified PlexSession class instead of PlexSessionXml
+                    PlexSession? plexSession = XmlSerializerHelper.DeserializeXmlNodes<PlexSession>(response, $"//MediaContainer/{nodeType}").FirstOrDefault();
 
-                    if (plexSessionXml != null && plexSessionXml.Media != null)
+                    if (plexSession != null && plexSession.Media != null)
                     {
-                        plexSessionXml.RawXml = rawXml;
+                        plexSession.RawXml = rawXml;
 
-                        foreach (MediaXml mediaXml in plexSessionXml.Media)
-                        {
-                            mediaItem.Media.Add(mediaXml.ToMedia());
-                        }
+                        // We can now directly add the Media objects without conversion
+                        mediaItem.Media.AddRange(plexSession.Media);
                     }
                 }
 
