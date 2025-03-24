@@ -54,7 +54,6 @@
                 {
                     Console.WriteLine("Loading active sessions...");
                     List<ActiveSession> activeSessionList = await SessionManager.ClearAndLoadActiveSessionsAsync(plexServer);
-                    await ClientManager.LoadClientsAsync(plexServer);
 
                     if (debugMode)
                         SessionManager.PrintSubtitles();

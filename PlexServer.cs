@@ -76,37 +76,6 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        // Using XmlSerializer to get clients
-        public async Task<List<PlexClient>> GetClientsAsync()
-        {
-            List<PlexClient> clients = [];
-            string rawXml = "";
-            try
-            {
-                string response = await _httpClient.GetStringAsync($"{_url}/clients");
-                rawXml = response;
-
-                // Deserialize the XML response to the MediaContainer
-                MediaContainerXml mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
-                mediaContainer.RawXml = rawXml;
-
-                // Convert to your existing PlexClient objects
-                foreach (PlexClientXml clientXml in mediaContainer.Clients)
-                {
-                    PlexClient client = clientXml.ToPlexClient(httpClient: _httpClient, baseUrl: _url, plexServer: this, rawXml:rawXml);
-                    clients.Add(client);
-                }
-
-                Console.WriteLine($"Found {clients.Count} connected Plex clients");
-                return clients;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error getting clients: {ex.Message}");
-                return clients;
-            }
-        }
-
         // This method is more complex due to the different possible root nodes
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
