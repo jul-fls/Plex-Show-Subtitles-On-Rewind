@@ -44,6 +44,35 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
+        public async Task<bool> TestConnectionAsync()
+        {
+            try
+            {
+                string testUrl = $"{_url}/";
+                HttpResponseMessage response = await _httpClient.GetAsync(testUrl);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("Connection successful!\n");
+                    return true;
+                }
+                else
+                {
+                    string statusCode = ((int)response.StatusCode).ToString();
+                    string statusName = response.StatusCode.ToString();
+                    string errorText = await response.Content.ReadAsStringAsync();
+                    errorText = errorText.Replace("\n", " ");
+                    Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error testing connection: {ex.Message}\n");
+                return false;
+            }
+        }
+
         // Using XmlSerializer to get clients
         public async Task<List<PlexClient>> GetClientsAsync()
         {

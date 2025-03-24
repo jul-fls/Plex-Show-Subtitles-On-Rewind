@@ -3,9 +3,9 @@
     static class Program
     {
         // Replace with your Plex server details
-        private const string PLEX_URL = "http://192.168.1.103:32400";
         private static string PLEX_APP_TOKEN = "";
         private static string PLEX_APP_IDENTIFIER = "";
+        public static Settings config = new();
 
         static async Task Main(string[] args)
         {
@@ -25,16 +25,26 @@
                 {
                     // Messages and errors are already displayed within the LoadTokens method
                     return;
-                }              
+                }
 
                 if (args.Length > 0)
                 {
                     //TODO maybe - Add command line arguments
                 }
 
-                Console.WriteLine($"Connecting to Plex server at {PLEX_URL}");
-                PlexServer plexServer = new PlexServer(PLEX_URL, PLEX_APP_TOKEN);
+                Settings config = SettingsHandler.LoadSettings();
 
+                Console.WriteLine($"Connecting to Plex server at {config.ServerURL}\n");
+                PlexServer plexServer = new PlexServer(config.ServerURL, PLEX_APP_TOKEN);
+
+                // Test connection to Plex server by connecting to the base api endpoint
+                if (!await plexServer.TestConnectionAsync())
+                {
+                    Console.WriteLine("\nFailed to connect to Plex server. Exiting...");
+                    return;
+                }
+
+                // Load active sessions and start monitoring
                 try
                 {
                     Console.WriteLine("Loading active sessions...");
