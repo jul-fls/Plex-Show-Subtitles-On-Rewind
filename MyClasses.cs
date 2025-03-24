@@ -162,6 +162,14 @@ public class PlexPlayer
 
     [XmlAttribute("userID")]
     public string UserID { get; set; } = string.Empty;
+
+    // ------------------- Other properties that are not part of the XML mapping -------------------
+
+    [XmlIgnore]
+    public string Port { get; set; } = "32500"; // Assume this for now, but maybe we can get it from the XML for /resources if needed later
+
+    [XmlIgnore]
+    public string DirectUrlPath => $"http://{Address}:{Port}";
 }
 
 [XmlRoot("Media")]
@@ -332,13 +340,13 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
             // Just use the first available subtitle stream for now
             SubtitleStream firstSubtitle = AvailableSubtitles[0];
             int subtitleID = firstSubtitle.Id;
-            await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID);
+            await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID, activeSession:this);
         }
     }
 
     public async void DisableSubtitles()
     {
-        await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0);
+        await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0, activeSession:this);
     }
 
 }

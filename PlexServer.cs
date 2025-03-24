@@ -1,4 +1,5 @@
-﻿using System.Xml;
+﻿using System.Net.Http.Headers;
+using System.Xml;
 
 namespace PlexShowSubtitlesOnRewind
 {
@@ -148,14 +149,16 @@ namespace PlexShowSubtitlesOnRewind
         /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
         /// <param name="mediaType">Media type to take action against (default: video)</param>
         /// <returns>Task representing the asynchronous operation</returns>
-        public async Task<CommandResult> SetSubtitleStreamAsync(string machineID, int subtitleStreamID, string mediaType = "video")
+        public async Task<CommandResult> SetSubtitleStreamAsync(string machineID, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
         {
             // Simply call the SetStreamsAsync method with only the subtitle stream ID parameter
             return await SetStreamsAsync(
                 server: this,
                 machineID: machineID,
                 subtitleStreamID: subtitleStreamID,
-                mediaType: mediaType);
+                mediaType: mediaType,
+                activeSession: activeSession
+                );
         }
 
         /// <summary>
@@ -173,7 +176,9 @@ namespace PlexShowSubtitlesOnRewind
             int? audioStreamID = null,
             int? subtitleStreamID = null,
             int? videoStreamID = null,
-            string mediaType = "video")
+            string mediaType = "video",
+            ActiveSession? activeSession = null
+            )
         {
             // Create dictionary for additional parameters
             Dictionary<string, string> parameters = [];
@@ -192,20 +197,42 @@ namespace PlexShowSubtitlesOnRewind
                 parameters["type"] = mediaType;
 
             // Send the command through the PlexServer
-            return await server.SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters);
+            return await server.SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters, activeSession:activeSession);
         }
 
-        public async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? proxy = null, Dictionary<string, string>? additionalParams = null, bool needResponse = false)
+        public async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice = false, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)
         {
-            // Strip any leading/trailing slashes from command
-            command = command.Trim('/');
+            string mainUrlBase;
+            string? retryUrlBase;
 
-            // Get the controller from the command
-            //string controller = command.Split('/')[0];
-
-            if (proxy == null || proxy == false)
+            if (sendDirectToDevice == true)
             {
-                // TODO: Maybe implement 'proxy through server' functionality like in the python API
+                if (activeSession != null && activeSession.Session != null)
+                {
+                    mainUrlBase = activeSession.Session.Player.DirectUrlPath;
+                    retryUrlBase = _url; // Fallback to the main URL if sending directly fails
+                }
+                else
+                {
+                    // If no active session, we can't send directly
+                    Console.WriteLine("No active session found to send command directly.");
+                    mainUrlBase = _url;
+                    retryUrlBase = null;
+                }
+            }
+            else
+            {
+                mainUrlBase = _url;
+
+                if (activeSession != null && activeSession.Session != null)
+                {
+                    retryUrlBase = activeSession.Session.Player.DirectUrlPath;
+                }
+                else
+                {
+                    // If no active session, we can't send directly
+                    retryUrlBase = null;
+                }
             }
 
             // Create headers with machine identifier
@@ -233,12 +260,13 @@ namespace PlexShowSubtitlesOnRewind
             string queryString = Utils.JoinArgs(parameters);
 
             // Create the final command URL
-            string url = $"{_url}/player/{command}{queryString}";
+            command = command.Trim('/');
+            string mainUrl = $"{mainUrlBase}/player/{command}{queryString}";
 
             try
             {
                 // Send the request
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, mainUrl);
 
                 // Add headers
                 foreach (KeyValuePair<string, string> header in headers)
@@ -257,7 +285,36 @@ namespace PlexShowSubtitlesOnRewind
                     string statusName = response.StatusCode.ToString();
                     string errorText = await response.Content.ReadAsStringAsync();
                     errorText = errorText.Replace("\n", " ");
-                    string message = $"({statusCode}) {statusName}; URL: {url} \nError: {errorText}";
+                    string message = $"({statusCode}) {statusName}; URL: {mainUrl} \nError: {errorText}";
+
+                    CommandResult originalResult = new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
+
+                    // Retry by sending the command directly to the device (or the server URL if the function call was to send to device directly)
+                    if (retryUrlBase != null)
+                    {
+                        string retryUrl = $"{retryUrlBase}/player/{command}{queryString}";
+                        HttpRequestMessage retryRequest = new HttpRequestMessage(HttpMethod.Get, retryUrl);
+                        foreach (KeyValuePair<string, string> header in headers)
+                        {
+                            retryRequest.Headers.Add(header.Key, header.Value);
+                        }
+
+                        HttpResponseMessage retryResponse = await _httpClient.SendAsync(retryRequest);
+                        if (retryResponse.IsSuccessStatusCode)
+                        {
+                            // Process the XML response from the device
+                            string responseData = await retryResponse.Content.ReadAsStringAsync();
+                            return new CommandResult(success: true, responseErrorMessage: "", responseXml: ProcessXMLResponse(responseData));
+                        }
+                        else
+                        {
+                            // Log the retry failure
+                            string retryErrorText = await retryResponse.Content.ReadAsStringAsync();
+                            retryErrorText = retryErrorText.Replace("\n", " ");
+                            Console.WriteLine($"Retry failed. Error: {retryErrorText}");
+                            return originalResult;
+                        }
+                    }
 
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
