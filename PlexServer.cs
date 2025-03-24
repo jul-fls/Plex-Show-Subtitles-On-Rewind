@@ -79,17 +79,21 @@ namespace PlexShowSubtitlesOnRewind
         public async Task<List<PlexClient>> GetClientsAsync()
         {
             List<PlexClient> clients = [];
+            string rawXml = "";
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}/clients");
+                rawXml = response;
 
                 // Deserialize the XML response to the MediaContainer
                 MediaContainerXml mediaContainer = XmlSerializerHelper.DeserializeXml<MediaContainerXml>(response);
+                mediaContainer.RawXml = rawXml;
 
                 // Convert to your existing PlexClient objects
                 foreach (PlexClientXml clientXml in mediaContainer.Clients)
                 {
-                    clients.Add(clientXml.ToPlexClient(httpClient: _httpClient, baseUrl: _url, plexServer: this));
+                    PlexClient client = clientXml.ToPlexClient(httpClient: _httpClient, baseUrl: _url, plexServer: this, rawXml:rawXml);
+                    clients.Add(client);
                 }
 
                 Console.WriteLine($"Found {clients.Count} connected Plex clients");
@@ -105,9 +109,11 @@ namespace PlexShowSubtitlesOnRewind
         // This method is more complex due to the different possible root nodes
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
+            string rawXml = "";
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}{key}");
+                rawXml = response;
                 PlexMediaItem mediaItem = new PlexMediaItem(key:key);
 
                 // We need special handling to determine the media type first
@@ -129,11 +135,12 @@ namespace PlexShowSubtitlesOnRewind
                     string nodeType = mediaNode.Name;
 
                     // Deserialize the node using XPath to get its media children
-                    PlexSessionXml? plexSessionXml = XmlSerializerHelper.DeserializeXmlNodes<PlexSessionXml>(
-                        response, $"//MediaContainer/{nodeType}").FirstOrDefault();
+                    PlexSessionXml? plexSessionXml = XmlSerializerHelper.DeserializeXmlNodes<PlexSessionXml>(response, $"//MediaContainer/{nodeType}").FirstOrDefault();
 
                     if (plexSessionXml != null && plexSessionXml.Media != null)
                     {
+                        plexSessionXml.RawXml = rawXml;
+
                         foreach (MediaXml mediaXml in plexSessionXml.Media)
                         {
                             mediaItem.Media.Add(mediaXml.ToMedia());

@@ -49,13 +49,7 @@ public class PlexSession
     public PlexPlayer Player { get; set; }
     public List<Media> Media { get; set; } = [];
     private PlexMediaItem? _cachedItem;
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0028:Simplify collection initialization", Justification = "Simplifying obscures Media type")]
-    public PlexSession()
-    {
-        Player = new PlexPlayer();
-        Media = new List<Media>();
-    }
+    public required string RawXml { get; set; }
 
     public async Task<PlexMediaItem> FetchItemAsync(string key, PlexServer server)
     {
@@ -73,7 +67,7 @@ public class PlexPlayer
     public string MachineIdentifier { get; set; } = string.Empty;
 }
 
-public class PlexClient(string deviceName, string machineIdentifier, string clientAppName, string deviceClass, string platform, HttpClient httpClient, string baseUrl, PlexServer plexServer)
+public class PlexClient(string deviceName, string machineIdentifier, string clientAppName, string deviceClass, string platform, HttpClient httpClient, string baseUrl, PlexServer plexServer, string rawXml)
 {
     public string DeviceName { get; private set; } = deviceName;
     public string MachineIdentifier { get; private set; } = machineIdentifier;
@@ -83,6 +77,7 @@ public class PlexClient(string deviceName, string machineIdentifier, string clie
     public HttpClient HttpClient { get; private set; } = httpClient;
     public string BaseUrl { get; private set; } = baseUrl;
     public PlexServer PlexServer { get; private set; } = plexServer;
+    public string RawXml { get; private set; } = rawXml;
 
     /// <summary>
     /// Select multiple playback streams at once.
@@ -181,6 +176,7 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
     public string MachineID { get; } = session.Player.MachineIdentifier;
     public string MediaTitle { get; } = session.GrandparentTitle ?? session.Title;
     public string SessionID { get; } = session.SessionId;
+    public string RawXml { get; } = session.RawXml;
 
     // Properly implemented public properties that use the private fields
     public PlexSession Session
@@ -263,6 +259,8 @@ public class PlexSessionXml
     [XmlElement("id")]
     public string Id { get; set; } = string.Empty;
 
+    public required string RawXml { get; set; }
+
     // Convert to your existing PlexSession class
     public PlexSession ToPlexSession()
     {
@@ -275,7 +273,8 @@ public class PlexSessionXml
             GrandparentTitle = GrandparentTitle,
             Type = Type,
             ViewOffset = ViewOffset,
-            SessionId = Id
+            SessionId = Id,
+            RawXml = RawXml
         };
 
         if (Player != null)
@@ -324,10 +323,12 @@ public class PlexClientXml
     [XmlAttribute("platform")]
     public string Platform { get; set; } = string.Empty;
 
+    public required string RawXml { get; set; }
+
     // Convert to your existing PlexClient class
-    public PlexClient ToPlexClient(HttpClient httpClient, string baseUrl, PlexServer plexServer)
+    public PlexClient ToPlexClient(HttpClient httpClient, string baseUrl, PlexServer plexServer, string rawXml)
     {
-        return new PlexClient
+        PlexClient newClient = new PlexClient
         (
             deviceName: DeviceName,
             machineIdentifier: MachineIdentifier,
@@ -336,8 +337,11 @@ public class PlexClientXml
             platform: Platform ?? ClientAppName, // Handle the fallback
             httpClient: httpClient,
             baseUrl: baseUrl,
-            plexServer: plexServer
+            plexServer: plexServer,
+            rawXml: rawXml
         );
+
+        return newClient;
     }
 }
 
@@ -486,4 +490,6 @@ public class MediaContainerXml
 
     [XmlElement("Server")]
     public List<PlexClientXml> Clients { get; set; } = [];
+
+    public required string RawXml { get; set; }
 }
