@@ -73,7 +73,7 @@
 
         private void ForceStopShowingSubtitles()
         {
-            
+
             //ClientManager.DisableSubtitlesBySession(_activeSession);
             _activeSession.DisableSubtitles();
         }

@@ -1,6 +1,4 @@
-﻿using System;
-using System.Net.Http;
-using System.Xml;
+﻿using System.Xml;
 
 namespace PlexShowSubtitlesOnRewind
 {
@@ -187,7 +185,7 @@ namespace PlexShowSubtitlesOnRewind
                 parameters["type"] = mediaType;
 
             // Send the command through the PlexServer
-            return await server.SendCommandAsync(machineID:machineID, command:"playback/setStreams", additionalParams: parameters);
+            return await server.SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters);
         }
 
         public async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? proxy = null, Dictionary<string, string>? additionalParams = null, bool needResponse = false)
@@ -258,7 +256,7 @@ namespace PlexShowSubtitlesOnRewind
                     {
                         //throw new UnauthorizedAccessException(message);
                         Console.WriteLine("Unauthorized Error. Error Message: " + message);
-                        return new CommandResult(success:false, responseErrorMessage:message, responseXml:null);
+                        return new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
                     }
                     else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {

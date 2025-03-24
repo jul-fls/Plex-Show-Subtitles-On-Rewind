@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace PlexShowSubtitlesOnRewind;
+﻿namespace PlexShowSubtitlesOnRewind;
 
 // Settings class with default values. Will be updated with values from settings file if it exists
 public class Settings
@@ -55,7 +49,7 @@ public static class SettingsHandler
         Settings settings = new Settings();
         Type settingNames = typeof(SettingsNames);
         Type settingsType = settings.GetType();
-        foreach (var line in File.ReadAllLines(SettingStrings.SettingsFileName))
+        foreach (string line in File.ReadAllLines(SettingStrings.SettingsFileName))
         {
             string[] parts = line.Split('=');
             if (parts.Length == 2)
@@ -97,20 +91,20 @@ public static class SettingsHandler
     {
         if (!File.Exists(SettingStrings.SettingsFileName))
         {
-            var settings = new Settings();
-            var settingNames = typeof(SettingsNames);
-            var settingsType = settings.GetType();
+            Settings settings = new Settings();
+            Type settingNames = typeof(SettingsNames);
+            Type settingsType = settings.GetType();
 
             using StreamWriter sw = File.CreateText(SettingStrings.SettingsFileName);
 
-            foreach (var field in settingNames.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy))
+            foreach (System.Reflection.FieldInfo field in settingNames.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy))
             {
                 if (field.IsLiteral && !field.IsInitOnly)
                 {
                     string? settingName = field.GetValue(null)?.ToString();
                     if (settingName != null)
                     {
-                        var settingsField = settingsType.GetField(field.Name);
+                        System.Reflection.FieldInfo? settingsField = settingsType.GetField(field.Name);
 
                         if (settingsField != null)
                         {

@@ -58,7 +58,7 @@
                     if (debugMode)
                         SessionManager.PrintSubtitles();
 
-                    MonitorManager.CreateAllMonitoringAllSessions(activeSessionList, printDebugAll:debugMode);
+                    MonitorManager.CreateAllMonitoringAllSessions(activeSessionList, printDebugAll: debugMode);
                 }
                 catch (Exception ex)
                 {
@@ -84,10 +84,10 @@
             }
         }
 
-        
+
 
     }  // ---------------- End class Program ----------------
 
-    
+
 
 } // --------------- End namespace PlexShowSubtitlesOnRewind ---------------

@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Threading.Tasks;
 using System.Xml;
 
 namespace PlexShowSubtitlesOnRewind;
@@ -41,7 +35,7 @@ public static class AuthTokenHandler
             Console.WriteLine($"Required \"{AuthStrings.configFileName}\" file not found. Do you want to go through the necessary authorization flow?\n");
             Console.Write("Enter your choice (y/n): ");
             string? userInput = Console.ReadLine();
-            if (userInput != null && userInput.Equals("y" as string, StringComparison.CurrentCultureIgnoreCase))
+            if (userInput != null && userInput.Equals("y", StringComparison.CurrentCultureIgnoreCase))
             {
                 bool authFlowResult = FullAuthFlow();
                 if (authFlowResult)
@@ -176,12 +170,12 @@ public static class AuthTokenHandler
                 Console.ReadLine();
             }
         }
-        
+
 
         return successResult;
     }
 
-    public static TokenGenResult GenerateAppTokenRequest(string appName, string url, bool strong=true)
+    public static TokenGenResult GenerateAppTokenRequest(string appName, string url, bool strong = true)
     {
         HttpClient client = new HttpClient
         {
@@ -195,7 +189,7 @@ public static class AuthTokenHandler
 
         // Client ID should be unique for each instance of the app, aka per user. A GUID is a good choice.
         // It is used in "X-Plex-Client-Identifier" header
-        string uuid = Guid.NewGuid().ToString(); 
+        string uuid = Guid.NewGuid().ToString();
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("accept", "application/json");
@@ -253,7 +247,7 @@ public static class AuthTokenHandler
         return userAuthUrl;
     }
 
-    public static string? GetAuthorizedTokenAfterUserConfirmation(string pinID, string appName, string clientIdentifier, string baseURL=AuthStrings.PlexPinUrl)
+    public static string? GetAuthorizedTokenAfterUserConfirmation(string pinID, string appName, string clientIdentifier, string baseURL = AuthStrings.PlexPinUrl)
     {
         // Generates url like https://plex.tv/api/v2/pins/{pinID}
         // With headers for X-Plex-Product and X-Plex-Client-Identifier
@@ -265,7 +259,7 @@ public static class AuthTokenHandler
         request.Headers.Add("X-Plex-Client-Identifier", clientIdentifier);
         request.Headers.Add("X-Plex-Product", appName);
         HttpResponseMessage response = client.Send(request);
-        
+
         if (response.IsSuccessStatusCode)
         {
             string resultString = response.Content.ReadAsStringAsync().Result;
@@ -325,36 +319,7 @@ public static class AuthTokenHandler
         }
     }
 
-    //public static string ParseAuthJsonResponse(string xmlResponse)
-    //{
-    //    string authToken = "";
-    //    try
-    //    {
-    //        // Deserialize to JsonElement (general JSON representation)
-    //        JsonElement deserializedObj = JsonSerializer.Deserialize<JsonElement>(jsonResponse);
-    //        if (deserializedObj.TryGetProperty("authToken", out JsonElement tokenElement))
-    //        {
-    //            string authTokenRaw = tokenElement.GetRawText();
-    //            // Strip quotes from the strings, including escaped quotes
-    //            authToken = authTokenRaw.Trim('"').Trim('\\').Trim('"');
-
-        //            Console.WriteLine($"Successfully created auth token: {authToken}\nIt will automatically be stored in the file {AuthStrings.configFileName}");
-        //        }
-        //        else
-        //        {
-        //            Console.WriteLine("Received invalid token response.");
-        //        }
-
-        //        return authToken;
-        //    }
-        //    catch (JsonException ex)
-        //    {
-        //        Console.WriteLine($"Failed to parse JSON response: {ex.Message}");
-        //        return "";
-        //    }
-        //}
-
-        // Parse the json response to get the id and code
+    // Parse the json response to get the id and code
     public static TokenGenResult ParseTokenGenJsonResponse(string jsonResponse)
     {
         bool success = false;
