@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Xml;
 
@@ -45,7 +46,6 @@ public static class AuthTokenHandler
                 else
                 {
                     Console.WriteLine($"Token generation failed. Please check the {AuthStrings.configFileName} file.\n");
-                    return null;
                 }
             }
             else
@@ -53,7 +53,6 @@ public static class AuthTokenHandler
                 // Create a placeholder tokens file
                 CreateTokenFile(AuthStrings.TokenPlaceholder);
                 Console.WriteLine($"Please edit the {AuthStrings.configFileName} file with your Plex app and/or personal tokens.\n");
-                return null;
             }
         }
         else
@@ -62,7 +61,11 @@ public static class AuthTokenHandler
         }
 
         // If the token file already exists or was created, read the tokens from the file
-        if (tokenFileExists)
+        if (tokenFileExists == false)
+        {
+            return null;
+        }
+        else if (tokenFileExists == true)
         {
             // Read tokens from file
             string[] lines = File.ReadAllLines(tokenFilePath);
@@ -126,7 +129,7 @@ public static class AuthTokenHandler
         // Generate the token request
         TokenGenResult genResult = GenerateAppTokenRequest(appName: MyStrings.AppName, url: AuthStrings.PlexPinUrl);
 
-        string authUrl = "";
+        string authUrl;
         // The code and ID should never be null for a success, but check anyway
         if (genResult.Success && genResult.Code != null && genResult.PinID != null && genResult.ClientIdentifier != null)
         {
@@ -148,7 +151,6 @@ public static class AuthTokenHandler
             Console.WriteLine($"Token generation failed. Please check the {AuthStrings.configFileName} file.");
             return false;
         }
-
 
         // Get the token after user confirmation. At this point the user should have authorized the app and has hit a key
         // If the token is not null, the user may not have authorized the app, so
@@ -323,7 +325,6 @@ public static class AuthTokenHandler
     public static TokenGenResult ParseTokenGenJsonResponse(string jsonResponse)
     {
         bool success = false;
-        TokenGenResult result = new TokenGenResult(false);
         try
         {
             // Deserialize to JsonElement (general JSON representation)
@@ -367,20 +368,12 @@ public static class AuthTokenHandler
         }
     }
 
-    public class TokenGenResult
+    public class TokenGenResult(bool success, string? id = null, string? code = null, string? clientIdentifier = null)
     {
-        public TokenGenResult(bool success, string? id = null, string? code = null, string? clientIdentifier = null)
-        {
-            Success = success;
-            PinID = id;
-            Code = code;
-            ClientIdentifier = clientIdentifier;
-
-        }
-        public bool Success { get; set; } = false;
-        public string? PinID { get; set; } = null;
-        public string? Code { get; set; } = null;
-        public string? ClientIdentifier { get; set; } = null;
+        public bool Success { get; set; } = success;
+        public string? PinID { get; set; } = id;
+        public string? Code { get; set; } = code;
+        public string? ClientIdentifier { get; set; } = clientIdentifier;
     }
 
 } // ---------------- End class AuthTokenHandler ----------------

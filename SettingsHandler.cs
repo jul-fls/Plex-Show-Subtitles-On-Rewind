@@ -64,10 +64,7 @@ public static class SettingsHandler
                         if (settingNameField != null && settingNameField == settingName)
                         {
                             System.Reflection.FieldInfo? settingsField = settingsType.GetField(field.Name);
-                            if (settingsField != null)
-                            {
-                                settingsField.SetValue(settings, Convert.ChangeType(settingValue, settingsField.FieldType));
-                            }
+                            settingsField?.SetValue(settings, Convert.ChangeType(settingValue, settingsField.FieldType));
                         }
                     }
                 }

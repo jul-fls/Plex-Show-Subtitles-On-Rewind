@@ -33,7 +33,7 @@ namespace PlexShowSubtitlesOnRewind
         /// </summary>
         public static List<T> DeserializeXmlNodes<T>(string xml, string xPath) where T : class, new()
         {
-            List<T> results = new();
+            List<T> results = [];
 
             XmlDocument doc = new XmlDocument();
             doc.LoadXml(xml);
@@ -52,39 +52,6 @@ namespace PlexShowSubtitlesOnRewind
 
             return results;
         }
-
-        /// <summary>
-        /// Serializes an object to XML string
-        /// </summary>
-        public static string SerializeToXml<T>(T obj) where T : class
-        {
-            XmlSerializer serializer = new XmlSerializer(typeof(T));
-
-            using StringWriter writer = new StringWriter();
-            serializer.Serialize(writer, obj);
-            return writer.ToString();
-        }
-
-        /// <summary>
-        /// Creates a wrapper class for XML deserialization when the XML has a container element
-        /// </summary>
-        public static XmlWrapper<T> CreateWrapper<T>(List<T> items) where T : class
-        {
-            return new XmlWrapper<T> { Items = items };
-        }
     }
 
-    /// <summary>
-    /// Generic wrapper class for XML serialization/deserialization
-    /// </summary>
-    [XmlRoot("MediaContainer")]
-    public class XmlWrapper<T>
-    {
-        [XmlElement("Video", typeof(PlexSession))]
-        [XmlElement("Server", typeof(PlexClient))]
-        [XmlElement("Media", typeof(Media))]
-        [XmlElement("Part", typeof(MediaPart))]
-        [XmlElement("Stream", typeof(SubtitleStream))]
-        public List<T> Items { get; set; } = new List<T>();
-    }
 }

@@ -1,7 +1,7 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
-#pragma warning disable IDE0074 // Use compound assignment
+//#pragma warning disable IDE0074 // Use compound assignment
 #pragma warning disable IDE0290 // Use primary constructor
 
 namespace PlexShowSubtitlesOnRewind;
@@ -164,57 +164,6 @@ public class PlexPlayer
     public string UserID { get; set; } = string.Empty;
 }
 
-[XmlRoot("Server")]
-public class PlexClient
-{
-    // XML Properties
-    [XmlAttribute("name")]
-    public string DeviceName { get; set; } = string.Empty;
-
-    [XmlAttribute("machineIdentifier")]
-    public string MachineIdentifier { get; set; } = string.Empty;
-
-    [XmlAttribute("product")]
-    public string ClientAppName { get; set; } = string.Empty;
-
-    [XmlAttribute("deviceClass")]
-    public string DeviceClass { get; set; } = string.Empty;
-
-    [XmlAttribute("platform")]
-    public string Platform { get; set; } = string.Empty;
-
-    // Non-XML properties for business logic
-    [XmlIgnore]
-    public HttpClient HttpClient { get; set; }
-
-    [XmlIgnore]
-    public string BaseUrl { get; set; } = string.Empty;
-
-    [XmlIgnore]
-    public PlexServer PlexServer { get; set; }
-
-    [XmlIgnore]
-    public string RawXml { get; set; } = string.Empty;
-
-    // Default constructor for XML deserialization
-    public PlexClient() { }
-
-    // Call this after deserialization to complete initialization
-    public void Initialize(HttpClient httpClient, string baseUrl, PlexServer plexServer, string rawXml)
-    {
-        HttpClient = httpClient;
-        BaseUrl = baseUrl;
-        PlexServer = plexServer;
-        RawXml = rawXml;
-
-        // Handle fallbacks
-        if (string.IsNullOrEmpty(Platform))
-        {
-            Platform = ClientAppName;
-        }
-    }
-}
-
 [XmlRoot("Media")]
 public class Media
 {
@@ -323,9 +272,6 @@ public class MediaContainer
 {
     [XmlElement("Video")]
     public List<PlexSession> Sessions { get; set; } = [];
-
-    [XmlElement("Server")]
-    public List<PlexClient> Clients { get; set; } = [];
 }
 
 // Class to hold session objects and associated subtitles
@@ -334,7 +280,7 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
     private PlexSession _session = session;
     private List<SubtitleStream> _availableSubtitles = availableSubtitles;
     private List<SubtitleStream> _activeSubtitles = activeSubtitles;
-    private PlexServer _plexServer = plexServer;
+    private readonly PlexServer _plexServer = plexServer;
 
     public string DeviceName { get; } = session.Player.Title;
     public string MachineID { get; } = session.Player.MachineIdentifier;

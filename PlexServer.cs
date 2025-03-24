@@ -76,11 +76,10 @@ namespace PlexShowSubtitlesOnRewind
         // This method is more complex due to the different possible root nodes
         public async Task<PlexMediaItem> FetchItemAsync(string key)
         {
-            string rawXml = "";
             try
             {
                 string response = await _httpClient.GetStringAsync($"{_url}{key}");
-                rawXml = response;
+                string rawXml = response;
                 PlexMediaItem mediaItem = new PlexMediaItem(key:key);
 
                 // We need special handling to determine the media type first
@@ -326,12 +325,10 @@ namespace PlexShowSubtitlesOnRewind
                 return string.Empty;
 
             // Remove invalid XML characters
-            #pragma warning disable IDE0305 // Simplify collection initialization
             string cleanedXml = new string(xml.Where(c =>
                 (c >= 0x0020 && c <= 0xD7FF) ||
                 (c >= 0xE000 && c <= 0xFFFD) ||
                 c == 0x0009 || c == 0x000A || c == 0x000D).ToArray());
-            #pragma warning restore IDE0305
 
             return cleanedXml;
         }
