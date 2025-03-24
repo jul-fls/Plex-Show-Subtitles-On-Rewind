@@ -32,7 +32,7 @@ namespace PlexShowSubtitlesOnRewind
                 string sessionID = activeSession.Session.SessionId;
                 bool printDebug = false;
 
-                debugDeviceName = "Apple TV"; //DEBUG - Remove this later and use parameter / command line argument instead
+                //debugDeviceName = "Apple TV"; //DEBUG - Remove this later and use parameter / command line argument instead
 
                 // Enable/Disable debugging per session depending on variables. Either for all devices or just a specific one
                 if (printDebugAll == true || Utils.CompareStringsWithWildcards(debugDeviceName, activeSession.DeviceName))

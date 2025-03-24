@@ -17,7 +17,7 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Using XmlSerializer to get sessions
-        public async Task<List<PlexSession>> GetSessionsAsync()
+        public async Task<List<PlexSession>> GetSessionsAsync(bool printDebug = false)
         {
             List<PlexSession> sessions = [];
 
@@ -34,7 +34,9 @@ namespace PlexShowSubtitlesOnRewind
                     sessions.Add(sessionXml.ToPlexSession());
                 }
 
-                Console.WriteLine($"Found {sessions.Count} active Plex sessions");
+                if (printDebug)
+                    Console.WriteLine($"Found {sessions.Count} active Plex sessions");
+
                 return sessions;
             }
             catch (Exception ex)

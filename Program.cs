@@ -2,13 +2,18 @@
 {
     static class Program
     {
-        // Replace with your Plex server details
         private static string PLEX_APP_TOKEN = "";
         private static string PLEX_APP_IDENTIFIER = "";
         public static Settings config = new();
 
+        public static bool debugMode = false;
+
         static async Task Main(string[] args)
         {
+            #if DEBUG
+                debugMode = true;
+            #endif
+
             try
             {
                 (string, string)? resultTuple = AuthTokenHandler.LoadTokens(); // If tokens not found, will create empty template file, display message, and exit
@@ -50,7 +55,7 @@
                     Console.WriteLine("Loading active sessions...");
                     List<ActiveSession> activeSessionList = await SessionManager.ClearAndLoadActiveSessionsAsync(plexServer);
                     await ClientManager.LoadClientsAsync(plexServer);
-                    MonitorManager.CreateAllMonitoringAllSessions(activeSessionList);
+                    MonitorManager.CreateAllMonitoringAllSessions(activeSessionList, printDebugAll:debugMode);
                 }
                 catch (Exception ex)
                 {

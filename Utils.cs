@@ -4,8 +4,13 @@ namespace PlexShowSubtitlesOnRewind;
 internal class Utils
 {
     // Function that compares two strings using regex but allows user to use asterisks as wildcards
-    public static bool CompareStringsWithWildcards(string stringToCheckWithWildcard, string stringToCheckAgainst)
+    public static bool CompareStringsWithWildcards(string? stringToCheckWithWildcard, string? stringToCheckAgainst)
     {
+        if (stringToCheckWithWildcard == null || stringToCheckAgainst == null)
+        {
+            return false;
+        }
+
         // Replace asterisks with regex equivalent
         string pattern = "^" + Regex.Escape(stringToCheckWithWildcard).Replace("\\*", ".*") + "$";
         return Regex.IsMatch(stringToCheckAgainst, pattern);
