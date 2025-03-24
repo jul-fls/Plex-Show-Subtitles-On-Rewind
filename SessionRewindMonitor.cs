@@ -52,7 +52,8 @@
             {
                 Console.WriteLine($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle}");
             }
-            ClientManager.EnableSubtitlesBySession(_activeSession);
+            //ClientManager.EnableSubtitlesBySession(_activeSession);
+            _activeSession.EnableSubtitles();
             _temporarilyDisplayingSubtitles = true;
         }
 
@@ -64,18 +65,17 @@
             }
             if (!_subtitlesUserEnabled)
             {
-                ClientManager.DisableSubtitlesBySession(_activeSession);
+                //ClientManager.DisableSubtitlesBySession(_activeSession);
+                _activeSession.DisableSubtitles();
             }
             _temporarilyDisplayingSubtitles = false;
         }
 
         private void ForceStopShowingSubtitles()
         {
-            if (_printDebug)
-            {
-                Console.WriteLine($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle}");
-            }
-            ClientManager.DisableSubtitlesBySession(_activeSession);
+            
+            //ClientManager.DisableSubtitlesBySession(_activeSession);
+            _activeSession.DisableSubtitles();
         }
 
         public void MakeMonitoringPass()
@@ -109,14 +109,20 @@
                             // If the user fast forwards, stop showing subtitles
                             if (positionSec > _previousPosition + _smallestResolution + 2)
                             {
+                                if (_printDebug)
+                                    Console.WriteLine($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
+
                                 _latestWatchedPosition = positionSec;
                                 ForceStopShowingSubtitles();
                             }
                             // If they rewind too far, stop showing subtitles, and reset the latest watched position
-                            else if (positionSec < _maxRewindAmount)
+                            else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
                             {
-                                ForceStopShowingSubtitles();
+                                if (_printDebug)
+                                    Console.WriteLine($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
+
                                 _latestWatchedPosition = positionSec;
+                                ForceStopShowingSubtitles();
                             }
                             // Check if the position has gone back by the rewind amount. Don't update latest watched position here.
                             // Add smallest resolution to avoid stopping subtitles too early

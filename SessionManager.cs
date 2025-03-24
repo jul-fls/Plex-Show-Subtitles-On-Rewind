@@ -23,7 +23,8 @@ namespace PlexShowSubtitlesOnRewind
                 newActiveSessionList.Add(new ActiveSession(
                     session: session,
                     availableSubtitles: availableSubs,
-                    activeSubtitles: activeSubs
+                    activeSubtitles: activeSubs,
+                    plexServer: plexServer
                 ));
             }
 
@@ -76,7 +77,8 @@ namespace PlexShowSubtitlesOnRewind
                     _activeSessionList.Add(new ActiveSession(
                         session: fetchedSession,
                         availableSubtitles: availableSubs,
-                        activeSubtitles: activeSubtitles
+                        activeSubtitles: activeSubtitles,
+                        plexServer: plexServer
                     ));
                 }
             }

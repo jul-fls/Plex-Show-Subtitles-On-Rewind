@@ -31,6 +31,7 @@ namespace PlexShowSubtitlesOnRewind
                 // Convert to PlexSession objects
                 foreach (PlexSessionXml sessionXml in mediaContainer.Sessions)
                 {
+                    sessionXml.RawXml = response;
                     sessions.Add(sessionXml.ToPlexSession());
                 }
 
@@ -169,7 +170,60 @@ namespace PlexShowSubtitlesOnRewind
             return attr?.Value ?? string.Empty;
         }
 
-        public async Task<CommandResult> SendCommandAsync(PlexClient client, string command, bool? proxy = null, Dictionary<string, string>? additionalParams = null, bool needResponse = false)
+        /// <summary>
+        /// Select the subtitle stream for the current playback item (only video).
+        /// </summary>
+        /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
+        /// <param name="mediaType">Media type to take action against (default: video)</param>
+        /// <returns>Task representing the asynchronous operation</returns>
+        public async Task<CommandResult> SetSubtitleStreamAsync(string machineID, int subtitleStreamID, string mediaType = "video")
+        {
+            // Simply call the SetStreamsAsync method with only the subtitle stream ID parameter
+            return await SetStreamsAsync(
+                server: this,
+                machineID: machineID,
+                subtitleStreamID: subtitleStreamID,
+                mediaType: mediaType);
+        }
+
+        /// <summary>
+        /// Select multiple playback streams at once.
+        /// </summary>
+        /// <param name="audioStreamID">ID of the audio stream from the media object</param>
+        /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
+        /// <param name="videoStreamID">ID of the video stream from the media object</param>
+        /// <param name="mediaType">Media type to take action against (default: video)</param>
+        /// <param name="server">The PlexServer instance to send the command through</param>
+        /// <returns>Task representing the asynchronous operation</returns>
+        public static async Task<CommandResult> SetStreamsAsync(
+            PlexServer server,
+            string machineID,
+            int? audioStreamID = null,
+            int? subtitleStreamID = null,
+            int? videoStreamID = null,
+            string mediaType = "video")
+        {
+            // Create dictionary for additional parameters
+            Dictionary<string, string> parameters = [];
+
+            // Add parameters only if they're not null
+            if (audioStreamID.HasValue)
+                parameters["audioStreamID"] = audioStreamID.Value.ToString();
+
+            if (subtitleStreamID.HasValue)
+                parameters["subtitleStreamID"] = subtitleStreamID.Value.ToString();
+
+            if (videoStreamID.HasValue)
+                parameters["videoStreamID"] = videoStreamID.Value.ToString();
+
+            if (!string.IsNullOrEmpty(mediaType))
+                parameters["type"] = mediaType;
+
+            // Send the command through the PlexServer
+            return await server.SendCommandAsync(machineID:machineID, command:"playback/setStreams", additionalParams: parameters);
+        }
+
+        public async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? proxy = null, Dictionary<string, string>? additionalParams = null, bool needResponse = false)
         {
             // Strip any leading/trailing slashes from command
             command = command.Trim('/');
@@ -185,7 +239,7 @@ namespace PlexShowSubtitlesOnRewind
             // Create headers with machine identifier
             Dictionary<string, string> headers = new()
             {
-                { "X-Plex-Target-Client-Identifier", client.MachineIdentifier }
+                { "X-Plex-Target-Client-Identifier", machineID }
             };
 
             // Build query parameters
