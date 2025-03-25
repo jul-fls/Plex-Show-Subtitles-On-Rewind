@@ -52,7 +52,7 @@
         {
             if (_printDebug)
             {
-                WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle}");
+                WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {_latestWatchedPosition}");
             }
             _activeSession.EnableSubtitles();
             _temporarilyDisplayingSubtitles = true;
@@ -62,7 +62,7 @@
         {
             if (_printDebug)
             {
-                WriteWarning($"{_deviceName}: Reached original position for {_activeSession.MediaTitle}");
+                WriteWarning($"{_deviceName}: Reached original position ({_latestWatchedPosition}) for {_activeSession.MediaTitle}");
             }
             if (!_subtitlesUserEnabled)
             {

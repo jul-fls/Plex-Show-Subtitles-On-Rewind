@@ -58,36 +58,45 @@ namespace PlexShowSubtitlesOnRewind
 
             List<PlexSession> fetchedSessionsList = await plexServer.GetSessionsAsync();
 
+            List<Task> tasks = [];
             foreach (PlexSession fetchedSession in fetchedSessionsList)
             {
-                // We'll need the active subs in any case. Active subtitles are available from data we have from the session data itself already
-                List<SubtitleStream> activeSubtitles = GetOnlyActiveSubtitlesForSession(fetchedSession);
-
-                // Check if the session already exists in the active session list, and update in place if so
-                ActiveSession? existingSession = _activeSessionList.FirstOrDefault(s => s.SessionID == fetchedSession.SessionId);
-                if (existingSession != null)
+                tasks.Add(Task.Run(async () =>
                 {
-                    existingSession.ApplyUpdatedData(fetchedSession, activeSubtitles);
-                }
-                else
-                {
-                    // If the session is not found in the existing list, add it as a new session
-                    // First need to get available subs by specifically querying the server for data about the media,
-                    //      otherwise the session data doesn't include all available subs
-                    List<SubtitleStream> availableSubs = await FetchAllAvailableSubtitles_ViaServerQuery_Async(fetchedSession, plexServer);
+                    // We'll need the active subs in any case. Active subtitles are available from data we have from the session data itself already
+                    List<SubtitleStream> activeSubtitles = GetOnlyActiveSubtitlesForSession(fetchedSession);
 
-                    ActiveSession newSession = new ActiveSession(
-                        session: fetchedSession,
-                        availableSubtitles: availableSubs,
-                        activeSubtitles: activeSubtitles,
-                        plexServer: plexServer
-                    );
-                    _activeSessionList.Add(newSession);
+                    // Check if the session already exists in the active session list, and update in place if so
+                    ActiveSession? existingSession = _activeSessionList.FirstOrDefault(s => s.SessionID == fetchedSession.SessionId);
+                    if (existingSession != null)
+                    {
+                        existingSession.ApplyUpdatedData(fetchedSession, activeSubtitles);
+                    }
+                    else
+                    {
+                        // If the session is not found in the existing list, add it as a new session
+                        // First need to get available subs by specifically querying the server for data about the media,
+                        //      otherwise the session data doesn't include all available subs
+                        List<SubtitleStream> availableSubs = await FetchAllAvailableSubtitles_ViaServerQuery_Async(fetchedSession, plexServer);
 
-                    // Create a new monitor for the newly found session. The method will automatically check for duplicates
-                    MonitorManager.CreateMonitorForSession(activeSession: newSession, smallestResolution: newSession.SmallestResolutionExpected);
-                }
+                        ActiveSession newSession = new ActiveSession(
+                            session: fetchedSession,
+                            availableSubtitles: availableSubs,
+                            activeSubtitles: activeSubtitles,
+                            plexServer: plexServer
+                        );
+                        lock (_lockObject)
+                        {
+                            _activeSessionList.Add(newSession);
+                        }
+
+                        // Create a new monitor for the newly found session. The method will automatically check for duplicates
+                        MonitorManager.CreateMonitorForSession(activeSession: newSession, smallestResolution: newSession.SmallestResolutionExpected);
+                    }
+                }));
             }
+
+            await Task.WhenAll(tasks);
 
             // Check for dead sessions and remove them
             if (_activeSessionList.Count > 0)
