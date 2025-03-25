@@ -10,7 +10,6 @@ namespace PlexShowSubtitlesOnRewind
         public static ConsoleColor Red = ConsoleColor.Red;
         public static ConsoleColor Yellow = ConsoleColor.Yellow;
 
-        public static bool GLOBAL_DEBUG_MODE = false;
     }
 
 }

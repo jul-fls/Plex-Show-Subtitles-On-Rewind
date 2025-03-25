@@ -45,7 +45,7 @@
                 // Test connection to Plex server by connecting to the base api endpoint
                 if (!await plexServer.TestConnectionAsync())
                 {
-                    Console.WriteLine("\nFailed to connect to Plex server. Exiting...");
+                    WriteError("\nFailed to connect to Plex server. Exiting...");
                     return;
                 }
 
@@ -61,32 +61,32 @@
                         SessionHandler.PrintSubtitles();
 
                     Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
-                    MonitorManager.CreateAllMonitoringAllSessions(activeSessionList, printDebugAll: debugMode);
+                    MonitorManager.CreateAllMonitoringAllSessions(
+                        activeSessionList,
+                        activeFrequency: config.ActiveMonitorFrequency,
+                        idleFrequency: config.IdleMonitorFrequency,
+                        printDebugAll: debugMode);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error refreshing sessions: {ex.Message}");
+                    WriteError($"Error getting sessions: {ex.Message}");
                 }
 
                 // Clean up when exiting. At this point the main refresh loop would have stopped for whatever reason
-                Console.WriteLine("Shutting down...");
+                WriteWarning("Shutting down...");
 
                 MonitorManager.StopAllMonitors();
 
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Fatal error: {ex.Message}");
+                WriteErrorSuper($"Fatal error: {ex.Message}\n\n");
                 Console.WriteLine(ex.StackTrace);
-                Console.WriteLine("Press any key to exit...");
+                Console.WriteLine("\n\nPress any key to exit...");
                 Console.ReadKey();
             }
         }
 
-
-
     }  // ---------------- End class Program ----------------
-
-
 
 } // --------------- End namespace PlexShowSubtitlesOnRewind ---------------

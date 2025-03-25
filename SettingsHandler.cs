@@ -1,30 +1,56 @@
 ﻿namespace PlexShowSubtitlesOnRewind;
 
+
+
 // Settings class with default values. Will be updated with values from settings file if it exists
 public class Settings
 {
-    public string ServerURL = "http://127.0.0.1:32400";
+    public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
+    public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
+    public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
 
-    public bool CleanAndValidate()
+    // Constructor to set descriptions for each setting
+    public Settings()
     {
-        // Clean each setting where necessary
-        // --------------------------------------------------
+        // Set descriptions in the constructor
+        ServerURL.Description = "The full URL of your local server, including http, IP, and port";
+        ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
+        IdleMonitorFrequency.Description = "How often to check for playback status (in seconds) when no media is playing.  Must be a positive whole number.";
+    }
 
-        // Server URL
-        ServerURL = ServerURL.Trim().Trim('"').TrimEnd('/');
+    // ------------------------------------------------------
+    public Settings CleanAndValidate()
+    {
+        Settings def = new Settings();
 
+        // ===================================================
         // Validate each setting as much as reasonable
         // --------------------------------------------------
 
         // Server URL
-        if (ServerURL == null || ServerURL.Length == 0)
+        ServerURL.Value = ServerURL.Value.TrimEnd('/');
+        if (string.IsNullOrEmpty(ServerURL))
         {
-            Console.WriteLine("Error: Server URL is empty or null");
-            return false;
+            WriteError($"Error: Server URL is empty or null. Will use default value {def.ServerURL}");
+            ServerURL = def.ServerURL;
+        }
+
+        // Active Monitor Frequency
+        if (ActiveMonitorFrequency < 0)
+        {
+            WriteError($"Error: Active Monitor Frequency must be greater than or equal to 0. Will use default value {def.ActiveMonitorFrequency}");
+            ActiveMonitorFrequency = def.ActiveMonitorFrequency;
+        }
+
+        // Idle Monitor Frequency
+        if (IdleMonitorFrequency < 0)
+        {
+            WriteError($"Error: Idle Monitor Frequency must be greater than or equal to 0. Will use default value {def.IdleMonitorFrequency}");
+            IdleMonitorFrequency = def.IdleMonitorFrequency;
         }
 
         // If no issues found, return true
-        return true;
+        return this;
     }
 }
 
@@ -34,12 +60,7 @@ public static class SettingsHandler
     // Various Enums / Pseudo Enums
     private static class SettingStrings
     {
-        public const string SettingsFileName = "settings.config";
-    }
-
-    private static class SettingsNames
-    {
-        public const string ServerURL = "Server_URL_And_Port";
+        public const string SettingsFileName = "settings.ini";
     }
 
     // Load settings from settings file into a Settings object
@@ -47,75 +68,153 @@ public static class SettingsHandler
     {
         CreateSettingsFileIfNotExists();
         Settings settings = new Settings();
-        Type settingNames = typeof(SettingsNames);
         Type settingsType = settings.GetType();
+
+        // Create a lookup dictionary for field name to config name for easier matching
+        var fieldToConfigName = new Dictionary<string, string>();
+        foreach (System.Reflection.FieldInfo field in settingsType.GetFields())
+        {
+            if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(SettingInfo<>))
+            {
+                var settingValue = field.GetValue(settings);
+                if (settingValue != null)
+                {
+                    // Get the ConfigName property value
+                    var configName = field.FieldType.GetProperty("ConfigName")?.GetValue(settingValue)?.ToString();
+                    if (!string.IsNullOrEmpty(configName))
+                    {
+                        fieldToConfigName[field.Name] = configName;
+                    }
+                }
+            }
+        }
+
+        // Load settings from file
         foreach (string line in File.ReadAllLines(SettingStrings.SettingsFileName))
         {
+            // Local function
+            bool checkIsCommentLine(string checkLine)
+            {
+                checkLine = checkLine.Trim().Trim('\t');
+                return checkLine.StartsWith("#") || checkLine.StartsWith("//");
+            }
+            // --------------------------------------------------
+
+            // If it starts with a comment character, skip it
+            if (checkIsCommentLine(line))
+                continue;
+
             string[] parts = line.Split('=');
             if (parts.Length == 2)
             {
-                string settingName = parts[0];
-                string settingValue = parts[1];
-                foreach (System.Reflection.FieldInfo field in settingNames.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy))
+                string configName = parts[0].Trim();
+                string settingValue = parts[1].Trim().Trim('"');
+
+                // Find the field with this config name
+                foreach (KeyValuePair<string, string> kvp in fieldToConfigName)
                 {
-                    if (field.IsLiteral && !field.IsInitOnly)
+                    if (kvp.Value == configName)
                     {
-                        string? settingNameField = field.GetValue(null)?.ToString();
-                        if (settingNameField != null && settingNameField == settingName)
+                        System.Reflection.FieldInfo? field = settingsType.GetField(kvp.Key);
+                        if (field != null)
                         {
-                            System.Reflection.FieldInfo? settingsField = settingsType.GetField(field.Name);
-                            settingsField?.SetValue(settings, Convert.ChangeType(settingValue, settingsField.FieldType));
+                            // Get the generic type parameter of SettingInfo<T>
+                            Type valueType = field.FieldType.GetGenericArguments()[0];
+
+                            // Get the current SettingInfo instance
+                            object? settingInfo = field.GetValue(settings);
+
+                            // Set Value property with converted value
+                            System.Reflection.PropertyInfo? valueProperty = field.FieldType.GetProperty("Value");
+                            if (valueProperty != null)
+                            {
+                                object convertedValue = Convert.ChangeType(settingValue, valueType);
+                                valueProperty.SetValue(settingInfo, convertedValue);
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Validate and clean settings. Return defaults if invalid
-        if (settings.CleanAndValidate())
-        {
-            return settings;
-        }
-        else
-        {
-            Console.WriteLine("Invalid settings found - see any errors above. Using default settings.");
-            return new Settings();
-        }
-    }
+        // Validate and clean settings. Will restore default values for each setting if invalid
+        settings.CleanAndValidate();
 
-    // Automatically create settings file if it doesn't exist using settings names and default values from the Settings class and SettingsNames class
+        return settings;
+    } 
+
+    // Automatically create settings file if it doesn't exist
     public static void CreateSettingsFileIfNotExists()
     {
         if (!File.Exists(SettingStrings.SettingsFileName))
         {
             Settings settings = new Settings();
-            Type settingNames = typeof(SettingsNames);
             Type settingsType = settings.GetType();
 
             using StreamWriter sw = File.CreateText(SettingStrings.SettingsFileName);
 
-            foreach (System.Reflection.FieldInfo field in settingNames.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy))
+            foreach (System.Reflection.FieldInfo field in settingsType.GetFields())
             {
-                if (field.IsLiteral && !field.IsInitOnly)
+                if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(SettingInfo<>))
                 {
-                    string? settingName = field.GetValue(null)?.ToString();
-                    if (settingName != null)
+                    object? settingInfo = field.GetValue(settings);
+                    if (settingInfo != null)
                     {
-                        System.Reflection.FieldInfo? settingsField = settingsType.GetField(field.Name);
+                        string? description = field.FieldType.GetProperty("Description")?.GetValue(settingInfo)?.ToString();
+                        string? configName = field.FieldType.GetProperty("ConfigName")?.GetValue(settingInfo)?.ToString();
+                        object? defaultValue = field.FieldType.GetProperty("Value")?.GetValue(settingInfo);
 
-                        if (settingsField != null)
+                        // For each line in a description (whether single or multiple line description), add comment character, a tab, and the description
+                        if (description != null && description != "")
                         {
-                            object? defaultValue = settingsField.GetValue(settings);
-                            sw.WriteLine($"{settingName}={defaultValue}");
+                            string[] descriptionLines = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                            foreach (string line in descriptionLines)
+                            {
+                                sw.WriteLine($"\t# {line}");
+                            }
+                        }
+
+                        if (configName != null && defaultValue != null)
+                        {
+                            sw.WriteLine($"{configName}={defaultValue}\n");
                         }
                     }
                 }
             }
 
             sw.Close();
-            Console.WriteLine($"Created settings config file \"{SettingStrings.SettingsFileName}\"\n");
+            WriteGreen($"Created settings config file \"{SettingStrings.SettingsFileName}\"\n");
         }
     }
+} // --------- End of SettingsHandler ---------
 
 
+// Generic setting wrapper that supports metadata
+public class SettingInfo<T>
+{
+    private T _value;
+
+    // Core value with implicit conversion for seamless usage
+    public T Value
+    {
+        get => _value;
+        set => _value = value;
+    }
+
+    // Metadata properties
+    public string ConfigName { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public bool IsRequired { get; set; } = true;
+
+    public SettingInfo(T defaultValue, string configName)
+    {
+        _value = defaultValue;
+        ConfigName = configName;
+    }
+
+    // Implicit conversions to maintain usage simplicity
+    public static implicit operator T(SettingInfo<T> setting) => setting._value;
+    public static implicit operator SettingInfo<T>(T value) => new(value, string.Empty);
+
+    public override string ToString() => _value?.ToString() ?? string.Empty;
 }

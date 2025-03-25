@@ -91,7 +91,11 @@ namespace PlexShowSubtitlesOnRewind
                         }
 
                         // Create a new monitor for the newly found session. The method will automatically check for duplicates
-                        MonitorManager.CreateMonitorForSession(activeSession: newSession, smallestResolution: newSession.SmallestResolutionExpected);
+                        MonitorManager.CreateMonitorForSession(
+                            activeSession: newSession,
+                            activeFrequency: Program.config.ActiveMonitorFrequency,
+                            idleFrequency: Program.config.IdleMonitorFrequency,
+                            smallestResolution: newSession.SmallestResolutionExpected);
                     }
                 }));
             }
