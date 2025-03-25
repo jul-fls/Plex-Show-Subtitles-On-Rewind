@@ -1,7 +1,7 @@
 ﻿namespace PlexShowSubtitlesOnRewind
 {
     // Monitors a single session for rewinding
-    public class SessionRewindMonitor
+    public class RewindMonitor
     {
         private readonly ActiveSession _activeSession;
         //private readonly PlexClient _client;
@@ -22,7 +22,7 @@
         public string SessionID => _activeSession.Session.SessionId;
         public bool IsMonitoring => _isMonitoring;
 
-        public SessionRewindMonitor(
+        public RewindMonitor(
             ActiveSession session,
             int activeFrequency,
             int idleFrequency,

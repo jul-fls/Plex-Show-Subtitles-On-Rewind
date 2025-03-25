@@ -1,7 +1,7 @@
 ﻿
 namespace PlexShowSubtitlesOnRewind
 {
-    public static class SessionManager
+    public static class SessionHandler
     {
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();

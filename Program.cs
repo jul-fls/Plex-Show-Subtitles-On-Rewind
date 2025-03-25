@@ -55,10 +55,10 @@
                     if (debugMode)
                         Console.WriteLine("Loading active sessions...");
 
-                    List<ActiveSession> activeSessionList = await SessionManager.ClearAndLoadActiveSessionsAsync(plexServer);
+                    List<ActiveSession> activeSessionList = await SessionHandler.ClearAndLoadActiveSessionsAsync(plexServer);
 
                     if (debugMode)
-                        SessionManager.PrintSubtitles();
+                        SessionHandler.PrintSubtitles();
 
                     Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
                     MonitorManager.CreateAllMonitoringAllSessions(activeSessionList, printDebugAll: debugMode);

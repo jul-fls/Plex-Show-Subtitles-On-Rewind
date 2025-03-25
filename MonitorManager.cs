@@ -12,7 +12,7 @@ namespace PlexShowSubtitlesOnRewind
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
 
-        private static readonly List<SessionRewindMonitor> _allMonitors = [];
+        private static readonly List<RewindMonitor> _allMonitors = [];
         private static int _globalActiveFrequencyMs = DefaultActiveFrequency;
         private static int _globalIdleFrequencyMs = DefaultIdleFrequency;
         private static bool _isRunning = false;
@@ -75,7 +75,7 @@ namespace PlexShowSubtitlesOnRewind
             }
             else
             {
-                SessionRewindMonitor monitor = new SessionRewindMonitor(
+                RewindMonitor monitor = new RewindMonitor(
                     activeSession, 
                     activeFrequency: activeFrequency, 
                     idleFrequency: idleFrequency, 
@@ -91,7 +91,7 @@ namespace PlexShowSubtitlesOnRewind
         public static List<string> GetMonitoredSessions()
         {
             List<string> sessionIDs = [];
-            foreach (SessionRewindMonitor monitor in _allMonitors)
+            foreach (RewindMonitor monitor in _allMonitors)
             {
                 sessionIDs.Add(monitor.SessionID);
             }
@@ -100,7 +100,7 @@ namespace PlexShowSubtitlesOnRewind
 
         public static void RemoveMonitorForSession(string sessionID)
         {
-            SessionRewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.SessionID == sessionID);
+            RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.SessionID == sessionID);
             if (monitor != null)
             {
                 _allMonitors.Remove(monitor);
@@ -115,7 +115,7 @@ namespace PlexShowSubtitlesOnRewind
         {
             while (_isRunning)
             {
-                _ = SessionManager.RefreshExistingActiveSessionsAsync(); // Using discard since it's an async method, but we want this loop synchronous
+                _ = SessionHandler.RefreshExistingActiveSessionsAsync(); // Using discard since it's an async method, but we want this loop synchronous
                 bool anyMonitorsActive = RefreshMonitors_OneIteration(_allMonitors);
 
                 if (anyMonitorsActive == true)
@@ -140,10 +140,10 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Will return false if no monitors are active
-        private static bool RefreshMonitors_OneIteration(List<SessionRewindMonitor> monitorsToRefresh)
+        private static bool RefreshMonitors_OneIteration(List<RewindMonitor> monitorsToRefresh)
         {
             bool anyMonitorsActive = false;
-            foreach (SessionRewindMonitor monitor in monitorsToRefresh)
+            foreach (RewindMonitor monitor in monitorsToRefresh)
             {
                 if (monitor.IsMonitoring) // This gets checked inside the loop also but is here for clarity. Might remove later
                 {
@@ -156,7 +156,7 @@ namespace PlexShowSubtitlesOnRewind
 
         public static void StopAllMonitors()
         {
-            foreach (SessionRewindMonitor monitor in _allMonitors)
+            foreach (RewindMonitor monitor in _allMonitors)
             {
                 monitor.StopMonitoring();
             }
