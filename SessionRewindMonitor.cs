@@ -52,9 +52,8 @@
         {
             if (_printDebug)
             {
-                Console.WriteLine($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle}");
+                WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle}");
             }
-            //ClientManager.EnableSubtitlesBySession(_activeSession);
             _activeSession.EnableSubtitles();
             _temporarilyDisplayingSubtitles = true;
         }
@@ -63,7 +62,7 @@
         {
             if (_printDebug)
             {
-                Console.WriteLine($"{_deviceName}: Reached original position for {_activeSession.MediaTitle}");
+                WriteWarning($"{_deviceName}: Reached original position for {_activeSession.MediaTitle}");
             }
             if (!_subtitlesUserEnabled)
             {
@@ -119,7 +118,7 @@
                             if (positionSec > _previousPosition + _smallestResolution + 2)
                             {
                                 if (_printDebug)
-                                    Console.WriteLine($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
+                                    WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
 
                                 _latestWatchedPosition = positionSec;
                                 ForceStopShowingSubtitles();
@@ -128,7 +127,7 @@
                             else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
                             {
                                 if (_printDebug)
-                                    Console.WriteLine($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
+                                    WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
 
                                 _latestWatchedPosition = positionSec;
                                 ForceStopShowingSubtitles();
@@ -158,7 +157,7 @@
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"{_deviceName}: Error in monitor iteration: {e.Message}");
+                    WriteError($"{_deviceName}: Error in monitor iteration: {e.Message}");
                     // Add a small delay to avoid tight loop on errors
                     //Thread.Sleep(1000); // Moving the delay to more global loop
                 }

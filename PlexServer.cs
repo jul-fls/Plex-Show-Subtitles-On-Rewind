@@ -11,15 +11,26 @@ namespace PlexShowSubtitlesOnRewind
         private readonly string _token;
         private readonly string _appClientID;
         private readonly HttpClient _httpClient;
+        private readonly HttpClient _httpClientShortTimeout;
 
         public PlexServer(string url, string token, string appClientID)
         {
+            Dictionary<string, string> defaultHeadersDict = new()
+            {
+                { "X-Plex-Token", token },
+                { "X-Plex-Client-Identifier", appClientID }
+            };
+
             _url = url;
             _token = token;
             _appClientID = appClientID;
+
             _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", token);
-            _httpClient.DefaultRequestHeaders.Add("X-Plex-Client-Identifier", appClientID);
+            _httpClientShortTimeout = new HttpClient();
+
+            _httpClient = Utils.AddHttpClientHeaders(_httpClient, defaultHeadersDict);
+            _httpClientShortTimeout = Utils.AddHttpClientHeaders(_httpClientShortTimeout, defaultHeadersDict);
+            _httpClientShortTimeout.Timeout = TimeSpan.FromMilliseconds(500); // Will be used between loop iterations which only last a second
         }
 
         // Using XmlSerializer to get sessions
@@ -67,7 +78,7 @@ namespace PlexShowSubtitlesOnRewind
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("Connection successful!\n");
+                    WriteGreen("Connection successful!\n");
                     return true;
                 }
                 else
@@ -128,7 +139,7 @@ namespace PlexShowSubtitlesOnRewind
                 }
 
                 int subtitleCount = mediaItem.GetSubtitleStreams().Count;
-                Console.WriteLine($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
+                //Console.WriteLine($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
 
                 return mediaItem;
             }
@@ -233,14 +244,10 @@ namespace PlexShowSubtitlesOnRewind
             try
             {
                 HttpRequestMessage timelineRequest = new HttpRequestMessage(HttpMethod.Get, path);
-                // Add the headers
-                foreach (KeyValuePair<string, string> header in headers)
-                {
-                    timelineRequest.Headers.Add(header.Key, header.Value);
-                }
+                timelineRequest = Utils.AddHttpRequestHeaders(timelineRequest, headers);
 
                 TimelineMediaContainer? container = new();
-                HttpResponseMessage timelineResponse = await _httpClient.SendAsync(timelineRequest);
+                HttpResponseMessage timelineResponse = await _httpClientShortTimeout.SendAsync(timelineRequest);
 
                 if (timelineResponse.IsSuccessStatusCode)
                 {
@@ -253,13 +260,13 @@ namespace PlexShowSubtitlesOnRewind
                 else
                 {
                     // Handle error
-                    Console.WriteLine($"Error fetching timeline: {timelineResponse.ReasonPhrase}");
+                    WriteError($"Error fetching timeline: {timelineResponse.ReasonPhrase}");
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error fetching device timeline: {ex.Message}");
+                WriteError($"Error fetching device timeline: {ex.Message}");
                 return null;
             }
         }
@@ -331,12 +338,7 @@ namespace PlexShowSubtitlesOnRewind
             {
                 // Send the request
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, mainUrl);
-
-                // Add headers
-                foreach (KeyValuePair<string, string> header in headers)
-                {
-                    request.Headers.Add(header.Key, header.Value);
-                }
+                request = Utils.AddHttpRequestHeaders(request, headers);
 
                 // Send the command and get the response
                 HttpResponseMessage response = await _httpClient.SendAsync(request);
@@ -358,10 +360,7 @@ namespace PlexShowSubtitlesOnRewind
                     {
                         string retryUrl = $"{retryUrlBase}/player/{command}{queryString}";
                         HttpRequestMessage retryRequest = new HttpRequestMessage(HttpMethod.Get, retryUrl);
-                        foreach (KeyValuePair<string, string> header in headers)
-                        {
-                            retryRequest.Headers.Add(header.Key, header.Value);
-                        }
+                        retryRequest = Utils.AddHttpRequestHeaders(retryRequest, headers);
 
                         HttpResponseMessage retryResponse = await _httpClient.SendAsync(retryRequest);
                         if (retryResponse.IsSuccessStatusCode)

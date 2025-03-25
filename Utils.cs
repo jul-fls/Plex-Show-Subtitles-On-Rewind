@@ -39,5 +39,59 @@ internal class Utils
         return $"?{string.Join("&", argList)}";
     }
 
+    public static HttpClient AddHttpClientHeaders(HttpClient client, Dictionary<string, string> headers)
+    {
+        if (headers != null)
+        {
+            foreach (KeyValuePair<string, string> header in headers)
+            {
+                client.DefaultRequestHeaders.Add(header.Key, header.Value);
+            }
+        }
+        return client;
+    }
+
+    public static HttpRequestMessage AddHttpRequestHeaders(HttpRequestMessage request, Dictionary<string, string> headers)
+    {
+        if (headers != null)
+        {
+            foreach (KeyValuePair<string, string> header in headers)
+            {
+                request.Headers.Add(header.Key, header.Value);
+            }
+        }
+        return request;
+    }
+
+    public static void WriteError(string message)
+    {
+        WriteColor(message: message, foreground: ConsoleColor.Red);
+    }
+
+    public static void WriteErrorSuper(string message)
+    {
+        WriteColor(message: message, foreground: ConsoleColor.White, background: ConsoleColor.Red);
+    }
+
+    public static void WriteWarning(string message)
+    {
+        WriteColor(message: message, foreground: ConsoleColor.Yellow);
+    }
+
+    public static void WriteGreen(string message)
+    {
+        WriteColor(message: message, foreground: ConsoleColor.Green);
+    }
+
+    public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null)
+    {
+        Console.ForegroundColor = foreground;
+        if (background != null)
+            Console.BackgroundColor = background.Value;
+
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+
 
 } // ---------- End of Utils Class -----------

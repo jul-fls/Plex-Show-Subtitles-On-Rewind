@@ -45,7 +45,7 @@ public static class AuthTokenHandler
                 }
                 else
                 {
-                    Console.WriteLine($"Token generation failed. Please check the {AuthStrings.configFileName} file.\n");
+                    Utils.WriteError($"Token generation failed. Please check the {AuthStrings.configFileName} file.\n");
                 }
             }
             else
@@ -137,9 +137,9 @@ public static class AuthTokenHandler
             authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: MyStrings.AppName);
 
             Console.WriteLine("\n----------------------------------------------------------------");
-            Console.WriteLine($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}");
-            Console.WriteLine("\n\n\tTip: You can check if it shows up here (replace the IP with your server IP and port if necessary):" +
-                "\n\thttp://127.0.0.1:32400/web/index.html#!/settings/devices/all");
+            Utils.WriteColor($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}", ConsoleColor.Green);
+            Console.WriteLine("\n\nTip: You can check if it shows up here (replace the IP with your server IP and port if necessary):" +
+                "\n     http://127.0.0.1:32400/web/index.html#!/settings/devices/all");
 
             Console.WriteLine("\n----------------------------------------------------------------");
             Console.WriteLine("Press Enter to continue after you have authorized the app.");
@@ -166,13 +166,12 @@ public static class AuthTokenHandler
             else
             {
                 Console.WriteLine("----------------------------------------------------");
-                Console.WriteLine("\nThe app does not appear authorized.\nVisit this URL and sign in if you haven't already, ");
-                Console.WriteLine($"\n\t{authUrl}");
+                Console.WriteLine("\nThe app does not appear authorized.\nVisit this URL and sign in if you haven't already: ");
+                WriteGreen($"\n\t{authUrl}");
                 Console.WriteLine("\nThen press Enter to check again.");
                 Console.ReadLine();
             }
         }
-
 
         return successResult;
     }

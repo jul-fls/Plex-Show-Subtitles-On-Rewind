@@ -30,13 +30,13 @@ namespace PlexShowSubtitlesOnRewind
             _globalActiveFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
             _globalIdleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
 
+            if (printDebugAll)
+                _printDebugAll = true; // Set global debug flag so that future monitors can use it
+
             foreach (ActiveSession activeSession in activeSessionList)
             {
                 // Enable/Disable debugging per session depending on variables. Either for all devices or just a specific one
                 bool printDebug = printDebugAll || Utils.CompareStringsWithWildcards(debugDeviceName, activeSession.DeviceName);
-
-                if (printDebugAll)
-                    _printDebugAll = true; // Set global debug flag so that future monitors can use it
 
                 CreateMonitorForSession(
                     activeSession: activeSession,
@@ -84,7 +84,7 @@ namespace PlexShowSubtitlesOnRewind
                     smallestResolution: smallestResolution
                     );
                 _allMonitors.Add(monitor);
-                Console.WriteLine($"Found and monitoring new session for {activeSession.DeviceName}");
+                WriteWarning($"Found and monitoring new session for {activeSession.DeviceName}");
             }
         }
 
