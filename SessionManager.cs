@@ -28,9 +28,6 @@ namespace PlexShowSubtitlesOnRewind
                 ));
             }
 
-            //DEBUG
-            TimelineMediaContainer? test = newActiveSessionList[0].GetTimelineContainer();
-
             return newActiveSessionList;
         }
 
@@ -59,9 +56,9 @@ namespace PlexShowSubtitlesOnRewind
             }
             // -----------------------------------
 
-            List<PlexSession> sessionsList = await plexServer.GetSessionsAsync();
+            List<PlexSession> fetchedSessionsList = await plexServer.GetSessionsAsync();
 
-            foreach (PlexSession fetchedSession in sessionsList)
+            foreach (PlexSession fetchedSession in fetchedSessionsList)
             {
                 // We'll need the active subs in any case
                 List<SubtitleStream> activeSubtitles = GetActiveSubtitlesForSession(fetchedSession);
@@ -70,7 +67,7 @@ namespace PlexShowSubtitlesOnRewind
                 ActiveSession? existingSession = _activeSessionList.FirstOrDefault(s => s.SessionID == fetchedSession.SessionId);
                 if (existingSession != null)
                 {
-                    existingSession.Refresh(fetchedSession, activeSubtitles);
+                    existingSession.ApplyUpdatedData(fetchedSession, activeSubtitles);
                 }
                 else
                 {
@@ -87,13 +84,20 @@ namespace PlexShowSubtitlesOnRewind
                     _activeSessionList.Add(newSession);
 
                     // Create a new monitor for the newly found session. The method will automatically check for duplicates
-                    MonitorManager.CreateMonitorForSession(
-                        activeSession: newSession,
-                        activeFrequency: MonitorManager.DefaultActiveFrequency,
-                        idleFrequency: MonitorManager.DefaultIdleFrequency,
-                        maxRewindAmount: MonitorManager.DefaultMaxRewindAmount,
-                        printDebug: false // Set to true if you want to debug this session
-                    );
+                    MonitorManager.CreateMonitorForSession(activeSession: newSession, smallestResolution: newSession.SmallestResolutionExpected);
+                }
+            }
+
+            // Check for dead sessions and remove them
+            if (_activeSessionList.Count > 0)
+            {
+                // Find any sessions in active sessions list that are not in the fetched list, by session ID
+                List<ActiveSession> deadSessions = _activeSessionList.Where(s => !fetchedSessionsList.Any(fs => fs.SessionId == s.SessionID)).ToList();
+
+                foreach (ActiveSession deadSession in deadSessions)
+                {
+                    _activeSessionList.Remove(deadSession);
+                    MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
                 }
             }
 

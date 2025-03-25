@@ -5,7 +5,8 @@
     {
         private readonly ActiveSession _activeSession;
         //private readonly PlexClient _client;
-        private readonly int _frequency;
+        private readonly int _activeFrequency;
+        private readonly int _idleFrequency;
         private readonly int _maxRewindAmount;
         private readonly bool _printDebug;
         private readonly string _deviceName;
@@ -16,32 +17,33 @@
         private double _latestWatchedPosition;
         private double _previousPosition;
         private bool _temporarilyDisplayingSubtitles;
-        private readonly int _smallestResolution;
+        private int _smallestResolution; // This might be updated depending on available data during refreshes
 
         public string SessionID => _activeSession.Session.SessionId;
         public bool IsMonitoring => _isMonitoring;
 
         public SessionRewindMonitor(
             ActiveSession session,
-            //PlexClient client,
-            int frequency,
+            int activeFrequency,
+            int idleFrequency,
             int maxRewindAmount,
-            bool printDebug = false
+            bool printDebug = false,
+            int smallestResolution = MonitorManager.DefaultSmallestResolution
             )
         {
             _activeSession = session;
-            //_client = client;
-            _frequency = frequency;
+            _activeFrequency = activeFrequency;
+            _idleFrequency = idleFrequency;
             _maxRewindAmount = maxRewindAmount;
             _printDebug = printDebug;
             _deviceName = _activeSession.DeviceName;
-
+            _idleFrequency = idleFrequency;
             _isMonitoring = false;
             _subtitlesUserEnabled = false;
             _latestWatchedPosition = 0;
             _previousPosition = 0;
             _temporarilyDisplayingSubtitles = false;
-            _smallestResolution = Math.Max(_frequency, MonitorManager.DefaultSmallestResolution);
+            _smallestResolution = Math.Max(_activeFrequency, smallestResolution);
 
             SetupMonitoringInitialConditions();
         }
@@ -102,7 +104,7 @@
                     {
                         _latestWatchedPosition = positionSec;
                         // If the active subtitles are empty, the user must have disabled them
-                        if (_activeSession.ActiveSubtitles == null || _activeSession.ActiveSubtitles.Count == 0)
+                        if (_activeSession.HasActiveSubtitles() == false)
                         {
                             _subtitlesUserEnabled = false;
                         }
@@ -170,10 +172,6 @@
             {
                 ForceStopShowingSubtitles();
             }
-            //if (_monitorThread != null && _monitorThread.IsAlive)
-            //{
-            //    _monitorThread.Join(2000); // Wait up to 2 seconds for thread to finish
-            //}
         }
 
         public void SetupMonitoringInitialConditions()
@@ -186,7 +184,7 @@
 
             try
             {
-                if (_activeSession.ActiveSubtitles != null && _activeSession.ActiveSubtitles.Count > 0)
+                if (_activeSession.HasActiveSubtitles())
                 {
                     _subtitlesUserEnabled = true;
                 }

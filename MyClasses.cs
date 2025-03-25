@@ -120,7 +120,6 @@ public class PlexPlayer
     [XmlAttribute("device")]
     public string Device { get; set; } = string.Empty;
 
-    // Other attributes...
     [XmlAttribute("model")]
     public string Model { get; set; } = string.Empty;
 
@@ -374,24 +373,46 @@ public class MediaContainer
 }
 
 // Class to hold session objects and associated subtitles
-public class ActiveSession(PlexSession session, List<SubtitleStream> availableSubtitles, List<SubtitleStream> activeSubtitles, PlexServer plexServer)
+public class ActiveSession
 {
-    private PlexSession _session = session;
-    private List<SubtitleStream> _availableSubtitles = availableSubtitles;
-    private List<SubtitleStream> _activeSubtitles = activeSubtitles;
-    private readonly PlexServer _plexServer = plexServer;
+    private PlexSession _session;
+    private List<SubtitleStream> _availableSubtitles;
+    private List<SubtitleStream> _activeSubtitles;
+    private readonly PlexServer _plexServer;
 
-    public string DeviceName { get; } = session.Player.Title;
-    public string MachineID { get; } = session.Player.MachineIdentifier;
-    // MediaTitle is derived from GrandparentTitle or Title, whichever is available (not an empty string)
-    public string MediaTitle { get; } = !string.IsNullOrEmpty(session.GrandparentTitle)
+    public string DeviceName { get; }
+    public string MachineID { get; }
+    public string MediaTitle { get; } // MediaTitle is derived from GrandparentTitle or Title, whichever is available (not an empty string)
+    public string SessionID { get; }
+    public string RawXml { get; }
+
+    // ------------ Properties related to more accurate timeline data ------------
+    // If we are sure subtitles are showing or not, it's true or false, otherwise null
+    public bool? KnownIsShowingSubtitles {get; private set;} = null;
+    // Whether we have the more accurate subtitle and view offset data. Can be used to determine minimum expected resolution of view offset
+    public int? AccurateTime = null;
+    public int SmallestResolutionExpected => AccurateTime != null ? MonitorManager.AccurateTimelineResolution : MonitorManager.DefaultSmallestResolution;
+    //-------------------------------------------------------------------------------
+
+    public ActiveSession(PlexSession session, List<SubtitleStream> availableSubtitles, List<SubtitleStream> activeSubtitles, PlexServer plexServer)
+    {
+        _session = session;
+        _availableSubtitles = availableSubtitles;
+        _activeSubtitles = activeSubtitles;
+        _plexServer = plexServer;
+        DeviceName = session.Player.Title;
+        MachineID = session.Player.MachineIdentifier;
+        MediaTitle = !string.IsNullOrEmpty(session.GrandparentTitle)
         ? session.GrandparentTitle
         : !string.IsNullOrEmpty(session.Title) ? session.Title : string.Empty;
-    public string SessionID { get; } = session.SessionId;
-    public string RawXml { get; } = session.RawXml;
+        SessionID = session.SessionId;
+        RawXml = session.RawXml;
+
+        GetAndApplyTimelineData(); // Initialize the known subtitle state and view offset if possible
+    }
 
     // Expression to get the direct URL path for the player
-    public string DirectUrlPath => session.Player.DirectUrlPath;
+    public string DirectUrlPath => _session.Player.DirectUrlPath;
 
     // Properly implemented public properties that use the private fields
     public PlexSession Session
@@ -414,24 +435,91 @@ public class ActiveSession(PlexSession session, List<SubtitleStream> availableSu
 
     // ------------------ Methods ------------------
 
+    public bool HasActiveSubtitles()
+    {
+        if (KnownIsShowingSubtitles != null)
+        {
+            return KnownIsShowingSubtitles.Value; // If we know for sure, return that value
+        }
+        else
+        {
+            return ActiveSubtitles.Count > 0;
+        }
+    }
+
     public TimelineMediaContainer? GetTimelineContainer()
     {
-        return plexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
+        return _plexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
     }
 
     public double GetPlayPositionSeconds()
     {
-        //Session.Reload(); // Otherwise it won't update
-        int positionMilliseconds = Session.ViewOffset;
+        int positionMilliseconds;
+
+        if (AccurateTime != null)
+            positionMilliseconds = AccurateTime.Value;
+        else
+            positionMilliseconds = Session.ViewOffset;
+
         double positionSec = Math.Round(positionMilliseconds / 1000.0, 2);
         return positionSec;
     }
 
-    public ActiveSession Refresh(PlexSession session, List<SubtitleStream> activeSubtitles)
+    public void GetAndApplyTimelineData()
+    {
+        // Try getting the timeline container, which has more accuate info about current view time and subtitles
+        TimelineMediaContainer? timelineContainer = GetTimelineContainer();
+
+        // If we can't get the timeline container, we can't do any more here
+        if (timelineContainer == null)
+        {
+            this.KnownIsShowingSubtitles = null;
+            this.AccurateTime = null;
+            return;
+        }
+
+        List<PlexTimeline> timelineList = timelineContainer.Timeline;
+
+        // We need the specific timeline for this session, which is identified by the MachineID
+        // We can check in a lot of ways, but we'll just check for a non-empty time attribute
+        //    (Our program puts empty strings if the attribute wasn't found, so we'll check for not-empty strings instead)
+        // It seems the timeline container usually has 3 items - music, photo, and video. We usually want the video one,
+        //    the others usually only have attributes for 'state' (stopped) and 'type'
+        PlexTimeline? timeline = timelineList.FirstOrDefault(t => t.Time != ""); 
+
+        if (timeline != null)
+        {
+            if (timeline.Time != null && timeline.Time != "")
+            {
+                AccurateTime = int.Parse(timeline.Time);
+                this.Session.ViewOffset = AccurateTime.Value; // Update the view offset with the latest time from the timeline
+            }
+
+            // If we have the timeline info, we can know for sure if subtitles are showing
+            if (timeline.SubtitleStreamID != null && timeline.SubtitleStreamID != "")
+            {
+                this.KnownIsShowingSubtitles = true; // If we have a subtitle stream ID, we know subtitles are showing
+            }
+            else
+            {
+                this.KnownIsShowingSubtitles = false;
+            }
+        }
+        else
+        {
+            this.KnownIsShowingSubtitles = null;
+            this.AccurateTime = null;
+        }
+    }
+
+    public ActiveSession ApplyUpdatedData(PlexSession session, List<SubtitleStream> activeSubtitles)
     {
         Session = session;
         AvailableSubtitles = _availableSubtitles; // Don't bother updating available subtitles
         ActiveSubtitles = activeSubtitles; // Don't bother updating active subtitles
+
+        GetAndApplyTimelineData(); // Update the view offset and known subtitle state
+
         return this;
     }
 

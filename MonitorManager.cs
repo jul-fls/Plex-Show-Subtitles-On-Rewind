@@ -8,11 +8,13 @@ namespace PlexShowSubtitlesOnRewind
         public const int DefaultMaxRewindAmount = 60;
         public const int DefaultActiveFrequency = 1;
         public const int DefaultIdleFrequency = 5;
-        public const int DefaultSmallestResolution = 5; // iPhone has 5 second resolution apparently
+        public const int DefaultSmallestResolution = 5; // If using the viewOffset, it's usually 5 seconds but apparently can be as high as 10s
+        public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
+
 
         private static readonly List<SessionRewindMonitor> _allMonitors = [];
-        private static int _activeFrequencyMs = DefaultActiveFrequency;
-        private static int _idleFrequencyMs = DefaultIdleFrequency;
+        private static int _globalActiveFrequencyMs = DefaultActiveFrequency;
+        private static int _globalIdleFrequencyMs = DefaultIdleFrequency;
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
 
@@ -25,8 +27,8 @@ namespace PlexShowSubtitlesOnRewind
             string? debugDeviceName = null
             )
         {
-            _activeFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
-            _idleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
+            _globalActiveFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
+            _globalIdleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
 
             foreach (ActiveSession activeSession in activeSessionList)
             {
@@ -41,6 +43,7 @@ namespace PlexShowSubtitlesOnRewind
                     activeFrequency: activeFrequency,
                     idleFrequency: idleFrequency,
                     maxRewindAmount: maxRewindAmount,
+                    smallestResolution: activeSession.SmallestResolutionExpected,
                     printDebug: printDebug
                 );
             }
@@ -53,11 +56,10 @@ namespace PlexShowSubtitlesOnRewind
             int activeFrequency = DefaultActiveFrequency,
             int idleFrequency = DefaultIdleFrequency,
             int maxRewindAmount = DefaultMaxRewindAmount,
-            bool printDebug = false
+            bool printDebug = false,
+            int smallestResolution = DefaultSmallestResolution
             )
         {
-            _activeFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
-            _idleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
             string sessionID = activeSession.Session.SessionId;
 
             if (_printDebugAll)
@@ -73,7 +75,14 @@ namespace PlexShowSubtitlesOnRewind
             }
             else
             {
-                SessionRewindMonitor monitor = new SessionRewindMonitor(activeSession, frequency: activeFrequency, maxRewindAmount: maxRewindAmount, printDebug: printDebug);
+                SessionRewindMonitor monitor = new SessionRewindMonitor(
+                    activeSession, 
+                    activeFrequency: activeFrequency, 
+                    idleFrequency: idleFrequency, 
+                    maxRewindAmount: maxRewindAmount, 
+                    printDebug: printDebug,
+                    smallestResolution: smallestResolution
+                    );
                 _allMonitors.Add(monitor);
                 Console.WriteLine($"Found and monitoring new session for {activeSession.DeviceName}");
             }
@@ -89,19 +98,44 @@ namespace PlexShowSubtitlesOnRewind
             return sessionIDs;
         }
 
-        private static void StartRefreshLoop()
+        public static void RemoveMonitorForSession(string sessionID)
         {
-            _isRunning = true;
+            SessionRewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.SessionID == sessionID);
+            if (monitor != null)
+            {
+                _allMonitors.Remove(monitor);
+            }
+            else
+            {
+                Console.WriteLine($"No monitor found for session {sessionID}. Nothing to remove.");
+            }
+        }
 
+        private static void RefreshLoop()
+        {
             while (_isRunning)
             {
                 _ = SessionManager.RefreshExistingActiveSessionsAsync(); // Using discard since it's an async method, but we want this loop synchronous
                 bool anyMonitorsActive = RefreshMonitors_OneIteration(_allMonitors);
 
                 if (anyMonitorsActive == true)
-                    Thread.Sleep(_activeFrequencyMs);
+                    Thread.Sleep(_globalActiveFrequencyMs);
                 else
-                    Thread.Sleep(_idleFrequencyMs);
+                    Thread.Sleep(_globalIdleFrequencyMs);
+            }
+        }
+
+        private static void StartRefreshLoop()
+        {
+            if (_isRunning)
+            {
+                Console.WriteLine("Refresh loop already running. Not starting a new one.");
+                return;
+            }
+            else
+            {
+                _isRunning = true;
+                RefreshLoop();
             }
         }
 
