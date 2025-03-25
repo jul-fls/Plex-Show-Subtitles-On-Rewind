@@ -89,18 +89,16 @@
                     {
                         Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  -- UserEnabledSubs: ");
                         // Print last part about user subs with color if enabled so it's more obvious
-                        string appendString = "";
                         if (_subtitlesUserEnabled)
                         {
                             Console.ForegroundColor = ConsoleColor.Red;
-                            appendString = " (NEVER SHOWING SUBTITLES)";
                         }
-                        Console.Write($"{_subtitlesUserEnabled}" + appendString);
+                        Console.Write(_subtitlesUserEnabled);
                         Console.ResetColor();
                         Console.WriteLine();
                     }
 
-
+                    
                     // If the user had manually enabled subtitles, check if they disabled them
                     if (_subtitlesUserEnabled)
                     {
@@ -110,6 +108,13 @@
                         {
                             _subtitlesUserEnabled = false;
                         }
+                    }
+                    // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them
+                    else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
+                    {
+                        _subtitlesUserEnabled = true;
+                        _latestWatchedPosition = positionSec;
+                        WriteWarning($"{_deviceName}: Use appears to have enabled subtitles manually.");
                     }
                     // Only check for rewinds if the user hasn't manually enabled subtitles
                     else

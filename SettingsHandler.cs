@@ -8,6 +8,7 @@ public class Settings
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
     public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
+    public SettingInfo<int> ShortTimeoutLimit = new(500, "Active_Timeout_Milliseconds");
 
     // Constructor to set descriptions for each setting
     public Settings()
@@ -16,6 +17,7 @@ public class Settings
         ServerURL.Description = "The full URL of your local server, including http, IP, and port";
         ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
         IdleMonitorFrequency.Description = "How often to check for playback status (in seconds) when no media is playing.  Must be a positive whole number.";
+        ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency.";
     }
 
     // ------------------------------------------------------
@@ -31,22 +33,34 @@ public class Settings
         ServerURL.Value = ServerURL.Value.TrimEnd('/');
         if (string.IsNullOrEmpty(ServerURL))
         {
-            WriteError($"Error: Server URL is empty or null. Will use default value {def.ServerURL}");
+            WriteError($"Error for setting {ServerURL.ConfigName}: Server URL is empty or null. Will use default value {def.ServerURL}");
             ServerURL = def.ServerURL;
         }
 
         // Active Monitor Frequency
         if (ActiveMonitorFrequency < 0)
         {
-            WriteError($"Error: Active Monitor Frequency must be greater than or equal to 0. Will use default value {def.ActiveMonitorFrequency}");
+            WriteError($"Error for setting {ActiveMonitorFrequency.ConfigName}: Active Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.ActiveMonitorFrequency}");
             ActiveMonitorFrequency = def.ActiveMonitorFrequency;
         }
 
         // Idle Monitor Frequency
         if (IdleMonitorFrequency < 0)
         {
-            WriteError($"Error: Idle Monitor Frequency must be greater than or equal to 0. Will use default value {def.IdleMonitorFrequency}");
+            WriteError($"Error for setting {IdleMonitorFrequency.ConfigName}: Idle Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.IdleMonitorFrequency}");
             IdleMonitorFrequency = def.IdleMonitorFrequency;
+        }
+
+        // Short Timeout Limit
+        if (ShortTimeoutLimit < 0)
+        {
+            WriteError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be greater than or equal to 0.\nWill use default value {def.ShortTimeoutLimit}");
+            ShortTimeoutLimit = def.ShortTimeoutLimit;
+        }
+        if (ShortTimeoutLimit > ActiveMonitorFrequency * 1000)
+        {
+            WriteError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be less than Active Monitor Frequency.\nWill use default value {def.ShortTimeoutLimit}");
+            ShortTimeoutLimit = def.ShortTimeoutLimit;
         }
 
         // If no issues found, return true
