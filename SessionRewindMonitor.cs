@@ -74,6 +74,7 @@
         private void ForceStopShowingSubtitles()
         {
             _activeSession.DisableSubtitles();
+            _temporarilyDisplayingSubtitles = false;
         }
 
         public void MakeMonitoringPass()
@@ -83,9 +84,11 @@
                 try
                 {
                     double positionSec = _activeSession.GetPlayPositionSeconds();
+                    int _smallestResolution = Math.Max(_activeFrequency, _activeSession.SmallestResolutionExpected);
                     if (_printDebug)
                     {
-                        Console.Write($"{_deviceName}: Loop iteration - position: {positionSec} -- Previous: {_previousPosition} -- Latest: {_latestWatchedPosition} -- UserEnabledSubtitles: ");
+                        Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  -- UserEnabledSubs: ");
+                        // Print last part about user subs with color if enabled so it's more obvious
                         string appendString = "";
                         if (_subtitlesUserEnabled)
                         {
@@ -142,7 +145,7 @@
                         // Check if the position has gone back by 2 seconds. Using 2 seconds just for safety to be sure.
                         // This also will be valid if the user rewinds multiple times
                         // But don't count it if the rewind amount is beyond the max
-                        else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec > _latestWatchedPosition - _maxRewindAmount))
+                        else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmount))
                         {
                             RewindOccurred();
                         }
@@ -196,15 +199,6 @@
 
                 _previousPosition = _latestWatchedPosition;
                 _isMonitoring = true;
-
-                //if (_printDebug)
-                //{
-                //    Console.WriteLine("About to start thread with target: MonitoringLoop");
-                //}
-
-                //_monitorThread = new Thread(MakeMonitoringPass);
-                //_monitorThread.IsBackground = false; // Continue running. If the main thread is forced to stop, this will also stop though
-                //_monitorThread.Start();
 
                 MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway
 
