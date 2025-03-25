@@ -17,6 +17,7 @@ namespace PlexShowSubtitlesOnRewind
         private static int _globalIdleFrequencyMs = DefaultIdleFrequency;
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
+        private static bool _isIdle = false;
 
         public static void CreateAllMonitoringAllSessions(
             List<ActiveSession> activeSessionList,
@@ -115,10 +116,11 @@ namespace PlexShowSubtitlesOnRewind
         {
             while (_isRunning)
             {
-                _ = SessionHandler.RefreshExistingActiveSessionsAsync(); // Using discard since it's an async method, but we want this loop synchronous
-                bool anyMonitorsActive = RefreshMonitors_OneIteration(_allMonitors);
+                _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentlyIdle: _isIdle); // Using discard since it's an async method, but we want this loop synchronous
 
-                if (anyMonitorsActive == true)
+                _isIdle = RefreshMonitors_OneIteration(_allMonitors);
+
+                if (_isIdle == true)
                     Thread.Sleep(_globalActiveFrequencyMs);
                 else
                     Thread.Sleep(_globalIdleFrequencyMs);

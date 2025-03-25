@@ -34,9 +34,16 @@ namespace PlexShowSubtitlesOnRewind
         public static async Task<List<ActiveSession>> ClearAndLoadActiveSessionsAsync(PlexServer plexServer)
         {
             _plexServer = plexServer;
-            List<PlexSession> sessionsList = await _plexServer.GetSessionsAsync();
-            List <ActiveSession> activeSessions = await ProcessActiveSessions(sessionsList, plexServer);
+            List<PlexSession>? sessionsList = await _plexServer.GetSessionsAsync(shortTimeout:false);
 
+            // It will only return null for an error
+            if (sessionsList == null)
+            {
+                Console.WriteLine("Error Occurred. See above messages. Will use existing session list if any.");
+                return _activeSessionList;
+            }
+
+            List <ActiveSession> activeSessions = await ProcessActiveSessions(sessionsList, plexServer);
             lock (_lockObject)
             {
                 _activeSessionList.Clear();
@@ -46,7 +53,7 @@ namespace PlexShowSubtitlesOnRewind
             return _activeSessionList;
         }
 
-        public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync()
+        public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync(bool currentlyIdle)
         {
             // Assume _plexServer is already set. Show error if not
             if (_plexServer is not PlexServer plexServer)
@@ -56,14 +63,20 @@ namespace PlexShowSubtitlesOnRewind
             }
             // -----------------------------------
 
-            List<PlexSession> fetchedSessionsList = await plexServer.GetSessionsAsync();
+            List<PlexSession>? fetchedSessionsList = await plexServer.GetSessionsAsync(shortTimeout: !currentlyIdle);
+
+            if (fetchedSessionsList == null || fetchedSessionsList.Count == 0)
+            {
+                Console.WriteLine("No active sessions found.");
+                return _activeSessionList;
+            }
 
             List<Task> tasks = [];
             foreach (PlexSession fetchedSession in fetchedSessionsList)
             {
                 tasks.Add(Task.Run(async () =>
                 {
-                    // We'll need the active subs in any case. Active subtitles are available from data we have from the session data itself already
+                    // We'll need the active subs in any case. Active subtitles are available from data we'll get from the session data anyway
                     List<SubtitleStream> activeSubtitles = GetOnlyActiveSubtitlesForSession(fetchedSession);
 
                     // Check if the session already exists in the active session list, and update in place if so

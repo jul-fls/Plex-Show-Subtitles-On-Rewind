@@ -34,21 +34,39 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Using XmlSerializer to get sessions
-        public async Task<List<PlexSession>> GetSessionsAsync(bool printDebug = false)
+        public async Task<List<PlexSession>?> GetSessionsAsync(bool printDebug = false, bool shortTimeout = false)
         {
+            HttpClient httpClientToUse = shortTimeout ? _httpClientShortTimeout : _httpClient;
+
             try
             {
-                string response = await _httpClient.GetStringAsync($"{_url}/status/sessions");
+                //string response = await httpClientToUse.GetStringAsync($"{_url}/status/sessions");
+                string responseString;
+                HttpResponseMessage response = await httpClientToUse.GetAsync($"{_url}/status/sessions");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    string statusCode = ((int)response.StatusCode).ToString();
+                    string statusName = response.StatusCode.ToString();
+                    string errorText = await response.Content.ReadAsStringAsync();
+                    errorText = errorText.Replace("\n", " ");
+                    WriteError($"Error getting sessions: {statusCode} ({statusName}), Error: {errorText}");
+                    return null;
+                }
+                else
+                {
+                    responseString = await response.Content.ReadAsStringAsync();
+                }
 
                 // Deserialize directly to your model
-                MediaContainer? container = XmlSerializerHelper.DeserializeXml<MediaContainer>(response);
+                MediaContainer? container = XmlSerializerHelper.DeserializeXml<MediaContainer>(responseString);
 
                 if (container != null)
                 {
                     // Store raw XML in case it's useful
                     foreach (PlexSession session in container.Sessions)
                     {
-                        session.RawXml = response;
+                        session.RawXml = responseString;
                     }
 
                     if (printDebug)
@@ -59,13 +77,13 @@ namespace PlexShowSubtitlesOnRewind
                 else
                 {
                     Console.WriteLine("Something went wrong deserializing the sessions MediaContainer. It returned null.");
-                    return [];
+                    return null;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting sessions (Will return what it can): {ex.Message}");
-                return [];
+                return null;
             }
         }
 
