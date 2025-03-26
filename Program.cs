@@ -2,8 +2,8 @@
 {
     static class Program
     {
-        private static string PLEX_APP_TOKEN = "";
-        private static string PLEX_APP_IDENTIFIER = "";
+        internal static string PLEX_APP_TOKEN = "";
+        internal static string PLEX_APP_IDENTIFIER = "";
         public static Settings config = new();
 
         public static bool debugMode = false;
@@ -59,6 +59,8 @@
 
                     if (debugMode)
                         SessionHandler.PrintSubtitles();
+
+                    MonitorManager.CreatePlexListener(config.ServerURL, PLEX_APP_TOKEN);
 
                     Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
                     MonitorManager.CreateAllMonitoringAllSessions(

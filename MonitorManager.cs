@@ -19,6 +19,58 @@ namespace PlexShowSubtitlesOnRewind
         private static bool _printDebugAll = false;
         private static bool _isIdle = false;
 
+        // In MonitorManager or Program.cs initialization
+        private static PlexNotificationListener? _plexListener;
+
+        // Create the listener
+        public static void CreatePlexListener(string plexUrl, string plexToken)
+        {
+            _plexListener = new PlexNotificationListener(plexUrl, plexToken, notificationFilters: "playing");
+            // Subscribe to the specific 'playing' event
+            _plexListener.PlayingNotificationReceived += PlexListener_PlayingNotificationReceived;
+            // Start listening
+            _plexListener.StartListening();
+        }
+
+        private static void PlexListener_PlayingNotificationReceived(object? sender, PlexEventArgs e)
+        {
+            if (e.ParsedData is PlaySessionStateNotification playState)
+            {
+                WriteWarning($"[Notification] Playback Update: Client={playState.clientIdentifier}, Key={playState.key}, State={playState.state}, Offset={playState.viewOffset}ms");
+
+                // --- Your Logic Here ---
+                // Use playState.state, playState.clientIdentifier, playState.sessionKey, playState.viewOffset etc.
+                // to decide when to activate or deactivate your *active* polling/monitoring.
+
+                // Example: Start active monitoring when state is 'playing'
+                if (playState.state?.Equals("playing", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    // Potentially find or create the appropriate RewindMonitor
+                    // based on playState.sessionKey or playState.clientIdentifier
+                    // and switch it to an 'active' state if it's not already.
+                    // You might need to adapt RewindMonitor to have such a state.
+                    //Console.WriteLine($"Playback started for session {playState.sessionKey}. Consider activating detailed monitoring.");
+
+                    // You could trigger your existing RewindMonitor's check logic here,
+                    // perhaps more frequently now that you know something is actively playing.
+                    // GetOrCreateRewindMonitor(playState.sessionKey).CheckPlaybackStatus(); // Example call
+                }
+                // Example: Stop active monitoring when state is 'stopped' or maybe 'paused'
+                else if (playState.state?.Equals("stopped", StringComparison.OrdinalIgnoreCase) == true ||
+                         playState.state?.Equals("paused", StringComparison.OrdinalIgnoreCase) == true) // Decide if pause should stop active polling
+                {
+                    // Switch the corresponding RewindMonitor back to an 'idle' state
+                    // or stop its timer.
+                    //Console.WriteLine($"Playback stopped/paused for session {playState.sessionKey}. Consider deactivating detailed monitoring.");
+                    // StopRewindMonitor(playState.sessionKey); // Example call
+                }
+            }
+            else
+            {
+                WriteWarning($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
+            }
+        }
+
         public static void CreateAllMonitoringAllSessions(
             List<ActiveSession> activeSessionList,
             int activeFrequency = DefaultActiveFrequency,
