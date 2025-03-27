@@ -19,7 +19,7 @@
         private bool _temporarilyDisplayingSubtitles;
         private int _smallestResolution; // This might be updated depending on available data during refreshes
 
-        public string SessionID => _activeSession.Session.SessionId;
+        public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
 
         public RewindMonitor(

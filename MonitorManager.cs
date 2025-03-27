@@ -1,5 +1,7 @@
 ﻿#nullable enable
 
+using System.Collections.Generic;
+
 namespace PlexShowSubtitlesOnRewind
 {
     public static class MonitorManager
@@ -113,7 +115,7 @@ namespace PlexShowSubtitlesOnRewind
             int smallestResolution = DefaultSmallestResolution
             )
         {
-            string sessionID = activeSession.Session.SessionId;
+            string PlaybackID = activeSession.Session.PlaybackID;
 
             if (_printDebugAll)
             {
@@ -121,9 +123,9 @@ namespace PlexShowSubtitlesOnRewind
             }
 
             // Check if a monitor already exists for this session, if not create a new one
-            if (_allMonitors.Any(m => m.SessionID == sessionID))
+            if (_allMonitors.Any(m => m.PlaybackID == PlaybackID))
             {
-                Console.WriteLine($"Monitor for session {sessionID} already exists. Not creating a new one.");
+                Console.WriteLine($"Monitor for session {PlaybackID} already exists. Not creating a new one.");
                 return;
             }
             else
@@ -146,14 +148,14 @@ namespace PlexShowSubtitlesOnRewind
             List<string> sessionIDs = [];
             foreach (RewindMonitor monitor in _allMonitors)
             {
-                sessionIDs.Add(monitor.SessionID);
+                sessionIDs.Add(monitor.PlaybackID);
             }
             return sessionIDs;
         }
 
         public static void RemoveMonitorForSession(string sessionID)
         {
-            RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.SessionID == sessionID);
+            RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == sessionID);
             if (monitor != null)
             {
                 _allMonitors.Remove(monitor);
@@ -168,7 +170,7 @@ namespace PlexShowSubtitlesOnRewind
         {
             while (_isRunning)
             {
-                _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentlyIdle: _isIdle); // Using discard since it's an async method, but we want this loop synchronous
+                List<ActiveSession> updatedSessions = SessionHandler.RefreshExistingActiveSessionsAsync(currentlyIdle: _isIdle).Result; // Using .Result to get the result of the async method
 
                 _isIdle = RunMonitors_OneIteration(_allMonitors);
 

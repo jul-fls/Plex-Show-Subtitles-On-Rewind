@@ -72,7 +72,10 @@ public class PlexSession
     public PlexInnerSession InnerSession { get; set; } = new();
 
     [XmlIgnore]
-    public string SessionId => InnerSession.Id;
+    public string PlaybackID => Player.PlaybackId;
+
+    [XmlIgnore]
+    public string SessionID => InnerSession.Id;
 
     [XmlIgnore]
     public string RawXml { get; set; } = string.Empty;
@@ -405,14 +408,15 @@ public class ActiveSession
         MediaTitle = !string.IsNullOrEmpty(session.GrandparentTitle)
         ? session.GrandparentTitle
         : !string.IsNullOrEmpty(session.Title) ? session.Title : string.Empty;
-        SessionID = session.SessionId;
+        SessionID = session.PlaybackID;
         RawXml = session.RawXml;
 
         GetAndApplyTimelineData(); // Initialize the known subtitle state and view offset if possible
     }
 
-    // Expression to get the direct URL path for the player
+    // Expressions to access inner properties of the session and player objects more conveniently
     public string DirectUrlPath => _session.Player.DirectUrlPath;
+    public string PlaybackID => _session.Player.PlaybackId; // Changes when changing episodes, etc
 
     // Properly implemented public properties that use the private fields
     public PlexSession Session

@@ -80,7 +80,7 @@ namespace PlexShowSubtitlesOnRewind
                     List<SubtitleStream> activeSubtitles = GetOnlyActiveSubtitlesForSession(fetchedSession);
 
                     // Check if the session already exists in the active session list, and update in place if so
-                    ActiveSession? existingSession = _activeSessionList.FirstOrDefault(s => s.SessionID == fetchedSession.SessionId);
+                    ActiveSession? existingSession = _activeSessionList.FirstOrDefault(s => s.PlaybackID == fetchedSession.PlaybackID);
                     if (existingSession != null)
                     {
                         existingSession.ApplyUpdatedData(fetchedSession, activeSubtitles);
@@ -119,7 +119,7 @@ namespace PlexShowSubtitlesOnRewind
             if (_activeSessionList.Count > 0)
             {
                 // Find any sessions in active sessions list that are not in the fetched list, by session ID
-                List<ActiveSession> deadSessions = _activeSessionList.Where(s => !fetchedSessionsList.Any(fs => fs.SessionId == s.SessionID)).ToList();
+                List<ActiveSession> deadSessions = _activeSessionList.Where(s => !fetchedSessionsList.Any(fs => fs.PlaybackID == s.SessionID)).ToList();
 
                 foreach (ActiveSession deadSession in deadSessions)
                 {
