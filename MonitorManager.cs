@@ -170,7 +170,7 @@ namespace PlexShowSubtitlesOnRewind
             {
                 _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentlyIdle: _isIdle); // Using discard since it's an async method, but we want this loop synchronous
 
-                _isIdle = RefreshMonitors_OneIteration(_allMonitors);
+                _isIdle = RunMonitors_OneIteration(_allMonitors);
 
                 if (_isIdle == true)
                     Thread.Sleep(_globalActiveFrequencyMs);
@@ -194,7 +194,7 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Will return false if no monitors are active
-        private static bool RefreshMonitors_OneIteration(List<RewindMonitor> monitorsToRefresh)
+        private static bool RunMonitors_OneIteration(List<RewindMonitor> monitorsToRefresh)
         {
             bool anyMonitorsActive = false;
             foreach (RewindMonitor monitor in monitorsToRefresh)
