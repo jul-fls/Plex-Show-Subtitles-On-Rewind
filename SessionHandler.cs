@@ -53,7 +53,7 @@ namespace PlexShowSubtitlesOnRewind
             return _activeSessionList;
         }
 
-        public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync(bool currentlyIdle)
+        public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync(MonitoringState currentState)
         {
             // Assume _plexServer is already set. Show error if not
             if (_plexServer is not PlexServer plexServer)
@@ -63,11 +63,12 @@ namespace PlexShowSubtitlesOnRewind
             }
             // -----------------------------------
 
-            List<PlexSession>? fetchedSessionsList = await plexServer.GetSessionsAsync(shortTimeout: !currentlyIdle);
+            bool useShortTimeout = (currentState == MonitoringState.Idle);
+            List<PlexSession>? fetchedSessionsList = await plexServer.GetSessionsAsync(shortTimeout: useShortTimeout);
 
-            if (fetchedSessionsList == null || fetchedSessionsList.Count == 0)
+            if (fetchedSessionsList == null)
             {
-                Console.WriteLine("No active sessions found.");
+                Console.WriteLine("Problem occurred when fetching sessions. fetchedSessionsList returned null. Using existing session list.");
                 return _activeSessionList;
             }
 
@@ -127,6 +128,11 @@ namespace PlexShowSubtitlesOnRewind
                     _activeSessionList.Remove(deadSession);
                     MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
                 }
+            }
+
+            if (_activeSessionList.Count == 0)
+            {
+                Console.WriteLine("No active sessions found.");
             }
 
             return _activeSessionList;

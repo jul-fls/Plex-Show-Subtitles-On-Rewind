@@ -1,7 +1,5 @@
 ﻿#nullable enable
 
-using System.Collections.Generic;
-
 namespace PlexShowSubtitlesOnRewind
 {
     public static class MonitorManager
@@ -19,7 +17,8 @@ namespace PlexShowSubtitlesOnRewind
         private static int _globalIdleFrequencyMs = DefaultIdleFrequency;
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
-        private static bool _isIdle = false;
+        private static MonitoringState _monitoringState = MonitoringState.Active;
+        private static int idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
 
         // In MonitorManager or Program.cs initialization
         private static PlexNotificationListener? _plexListener;
@@ -38,7 +37,10 @@ namespace PlexShowSubtitlesOnRewind
         {
             if (e.ParsedData is PlaySessionStateNotification playState)
             {
-                WriteWarning($"[Notification] Playback Update: Client={playState.clientIdentifier}, Key={playState.key}, State={playState.state}, Offset={playState.viewOffset}ms");
+                WriteColor(
+                    message: $"[Notification] Playback Update: Client={playState.clientIdentifier}, Key={playState.key}, State={playState.state}, Offset={playState.viewOffset}ms",
+                    foreground: ConsoleColor.Cyan
+                    );
 
                 // --- Your Logic Here ---
                 // Use playState.state, playState.clientIdentifier, playState.sessionKey, playState.viewOffset etc.
@@ -69,7 +71,7 @@ namespace PlexShowSubtitlesOnRewind
             }
             else
             {
-                WriteWarning($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
+                WriteError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
             }
         }
 
@@ -139,7 +141,7 @@ namespace PlexShowSubtitlesOnRewind
                     smallestResolution: smallestResolution
                     );
                 _allMonitors.Add(monitor);
-                WriteWarning($"Found and monitoring new session for {activeSession.DeviceName}");
+                WriteWarning($"Added new session for {activeSession.DeviceName}");
             }
         }
 
@@ -166,15 +168,43 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
+        // This contains the main loop that refreshes the monitors and checks their state
+        // It also handles the transition between active and idle states
         private static void RefreshLoop()
         {
             while (_isRunning)
             {
-                List<ActiveSession> updatedSessions = SessionHandler.RefreshExistingActiveSessionsAsync(currentlyIdle: _isIdle).Result; // Using .Result to get the result of the async method
+                List<ActiveSession> updatedSessions = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState).Result; // Using .Result to get the result of the async method
 
-                _isIdle = RunMonitors_OneIteration(_allMonitors);
+                MonitoringState previousState = _monitoringState; // Store previous idle status for comparison
+                MonitoringState pendingNewState = RunMonitors_OneIteration(_allMonitors);
 
-                if (_isIdle == true)
+                // When switching from active to idle, we'll allow a few extra loops before actually switching to idle
+                // Because when moving from one episode to the next, it might incorrectly detect that the session goes idle
+                if (pendingNewState == MonitoringState.Idle && previousState == MonitoringState.Active)
+                {
+                    idleGracePeriodCount++;
+                    if (idleGracePeriodCount > 5)
+                    {
+                        _monitoringState = MonitoringState.Idle;
+                        idleGracePeriodCount = 0; // Reset the counter if we switch to idle
+                    }
+                }
+                else
+                {
+                    // If staying idle, or switching from idle to active, we can just set the new state immediately
+                    _monitoringState = pendingNewState;
+                    idleGracePeriodCount = 0; // Reset the counter if we switch to active
+                }
+
+                // Notify if the monitoring state has actually changed
+                if (_monitoringState != previousState && _monitoringState == MonitoringState.Idle)
+                    Console.WriteLine("Switched to idle mode.");
+                else if (_monitoringState != previousState && _monitoringState == MonitoringState.Active)
+                    Console.WriteLine("Switched to active mode.");
+
+                // Sleep for a while based on the current mode
+                if (_monitoringState == MonitoringState.Active)
                     Thread.Sleep(_globalActiveFrequencyMs);
                 else
                     Thread.Sleep(_globalIdleFrequencyMs);
@@ -196,7 +226,7 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Will return false if no monitors are active
-        private static bool RunMonitors_OneIteration(List<RewindMonitor> monitorsToRefresh)
+        private static MonitoringState RunMonitors_OneIteration(List<RewindMonitor> monitorsToRefresh)
         {
             bool anyMonitorsActive = false;
             foreach (RewindMonitor monitor in monitorsToRefresh)
@@ -207,7 +237,11 @@ namespace PlexShowSubtitlesOnRewind
                     monitor.MakeMonitoringPass();
                 }
             }
-            return anyMonitorsActive;
+
+            if (anyMonitorsActive == true)
+                return MonitoringState.Active;
+            else
+                return MonitoringState.Idle;
         }
 
         public static void StopAllMonitors()

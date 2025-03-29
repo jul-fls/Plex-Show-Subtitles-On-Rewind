@@ -451,11 +451,6 @@ public class ActiveSession
         }
     }
 
-    public TimelineMediaContainer? GetTimelineContainer()
-    {
-        return _plexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
-    }
-
     public double GetPlayPositionSeconds()
     {
         int positionMilliseconds;
@@ -472,7 +467,7 @@ public class ActiveSession
     public void GetAndApplyTimelineData()
     {
         // Try getting the timeline container, which has more accuate info about current view time and subtitles
-        TimelineMediaContainer? timelineContainer = GetTimelineContainer();
+        TimelineMediaContainer? timelineContainer = _plexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
 
         // If we can't get the timeline container, we can't do any more here
         if (timelineContainer == null)

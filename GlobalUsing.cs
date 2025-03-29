@@ -12,5 +12,12 @@ namespace PlexShowSubtitlesOnRewind
 
     }
 
-}
+    // Enum for active/idle state of the monitoring
+    public enum MonitoringState
+    {
+        Active,
+        Idle
+    }
+
+} // ----------- End of Namespace --------------
 

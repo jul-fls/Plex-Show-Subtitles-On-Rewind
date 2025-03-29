@@ -255,7 +255,7 @@ namespace PlexShowSubtitlesOnRewind
                 // Log ping events separately if desired, or just ignore them
                 if (eventType.Equals("ping", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Console.WriteLine("Received Plex ping."); // Can be noisy
+                    WriteColor("Received Plex ping.", ConsoleColor.DarkGray); // Can be noisy
                 }
                 else
                 {
