@@ -1,5 +1,7 @@
 ﻿#nullable enable
 
+using System;
+
 namespace PlexShowSubtitlesOnRewind
 {
     public static class MonitorManager
@@ -18,7 +20,8 @@ namespace PlexShowSubtitlesOnRewind
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
-        private static int idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
+        private static int _idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
+        private static PollingMode _idlePollingMode = PollingMode.Timer; // Default to timer polling when idle
 
         // In MonitorManager or Program.cs initialization
         private static PlexNotificationListener? _plexListener;
@@ -28,17 +31,17 @@ namespace PlexShowSubtitlesOnRewind
         {
             _plexListener = new PlexNotificationListener(plexUrl, plexToken, notificationFilters: "playing");
             // Subscribe to the specific 'playing' event
-            _plexListener.PlayingNotificationReceived += PlexListener_PlayingNotificationReceived;
+            _plexListener.PlayingNotificationReceived += PlexListener_PlayingEventReceived;
             // Start listening
             _plexListener.StartListening();
         }
 
-        private static void PlexListener_PlayingNotificationReceived(object? sender, PlexEventArgs e)
+        private static void PlexListener_PlayingEventReceived(object? sender, PlexEventInfo e)
         {
-            if (e.ParsedData is PlaySessionStateNotification playState)
+            if (e.EventObj is PlayingEvent playEvent && playEvent.playState is PlayState playState)
             {
                 WriteColor(
-                    message: $"[Notification] Playback Update: Client={playState.clientIdentifier}, Key={playState.key}, State={playState.state}, Offset={playState.viewOffset}ms",
+                    message: $"[Notification] Playback Update: Client={playEvent.clientIdentifier}, Key={playEvent.key}, State={playEvent.state}, Offset={playEvent.viewOffset}ms",
                     foreground: ConsoleColor.Cyan
                     );
 
@@ -47,27 +50,24 @@ namespace PlexShowSubtitlesOnRewind
                 // to decide when to activate or deactivate your *active* polling/monitoring.
 
                 // Example: Start active monitoring when state is 'playing'
-                if (playState.state?.Equals("playing", StringComparison.OrdinalIgnoreCase) == true)
+                if (playState == PlayState.Playing || playState == PlayState.Paused)
                 {
                     // Potentially find or create the appropriate RewindMonitor
                     // based on playState.sessionKey or playState.clientIdentifier
                     // and switch it to an 'active' state if it's not already.
-                    // You might need to adapt RewindMonitor to have such a state.
                     //Console.WriteLine($"Playback started for session {playState.sessionKey}. Consider activating detailed monitoring.");
 
                     // You could trigger your existing RewindMonitor's check logic here,
                     // perhaps more frequently now that you know something is actively playing.
                     // GetOrCreateRewindMonitor(playState.sessionKey).CheckPlaybackStatus(); // Example call
                 }
-                // Example: Stop active monitoring when state is 'stopped' or maybe 'paused'
-                else if (playState.state?.Equals("stopped", StringComparison.OrdinalIgnoreCase) == true ||
-                         playState.state?.Equals("paused", StringComparison.OrdinalIgnoreCase) == true) // Decide if pause should stop active polling
+                else if (playState == PlayState.Stopped)
                 {
                     // Switch the corresponding RewindMonitor back to an 'idle' state
                     // or stop its timer.
                     //Console.WriteLine($"Playback stopped/paused for session {playState.sessionKey}. Consider deactivating detailed monitoring.");
                     // StopRewindMonitor(playState.sessionKey); // Example call
-                }
+                } 
             }
             else
             {
@@ -183,18 +183,18 @@ namespace PlexShowSubtitlesOnRewind
                 // Because when moving from one episode to the next, it might incorrectly detect that the session goes idle
                 if (pendingNewState == MonitoringState.Idle && previousState == MonitoringState.Active)
                 {
-                    idleGracePeriodCount++;
-                    if (idleGracePeriodCount > 5)
+                    _idleGracePeriodCount++;
+                    if (_idleGracePeriodCount > 5)
                     {
                         _monitoringState = MonitoringState.Idle;
-                        idleGracePeriodCount = 0; // Reset the counter if we switch to idle
+                        _idleGracePeriodCount = 0; // Reset the counter if we switch to idle
                     }
                 }
                 else
                 {
                     // If staying idle, or switching from idle to active, we can just set the new state immediately
                     _monitoringState = pendingNewState;
-                    idleGracePeriodCount = 0; // Reset the counter if we switch to active
+                    _idleGracePeriodCount = 0; // Reset the counter if we switch to active
                 }
 
                 // Notify if the monitoring state has actually changed
