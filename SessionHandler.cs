@@ -6,6 +6,7 @@ namespace PlexShowSubtitlesOnRewind
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
         private static PlexServer? _plexServer = null;
+        private static bool debugMode = Program.debugMode;
 
         // This not only fetches the sessions, but also gets both active and available subtitles
         public static async Task<List<ActiveSession>> ProcessActiveSessions(List<PlexSession> sessionsList, PlexServer plexServer)
@@ -130,7 +131,7 @@ namespace PlexShowSubtitlesOnRewind
                 }
             }
 
-            if (_activeSessionList.Count == 0)
+            if (_activeSessionList.Count == 0 && debugMode == true)
             {
                 Console.WriteLine("No active sessions found.");
             }

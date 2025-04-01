@@ -1,4 +1,8 @@
-﻿namespace PlexShowSubtitlesOnRewind
+﻿using System.Runtime.InteropServices;
+using static PlexShowSubtitlesOnRewind.Program;
+using static PlexShowSubtitlesOnRewind.Program.LaunchArgs;
+
+namespace PlexShowSubtitlesOnRewind
 {
     static class Program
     {
@@ -8,11 +12,88 @@
 
         public static bool debugMode = false;
 
+        // Import AllocConsole from Windows API to create a console window for debugging
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool AllocConsole();
+
+        public static class LaunchArgs
+        {
+            public class Argument(string arg, string description)
+            {
+                public string Arg { get; } = arg;
+                public string Description { get; } = description;
+                public List<string> Variations { get; } = GetVariations(arg);
+
+                public static implicit operator List<string>(Argument info) => info.Variations;
+                public static implicit operator string(Argument info) => info.Arg;
+                public override string ToString() => Arg; // Ensure argument string is returned properly when used in string interpolation
+            }
+
+            private static readonly Argument _background = new("background", "The program runs in the background without showing a console.");
+            private static readonly Argument _debug =      new("debug",         "Enables debug mode to show additional output.");
+            private static readonly Argument _help =       new("help",          "Display help message with info including launch parameters.");
+            private static readonly Argument _helpAlt =    new("?",             _help.Description);
+
+            // -------------------------------------------------
+            public static Argument Background => _background;
+            public static Argument Debug => _debug;
+            public static Argument Help => _help;
+            public static Argument HelpAlt => _helpAlt;
+
+            // --------------------------------------------------------
+            // Get version starting with either hyphen or forward slash
+            private static List<string> GetVariations(string arg)
+            {
+                List <string> variations = [];
+                variations.Add("-" + arg);
+                variations.Add("/" + arg);
+
+                return variations;
+            }
+        }
+
+        public static bool CheckArgMatch(string[] inputArgs, Argument argToCheck)
+        {
+            return inputArgs.Any(a => argToCheck.Variations.Contains(a));
+        }
+
+        // ===========================================================================================
+
         static async Task Main(string[] args)
         {
             #if DEBUG
                 debugMode = true;
             #endif
+
+            // ------------ Apply launch parameters ------------
+            //if (!args.Any(arg => LaunchArgs.Background.Variations.Contains(arg))) // Unless background mode is specified, show console window
+            if (!CheckArgMatch(args, LaunchArgs.Background))
+                AllocConsole();
+
+            //if (args.Any(arg => LaunchArgs.Debug.Variations.Contains(arg)))
+            if (CheckArgMatch(args, LaunchArgs.Debug))
+                debugMode = true;
+
+            WriteGreen(MyStrings.HeadingTitle);
+            if (debugMode)
+                WriteWarning("Debug mode enabled.\n");
+
+            //if (args.Any(arg => LaunchArgs.Help.Variations.Contains(arg) || LaunchArgs.HelpAlt.Variations.Contains(arg)))
+            if (CheckArgMatch(args, LaunchArgs.Help) || CheckArgMatch(args, LaunchArgs.HelpAlt))
+            {
+                Console.WriteLine(MyStrings.LaunchArgsInfo + "\n\n");
+                // Later might add more details here, but for now it just shows the same info about launch parameters as the regular launch message
+                Console.ReadLine();
+                return;
+            }
+            else
+            {
+                Console.WriteLine(MyStrings.LaunchArgsInfo);
+                Console.WriteLine("------------------------------------------------------------------------\n");
+            }
+
+            // ------------------ Start Main ------------------
 
             try
             {
@@ -95,6 +176,13 @@
     {
         public const string AppNameDashed = "Show-Rewind-Subtitles-For-Plex";
         public const string AppName = "Show Rewind Subtitles For Plex";
+        public static string LaunchArgsInfo = $"""
+            Optional Launch parameters:
+                -{LaunchArgs.Background}: {LaunchArgs.Background.Description}
+                -{LaunchArgs.Debug}: {LaunchArgs.Debug.Description}
+                -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt}: {LaunchArgs.Help.Description}
+            """;
+        public static string HeadingTitle = $"\n----------- {AppName} -----------\n";
     }
 
 } // --------------- End namespace PlexShowSubtitlesOnRewind ---------------

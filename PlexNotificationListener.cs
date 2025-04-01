@@ -69,8 +69,8 @@ public class PlexNotificationListener : IDisposable
         string requestUri = string.IsNullOrWhiteSpace(_filters) ? _plexUrl : $"{_plexUrl}?{_filters}";
         requestUri += (requestUri.Contains("?") ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}"; // Also pass token in query for SSE
 
-
-        Console.WriteLine($"Starting Plex notification listener for: {requestUri.Replace(_plexToken, "***TOKEN***")}"); // Avoid logging token
+        if (Program.debugMode)
+            Console.WriteLine($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}"); // Avoid logging token
 
         _listeningTask = Task.Run(async () => await ListenForEvents(requestUri, token), token);
     }

@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "Debug (No Args)": {
+      "commandName": "Project"
+    },
+    "Debug (Help)": {
+      "commandName": "Project",
+      "commandLineArgs": "-help"
+    }
+  }
+}
