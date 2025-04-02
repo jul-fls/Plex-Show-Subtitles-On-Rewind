@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -181,9 +182,26 @@ namespace PlexShowSubtitlesOnRewind
                     
                 }
             }
+            catch (HttpRequestException hEx)
+            {
+                //Console.WriteLine($"Error testing connection: {hEx.Message}\n");
+                if (hEx.InnerException is SocketException socketEx)
+                {
+                    if (socketEx.SocketErrorCode == SocketError.ConnectionRefused)
+                    {
+                        if (Program.debugMode)
+                            Console.WriteLine("Connection refused. Server may be down or unreachable.");
+                        return ConnectionResult.Refused;
+                    }
+                }
+
+                // Fall through to general error handling
+                Console.WriteLine($"Server Connection Error: {hEx.Message}\n");
+                return ConnectionResult.Failure;
+            }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error testing connection: {ex.Message}\n");
+                Console.WriteLine($"Server Connection Error: {ex.Message}\n");
                 return ConnectionResult.Failure;
             }
         }
@@ -192,6 +210,7 @@ namespace PlexShowSubtitlesOnRewind
         {
             Success,
             Failure,
+            Refused,
             Maintenance,
             Cancelled
         }
