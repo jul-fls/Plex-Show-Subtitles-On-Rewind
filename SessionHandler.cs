@@ -57,6 +57,10 @@ namespace PlexShowSubtitlesOnRewind
             bool useShortTimeout = (currentState == MonitoringState.Idle);
             List<PlexSession>? fetchedSessionsList = await PlexServer.GetSessionsAsync(shortTimeout: useShortTimeout);
 
+            // Temporary lists to aid in managing dead sessions
+            List<ActiveSession> existingSessionsPriorToRefresh = _activeSessionList;
+            List<ActiveSession> newActiveSessionsOnly = [];
+
             if (fetchedSessionsList == null)
             {
                 Console.WriteLine("Problem occurred when fetching sessions. fetchedSessionsList returned null. Using existing session list.");
@@ -100,6 +104,7 @@ namespace PlexShowSubtitlesOnRewind
                         lock (_lockObject)
                         {
                             _activeSessionList.Add(newSession);
+                            newActiveSessionsOnly.Add(newSession);
                         }
 
                         // Create a new monitor for the newly found session. The method will automatically check for duplicates
@@ -135,14 +140,13 @@ namespace PlexShowSubtitlesOnRewind
 
                         if (lastSeenTimeDiff > _deadSessionGracePeriod)
                         {
-                            WriteWarning($"Removing leftover session from {deadSession.DeviceName}. Playback ID: {deadSession.SessionID}");
-                            _activeSessionList.Remove(deadSession);
-                            MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
+                            RemoveSession(deadSession);
                             removedSessionsCount++;
                         }
-                        else if (debugMode == true)
+                        else 
                         {
-                            Console.WriteLine($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
+                            if (debugMode == true)
+                                Console.WriteLine($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
                         }
                     }
                     // This is the first check it was no longer seen, so set the last seen time to now
@@ -150,6 +154,23 @@ namespace PlexShowSubtitlesOnRewind
                     {
                         deadSession.LastSeenTimeEpoch = currentTime;
                         WriteWarning($"{deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) no longer found. Beginning grace period.");
+                    }
+
+                    // Check if the dead session's playing media matches the current media on a newly added sessoin
+                    // If so, we can have the new session take over the old session's monitor
+                    // Compare using MachineID and RatingKey (A unique identifier for the media item. There's also media ID but I'm not sure how unique it is, seen some things it might correspond just to title)
+                    ActiveSession? matchingNonDeadSession = newActiveSessionsOnly.FirstOrDefault(s => s.MachineID == deadSession.MachineID && s.Session.RatingKey == deadSession.Session.RatingKey);
+
+                    if (matchingNonDeadSession != null && matchingNonDeadSession.HasInheritedMonitor == false)
+                    {
+                        bool transferResult = MonitorManager.TransferMonitorInheritance(deadSession, matchingNonDeadSession);
+
+                        // If the monitor settings transfer was successful, we can remove the dead session now
+                        if (transferResult == true)
+                        {
+                            RemoveSession(deadSession);
+                            removedSessionsCount++;
+                        }
                     }
                 }
             }
@@ -168,6 +189,13 @@ namespace PlexShowSubtitlesOnRewind
             {
                 return _activeSessionList;
             }
+        }
+
+        public static void RemoveSession(ActiveSession sessionToRemove)
+        {
+            WriteWarning($"Removing leftover session from {sessionToRemove.DeviceName}. Playback ID: {sessionToRemove.SessionID}");
+            _activeSessionList.Remove(sessionToRemove);
+            MonitorManager.RemoveMonitorForSession(sessionToRemove.SessionID);
         }
 
         // This specifically queries the server for data about the media item, which includes non-active subtitle tracks, whereas the session data does not include that

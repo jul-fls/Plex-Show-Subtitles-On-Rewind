@@ -387,7 +387,10 @@ public class ActiveSession
     public string MediaTitle { get; } // MediaTitle is derived from GrandparentTitle or Title, whichever is available (not an empty string)
     public string SessionID { get; }
     public string RawXml { get; }
+
+    // Settable properties
     public long? LastSeenTimeEpoch { get; set; } = null; // Used to decide when to remove from the active sessions list based on a grace period
+    public bool HasInheritedMonitor { get; set; } = false; // Whether this session already has been inherited from another session to avoid duplicate inheritance
 
     // ------------ Properties related to more accurate timeline data ------------
     // If we are sure subtitles are showing or not, it's true or false, otherwise null

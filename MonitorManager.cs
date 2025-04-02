@@ -165,6 +165,41 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
+        // Transfer the monitor from one session to another. Returns true if successful
+        public static bool TransferMonitorInheritance(ActiveSession oldSession, ActiveSession newSession)
+        {
+            RewindMonitor? oldMonitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == oldSession.PlaybackID);
+            RewindMonitor? existingMonitorForNewSession = _allMonitors.FirstOrDefault(m => m.PlaybackID == newSession.PlaybackID);
+
+            if (oldMonitor != null)
+            {
+                // Create a new monitor with the same settings as the old one using the duplication constructor
+                RewindMonitor newMonitor = new RewindMonitor(
+                    otherMonitor: oldMonitor,
+                    newSession: newSession
+                );
+
+                // If there's already a monitor for the new session, remove it
+                if (existingMonitorForNewSession != null)
+                {
+                    _allMonitors.Remove(existingMonitorForNewSession);
+                }
+
+                // Add the new monitor. Old session's monitor will be removed when its session is removed
+                _allMonitors.Add(newMonitor);
+
+                newSession.HasInheritedMonitor = true;
+                Console.WriteLine($"Transferred {oldSession.DeviceName} monitoring state from {oldSession.PlaybackID} to {newSession.PlaybackID}");
+
+                return true;
+            }
+            else
+            {
+                Console.WriteLine($"No monitor found for session {oldSession.PlaybackID}. Nothing to transfer.");
+                return false;
+            }
+        }
+
         // This contains the main loop that refreshes the monitors and checks their state
         // It also handles the transition between active and idle states
         private static void PollingRefreshLoop()

@@ -48,6 +48,27 @@
             SetupMonitoringInitialConditions();
         }
 
+        // Constructor that takes another monitor and creates a new one with the same settings to apply to a new session
+        public RewindMonitor(RewindMonitor otherMonitor, ActiveSession newSession)
+        {
+            // Potentially updated values
+            _activeSession = newSession;
+            _deviceName = newSession.DeviceName;
+
+            // Values that will be re-used
+            _latestWatchedPosition = otherMonitor._latestWatchedPosition; // Ensures subtitle stopping point is the same for new session
+            _activeFrequency = otherMonitor._activeFrequency;
+            _idleFrequency = otherMonitor._idleFrequency;
+            _maxRewindAmount = otherMonitor._maxRewindAmount;
+            _printDebug = otherMonitor._printDebug;
+            _idleFrequency = otherMonitor._idleFrequency;
+            _isMonitoring = otherMonitor._isMonitoring;
+            _subtitlesUserEnabled = otherMonitor._subtitlesUserEnabled;
+            _previousPosition = otherMonitor._previousPosition;
+            _temporarilyDisplayingSubtitles = otherMonitor._temporarilyDisplayingSubtitles;
+            _smallestResolution = otherMonitor._smallestResolution;
+        }
+
         private void RewindOccurred()
         {
             if (_printDebug)
