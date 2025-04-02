@@ -114,7 +114,7 @@ namespace PlexShowSubtitlesOnRewind
             int smallestResolution = DefaultSmallestResolution
             )
         {
-            string PlaybackID = activeSession.Session.PlaybackID;
+            string playbackID = activeSession.Session.PlaybackID;
 
             if (_printDebugAll)
             {
@@ -122,9 +122,9 @@ namespace PlexShowSubtitlesOnRewind
             }
 
             // Check if a monitor already exists for this session, if not create a new one
-            if (_allMonitors.Any(m => m.PlaybackID == PlaybackID))
+            if (_allMonitors.Any(m => m.PlaybackID == playbackID))
             {
-                Console.WriteLine($"Monitor for session {PlaybackID} already exists. Not creating a new one.");
+                Console.WriteLine($"Monitor for session {playbackID} already exists. Not creating a new one.");
                 return;
             }
             else
@@ -138,7 +138,7 @@ namespace PlexShowSubtitlesOnRewind
                     smallestResolution: smallestResolution
                     );
                 _allMonitors.Add(monitor);
-                WriteWarning($"Added new session for {activeSession.DeviceName}");
+                WriteWarning($"Added new session for {activeSession.DeviceName}. Session Playback ID: {playbackID}");
             }
         }
 

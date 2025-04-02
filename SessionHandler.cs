@@ -113,7 +113,7 @@ namespace PlexShowSubtitlesOnRewind
 
                 foreach (ActiveSession deadSession in deadSessions)
                 {
-                    WriteColor($"Removing leftover session from {deadSession.DeviceName}", ConsoleColor.Yellow);
+                    WriteColor($"Removing leftover session from {deadSession.DeviceName}. Playback ID: {deadSession.SessionID}", ConsoleColor.Yellow);
                     _activeSessionList.Remove(deadSession);
                     MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
                 }
