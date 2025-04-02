@@ -476,6 +476,20 @@ namespace PlexShowSubtitlesOnRewind
                     return null;
                 }
             }
+            catch (TaskCanceledException ex)
+            {
+                // Timeouts aren't a critical error so don't emphasize as error
+                if (ex.InnerException is TimeoutException)
+                {
+                    Console.WriteLine($"Timeout fetching timeline from {deviceName} (Player app may have closed or device shut down.)");
+                }
+                else
+                {
+                    WriteError($"Error fetching device timeline: {ex.Message}");
+                }
+                return null;
+            }
+            // Display other exceptions as errors
             catch (Exception ex)
             {
                 WriteError($"Error fetching device timeline: {ex.Message}");

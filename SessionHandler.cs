@@ -6,6 +6,7 @@ namespace PlexShowSubtitlesOnRewind
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
         private static bool debugMode = Program.debugMode;
+        private const int _deadSessionGracePeriod = 60; // Seconds
 
         // This not only fetches the sessions, but also gets both active and available subtitles
         public static async Task<List<ActiveSession>> ProcessActiveSessions(List<PlexSession> sessionsList)
@@ -122,10 +123,34 @@ namespace PlexShowSubtitlesOnRewind
 
                 foreach (ActiveSession deadSession in deadSessions)
                 {
-                    WriteColor($"Removing leftover session from {deadSession.DeviceName}. Playback ID: {deadSession.SessionID}", ConsoleColor.Yellow);
-                    _activeSessionList.Remove(deadSession);
-                    MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
-                    removedSessionsCount++;
+                    // Get current epoch time in seconds
+                    long currentTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+                    long? lastSeenTime = deadSession.LastSeenTimeEpoch;
+                    long? lastSeenTimeDiff;
+
+                    // If the last seen time is not available, or if it's too old (beyond the grace period), remove the session
+                    if (lastSeenTime != null)
+                    {
+                        lastSeenTimeDiff = currentTime - lastSeenTime;
+
+                        if (lastSeenTimeDiff > _deadSessionGracePeriod)
+                        {
+                            WriteWarning($"Removing leftover session from {deadSession.DeviceName}. Playback ID: {deadSession.SessionID}");
+                            _activeSessionList.Remove(deadSession);
+                            MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
+                            removedSessionsCount++;
+                        }
+                        else if (debugMode == true)
+                        {
+                            Console.WriteLine($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
+                        }
+                    }
+                    // This is the first check it was no longer seen, so set the last seen time to now
+                    else
+                    {
+                        deadSession.LastSeenTimeEpoch = currentTime;
+                        WriteWarning($"{deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) no longer found. Beginning grace period.");
+                    }
                 }
             }
 

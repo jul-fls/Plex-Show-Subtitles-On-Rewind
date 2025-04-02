@@ -81,7 +81,7 @@ public class PlexSession
     public string RawXml { get; set; } = string.Empty;
 
     [XmlIgnore]
-    private PlexMediaItem? _cachedItem;
+    private PlexMediaItem? _cachedItem;  
 
     // Business logic methods
     public async Task<PlexMediaItem> FetchItemAsync(string key)
@@ -387,6 +387,7 @@ public class ActiveSession
     public string MediaTitle { get; } // MediaTitle is derived from GrandparentTitle or Title, whichever is available (not an empty string)
     public string SessionID { get; }
     public string RawXml { get; }
+    public long? LastSeenTimeEpoch { get; set; } = null; // Used to decide when to remove from the active sessions list based on a grace period
 
     // ------------ Properties related to more accurate timeline data ------------
     // If we are sure subtitles are showing or not, it's true or false, otherwise null
@@ -514,6 +515,7 @@ public class ActiveSession
         Session = session;
         AvailableSubtitles = _availableSubtitles; // Don't bother updating available subtitles
         ActiveSubtitles = activeSubtitles; // Don't bother updating active subtitles
+        LastSeenTimeEpoch = null; // Reset the missing time since we have new data
 
         GetAndApplyTimelineData(); // Update the view offset and known subtitle state
 
