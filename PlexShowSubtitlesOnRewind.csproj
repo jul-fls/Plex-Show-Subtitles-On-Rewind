@@ -1,8 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <!--
+		Note: Apparently the first framework listed is what gets used when debugging
+	-->
+    <TargetFrameworks>net9.0-windows;net9.0;net9.0-macos;</TargetFrameworks>
+	
+	 <OutputType>Exe</OutputType>
+    <OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows'))">WinExe</OutputType>
+
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 	<LangVersion>13.0</LangVersion>
