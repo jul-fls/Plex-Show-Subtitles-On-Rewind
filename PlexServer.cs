@@ -130,7 +130,7 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        public static async Task<bool> TestConnectionAsync()
+        public static async Task<ConnectionResult> TestConnectionAsync()
         {
             try
             {
@@ -140,7 +140,7 @@ namespace PlexShowSubtitlesOnRewind
                 if (response.IsSuccessStatusCode)
                 {
                     WriteGreen("Connection successful!\n");
-                    return true;
+                    return ConnectionResult.Success;
                 }
                 else
                 {
@@ -148,15 +148,65 @@ namespace PlexShowSubtitlesOnRewind
                     string statusName = response.StatusCode.ToString();
                     string errorText = await response.Content.ReadAsStringAsync();
                     errorText = errorText.Replace("\n", " ");
-                    Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
-                    return false;
+
+                    // Try to parse the errorText XML to a ConnectionTestResponse object
+                    ConnectionTestResponse? testResponse = XmlSerializerHelper.DeserializeXml<ConnectionTestResponse>(errorText);
+
+                    if (testResponse != null)
+                    {
+                        // Show more specific error/status if available
+                        string statusText = testResponse.Status ?? errorText;
+                        string titleText = testResponse.Title ?? string.Empty;
+
+                        if (titleText != string.Empty)
+                            titleText = $"{titleText} - ";
+
+                        // If it's maintenance, return that specifically so we know to check more often
+                        if (testResponse.Code == "503" && String.Equals(testResponse.Title, "maintenance", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
+                            return ConnectionResult.Maintenance;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
+                            return ConnectionResult.Failure;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
+                        return ConnectionResult.Failure;
+                    }
+                    
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error testing connection: {ex.Message}\n");
-                return false;
+                return ConnectionResult.Failure;
             }
+        }
+
+        public enum ConnectionResult
+        {
+            Success,
+            Failure,
+            Maintenance,
+            Cancelled
+        }
+
+        [XmlRoot("Response")]
+        public class ConnectionTestResponse
+        {
+            [XmlAttribute("code")]
+            public string? Code { get; set; } = null;
+
+            [XmlAttribute("title")]
+            public string? Title { get; set; } = null;
+
+            [XmlAttribute("status")]
+            public string? Status { get; set; } = null;
         }
 
         // Replace the existing StartServerConnectionTestLoop method in PlexServer.cs with this:
@@ -172,11 +222,11 @@ namespace PlexShowSubtitlesOnRewind
                 _isAttemptingReconnection = true; // Set the flag *inside* the lock
             }
 
-            bool connected = false;
             try
             {
-                connected = await TestConnectionAsync();
-                if (!connected)
+
+                ConnectionResult connected = await TestConnectionAsync();
+                if (connected != ConnectionResult.Success)
                 {
                     // Dispose previous token source if exists before creating a new one
                     _cancellationTokenSource?.Cancel(); // Cancel previous first
@@ -189,7 +239,7 @@ namespace PlexShowSubtitlesOnRewind
                 }
 
                 // After attempting connection (either initial or via loop)
-                if (connected)
+                if (connected == ConnectionResult.Success)
                 {
                     // Successfully connected (or reconnected), initialize monitoring
                     bool monitorInitSuccess = await InitializeMonitoring();
@@ -236,17 +286,20 @@ namespace PlexShowSubtitlesOnRewind
 
         // If not able to initially connect, or if the connection is lost, this method can be used to attempt reconnection with exponential backoff
         // Replace the existing private ServerConnectionTestLoop method in PlexServer.cs with this:
-        private static async Task<bool> ServerConnectionTestLoop(CancellationToken token)
+        private static async Task<ConnectionResult> ServerConnectionTestLoop(CancellationToken token)
         {
             int retryCount = 0;
+            int minimumDelay = 5; // Minimum delay in seconds
+            bool forceShortDelay = false; // Flag to force a short delay if necessary
+
             // Delay tiers (key is attempt number *before* which this delay applies)
             Dictionary<int, int> DelayTiers = new()
-    {
-        { 0, 5 },   // Attempts 1-12 (first minute): 5 seconds delay
-        { 12, 30 }, // Attempts 13-22 (next 5 mins): 30 seconds delay
-        { 22, 60 }, // Attempts 23-32 (next 10 mins): 60 seconds delay
-        { 32, 120 } // Attempts 33+ : 120 seconds delay
-    };
+            {
+                { 0, minimumDelay },   // Attempts 1-12 (first minute): 5 seconds delay
+                { 12, 30 }, // Attempts 13-22 (next 5 mins): 30 seconds delay
+                { 22, 60 }, // Attempts 23-32 (next 10 mins): 60 seconds delay
+                { 32, 120 } // Attempts 33+ : 120 seconds delay
+            };
 
             WriteWarning("\nConnection lost or failed. Attempting to reconnect...\n");
 
@@ -258,24 +311,36 @@ namespace PlexShowSubtitlesOnRewind
                     if (!_isAttemptingReconnection)
                     {
                         Console.WriteLine("Reconnection loop externally stopped via flag.");
-                        return false;
+                        return ConnectionResult.Cancelled;
                     }
                 }
 
                 try
                 {
-                    bool connectionSuccess = await TestConnectionAsync();
-                    if (connectionSuccess)
+                    ConnectionResult connectionSuccess = await TestConnectionAsync();
+                    // If TestConnectionAsync doesn't return success, fall through to delay and retry.
+                    if (connectionSuccess == ConnectionResult.Success)
                     {
                         // Reconnection successful, InitializeMonitoring will be called by the caller (StartServerConnectionTestLoop)
-                        return true; // Return true on success
+                        forceShortDelay = false; // Reset the flag
+                        return ConnectionResult.Success; // Return true on success
                     }
-                    // If TestConnectionAsync returns false, it logs the specific error. Fall through to delay and retry.
+                    else if (connectionSuccess == ConnectionResult.Maintenance)
+                    {
+                        if (Program.debugMode)
+                            Console.WriteLine("Forcing short retry delay due to maintenance mode. Server should be available soon.");
+                        forceShortDelay = true;
+                    }
+                    else
+                    {
+                        forceShortDelay = false; // Reset the flag
+                    }
+
                 }
                 catch (OperationCanceledException)
                 {
                     Console.WriteLine("Reconnection attempt cancelled by token during test.");
-                    return false; // Return false on cancellation
+                    return ConnectionResult.Cancelled; // Return false on cancellation
                 }
                 catch (Exception ex)
                 {
@@ -288,9 +353,16 @@ namespace PlexShowSubtitlesOnRewind
                 // If connection failed or threw non-cancellation exception
 
                 // Determine delay based on retry count
-                int delaySeconds = DelayTiers.OrderByDescending(t => t.Key).FirstOrDefault(t => retryCount >= t.Key).Value;
-                if (delaySeconds == 0) delaySeconds = DelayTiers.First().Value; // Fallback for initial state
-
+                int delaySeconds;
+                if (forceShortDelay)
+                {
+                    delaySeconds = minimumDelay;
+                }
+                else
+                {
+                    delaySeconds = DelayTiers.OrderByDescending(t => t.Key).FirstOrDefault(t => retryCount >= t.Key).Value;
+                    if (delaySeconds == 0) delaySeconds = DelayTiers.First().Value; // Fallback for initial state
+                }
 
                 Console.WriteLine($"Reconnecting attempt #{retryCount + 1} in {delaySeconds} seconds...");
                 try
@@ -300,14 +372,14 @@ namespace PlexShowSubtitlesOnRewind
                 catch (OperationCanceledException)
                 {
                     Console.WriteLine("Reconnection delay cancelled.");
-                    return false; // Return false on cancellation during delay
+                    return ConnectionResult.Cancelled; // Return false on cancellation during delay
                 }
                 retryCount++;
             }
 
             // If the loop exits due to cancellation request before connecting
             Console.WriteLine("Reconnection loop cancelled before success.");
-            return false;
+            return ConnectionResult.Cancelled;
         }
 
 
