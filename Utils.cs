@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace PlexShowSubtitlesOnRewind;
 internal class Utils
@@ -37,6 +38,36 @@ internal class Utils
         }
 
         return $"?{string.Join("&", argList)}";
+    }
+
+    public static class Version
+    {
+        public static string? GetInformationalVersion() => Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        public static string? GetFileVersion() => Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
+
+        public static string GetVersion()
+        {
+            string? version = GetFileVersion();
+            if (!string.IsNullOrEmpty(version))
+            {
+                // Get only the first 3 parts of the version number, unless the last part is not 0
+                List<string> versionParts = version.Split('.').ToList();
+
+                // If 4th part is 0, remove it
+                if (versionParts.Count > 3 && versionParts[3] == "0")
+                    versionParts = versionParts.GetRange(0, 3);
+
+                // Reconstruct the version string from the parts
+                version = string.Join(".", versionParts);
+
+            }
+            else
+            {
+                version = "Unknown";
+            }
+            return version;
+        }
+
     }
 
     public static HttpClient AddHttpClientHeaders(HttpClient client, Dictionary<string, string> headers)

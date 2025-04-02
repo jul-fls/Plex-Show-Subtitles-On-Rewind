@@ -5,6 +5,8 @@ global using static PlexShowSubtitlesOnRewind.MyStrings;
 global using static PlexShowSubtitlesOnRewind.LaunchArgs;
 using static PlexShowSubtitlesOnRewind.Program;
 
+#nullable enable
+
 namespace PlexShowSubtitlesOnRewind
 {
     public static class GlobalDefinitions
@@ -33,13 +35,14 @@ namespace PlexShowSubtitlesOnRewind
     {
         public const string AppNameDashed = "Show-Rewind-Subtitles-For-Plex";
         public const string AppName = "Show Rewind Subtitles For Plex";
-        public static string LaunchArgsInfo = $"""
+        public static readonly string AssemblyFileVersion = Utils.Version.GetVersion();
+        public static readonly string LaunchArgsInfo = $"""
             Optional Launch parameters:
                 -{LaunchArgs.Background}: {LaunchArgs.Background.Description}
                 -{LaunchArgs.Debug}: {LaunchArgs.Debug.Description}
                 -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt}: {LaunchArgs.Help.Description}
             """;
-        public static string HeadingTitle = $"\n----------- {AppName} -----------\n";
+        public static string HeadingTitle => $"\n----------- {AppName} - Version {AssemblyFileVersion} -----------\n";
     }
 
 } // ----------- End of Namespace --------------

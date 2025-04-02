@@ -1,4 +1,8 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
+
+#nullable enable
 
 namespace PlexShowSubtitlesOnRewind
 {
@@ -34,15 +38,15 @@ namespace PlexShowSubtitlesOnRewind
                 Console.ReadLine();
                 return;
             }
+            // The normal launch message
             else
             {
+                WriteGreen(MyStrings.HeadingTitle);
+                if (debugMode)
+                    WriteWarning("Debug mode enabled.\n");
                 Console.WriteLine(MyStrings.LaunchArgsInfo);
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
-
-            WriteGreen(MyStrings.HeadingTitle);
-            if (debugMode)
-                WriteWarning("Debug mode enabled.\n");
 
             // ------------------ Start Main ------------------
 
@@ -115,6 +119,7 @@ namespace PlexShowSubtitlesOnRewind
                 Console.ReadKey();
             }
         }
+
 
     }  // ---------------- End class Program ----------------
 
