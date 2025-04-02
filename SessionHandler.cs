@@ -62,6 +62,14 @@ namespace PlexShowSubtitlesOnRewind
                 return _activeSessionList;
             }
 
+            if (fetchedSessionsList.Count == 0 && debugMode == true)
+            {
+                if (_activeSessionList.Count > 0)
+                    Console.WriteLine($"Server API returned 0 active sessions. {_activeSessionList.Count} were previously tracked.");
+                else
+                    Console.WriteLine("Server API returned 0 active sessions.");
+            }
+
             List<Task> tasks = [];
             foreach (PlexSession fetchedSession in fetchedSessionsList)
             {
@@ -106,6 +114,7 @@ namespace PlexShowSubtitlesOnRewind
             await Task.WhenAll(tasks);
 
             // Check for dead sessions and remove them
+            int removedSessionsCount = 0;
             if (_activeSessionList.Count > 0)
             {
                 // Find any sessions in active sessions list that are not in the fetched list, by session ID
@@ -116,12 +125,13 @@ namespace PlexShowSubtitlesOnRewind
                     WriteColor($"Removing leftover session from {deadSession.DeviceName}. Playback ID: {deadSession.SessionID}", ConsoleColor.Yellow);
                     _activeSessionList.Remove(deadSession);
                     MonitorManager.RemoveMonitorForSession(deadSession.SessionID);
+                    removedSessionsCount++;
                 }
             }
 
-            if (_activeSessionList.Count == 0 && debugMode == true)
+            if (_activeSessionList.Count == 0 && removedSessionsCount > 0 && debugMode == true)
             {
-                Console.WriteLine("No active sessions found.");
+                Console.WriteLine($"No active sessions found after removing {removedSessionsCount} leftover sessions.");
             }
 
             return _activeSessionList;
