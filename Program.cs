@@ -19,9 +19,9 @@ namespace PlexShowSubtitlesOnRewind
 
         static async Task Main(string[] args)
         {
-            #if DEBUG
-                debugMode = true;
-            #endif
+#if DEBUG
+            debugMode = true;
+#endif
 
             // Event to signal application exit
             ManualResetEvent _exitEvent = new ManualResetEvent(false);
@@ -70,56 +70,52 @@ namespace PlexShowSubtitlesOnRewind
 
                 config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
 
-                Console.WriteLine($"Connecting to Plex server at {config.ServerURL}\n");
+                Console.WriteLine($"Attempting to connect to Plex server at {config.ServerURL}...");
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
-
-                // --- Initial Connection Attempt ---
-                bool initialConnectionSuccess = false;
+                // --- Initiate Connection and Monitoring ---
+                // Start the connection/monitoring process. StartServerConnectionTestLoop
+                // will handle the initial test and enter the retry loop if necessary.
+                // We don't need to await it here or check its return value for program flow.
+                // Run it in the background (fire-and-forget style for the main thread)
+                // or await if you want Main to wait until the *first* connection attempt
+                // (including potential retries) is resolved before proceeding.
+                // Let's await it to ensure setup is attempted before waiting for exit.
                 try
                 {
-                    // StartServerConnectionTestLoop will attempt connection and start monitoring if successful
-                    initialConnectionSuccess = await PlexServer.StartServerConnectionTestLoop();
+                    await PlexServer.StartServerConnectionTestLoop();
+                    // If it returns false (failed initial connection after retries),
+                    // the ServerConnectionTestLoop within StartServerConnectionTestLoop
+                    // should have already logged the failure. The app will continue waiting.
+                    // If it returns true, monitoring was started successfully.
                 }
                 catch (Exception ex)
                 {
-                    WriteErrorSuper($"Fatal error during initial connection: {ex.Message}\n");
+                    // Catch errors during the initial startup attempt
+                    WriteErrorSuper($"Fatal error during initial connection/monitoring setup: {ex.Message}\n");
                     Console.WriteLine(ex.StackTrace);
-                    if (!runInBackground) { Console.ReadLine(); }
-                    return; // Exit on fatal initial error
+                    // Decide if the app should exit here or still proceed to wait state
+                    // For robustness, let's allow it to proceed to wait state, maybe the listener can recover later.
+                    WriteWarning("Proceeding to wait state despite initial setup error.");
                 }
 
-                //This below might not make sense to include because it only runs if the initial connection is successful and then fails a while later.It doesn't actually display right upon connection
-                if (initialConnectionSuccess)
-                {
-                    Console.WriteLine("Initial connection successful. Monitoring started.");
-                    // Now the program relies on the listener to detect disconnects and handle reconnections.
 
-                    // Set up Ctrl+C handler to gracefully shut down
-                    Console.CancelKeyPress += (sender, eventArgs) =>
-                    {
-                        Console.WriteLine("Ctrl+C detected. Shutting down...");
-                        eventArgs.Cancel = true; // Prevent immediate process termination
-                        _exitEvent.Set(); // Signal the main thread to exit
-                    };
+                // --- Wait for Shutdown Signal ---
+                // Set up Ctrl+C handler to gracefully shut down
+                Console.CancelKeyPress += (sender, eventArgs) => {
+                    Console.WriteLine("Ctrl+C detected. Initiating shutdown...");
+                    eventArgs.Cancel = true; // Prevent immediate process termination
+                    _exitEvent.Set(); // Signal the main thread to exit
+                };
 
-                    Console.WriteLine("Application running. Press Ctrl+C to exit.");
-                    _exitEvent.WaitOne(); // Wait here until Ctrl+C is pressed or exit is signaled otherwise
+                Console.WriteLine("Application running. Press Ctrl+C to exit.");
+                _exitEvent.WaitOne(); // Wait here until Ctrl+C is pressed or exit is signaled otherwise
 
-                    // --- Application Shutdown ---
-                    WriteWarning("Shutdown signal received.");
-                }
-                else
-                {
-                    WriteError("Initial connection failed. Please check settings and Plex server status. Application will exit.");
-                    if (!runInBackground)
-                    {
-                        Console.WriteLine("Press Enter to exit.");
-                        Console.ReadLine();
-                    }
-                }
+                // --- Application Shutdown ---
+                WriteWarning("Shutdown signal received.");
+
             }
-            catch (Exception ex)
+            catch (Exception ex) // Catch errors during token loading, settings, etc.
             {
                 WriteErrorSuper($"Fatal error in main execution: {ex.Message}\n\n");
                 Console.WriteLine(ex.StackTrace);
@@ -132,6 +128,7 @@ namespace PlexShowSubtitlesOnRewind
             finally
             {
                 // --- Ensure cleanup happens on exit ---
+                WriteWarning("Performing final cleanup...");
                 PlexServer.StopServerConnectionTestLoop(); // Ensure any active test loop is stopped
                 MonitorManager.StopAllMonitoring(); // Stop monitors and listener (safe to call even if not started)
                 Console.WriteLine("Application exited.");
