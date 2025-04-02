@@ -16,6 +16,10 @@ namespace PlexShowSubtitlesOnRewind
         private static PlexNotificationListener? _currentListener;
         private static bool _alreadyRetrying = false;
 
+        // Add these static fields near the top of the PlexServer class
+        private static bool _isAttemptingReconnection = false;
+        private static readonly object _reconnectionLock = new object(); // For thread safety
+
         public static void SetupPlexServer(string url, string token, string appClientID)
         {
             Dictionary<string, string> defaultHeadersDict = new()
@@ -155,102 +159,158 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
+        // Replace the existing StartServerConnectionTestLoop method in PlexServer.cs with this:
         public static async Task<bool> StartServerConnectionTestLoop()
         {
-            // Test connection to Plex server by connecting to the base api endpoint
-            //bool connected = await TestConnectionAsync();
-            bool connected = false;
-            // If can't connect, keep trying until connected
-            if (!connected)
+            lock (_reconnectionLock)
             {
-                //WriteWarning("\nFailed to connect to Plex server. Will retry until connected.\n");
-
-                _cancellationTokenSource = new CancellationTokenSource();
-                CancellationToken token = _cancellationTokenSource.Token;
-                try
+                if (_isAttemptingReconnection)
                 {
-                    connected = await ServerConnectionTestLoop(token);
+                    Console.WriteLine("Reconnection attempt already in progress by another task.");
+                    return false; // Indicate that another loop is handling it
                 }
-                catch (Exception ex)
+                _isAttemptingReconnection = true; // Set the flag *inside* the lock
+            }
+
+            bool connected = false;
+            try
+            {
+                connected = await TestConnectionAsync();
+                if (!connected)
                 {
-                    Console.WriteLine($"Error starting connection test loop: {ex.Message}");
-                    // Short delay to avoid tight loop on errors
-                    await Task.Delay(5000);
+                    // Dispose previous token source if exists before creating a new one
+                    _cancellationTokenSource?.Cancel(); // Cancel previous first
+                    _cancellationTokenSource?.Dispose();
+                    _cancellationTokenSource = new CancellationTokenSource();
+                    CancellationToken token = _cancellationTokenSource.Token;
+
+                    // Enter the retry loop ONLY if the initial test failed
+                    connected = await ServerConnectionTestLoop(token); // The actual retry loop
+                }
+
+                // After attempting connection (either initial or via loop)
+                if (connected)
+                {
+                    // Successfully connected (or reconnected), initialize monitoring
+                    bool monitorInitSuccess = await InitializeMonitoring();
+                    return monitorInitSuccess; // Return success/failure of monitoring init
+                }
+                else
+                {
+                    // Failed to connect even after retries (or cancelled)
                     return false;
                 }
             }
-
-            if (connected)
+            catch (Exception ex) // Catch potential errors during connection or monitoring init
             {
-                bool runResult = await InitializeMonitoring(); // This will start the chain of events that will keep the program running
-                return runResult;
-            }
-            else
-            {
+                WriteError($"Error during connection/monitoring startup: {ex.Message}");
+                // Ensure flag is reset even if InitializeMonitoring fails
+                lock (_reconnectionLock) { _isAttemptingReconnection = false; }
                 return false;
+            }
+            finally
+            {
+                // Reset the flag ONLY if the connection ultimately failed or monitoring init failed
+                // If connection succeeded AND monitoring succeeded, the flag remains true until explicitly stopped or another error occurs.
+                // Correction: Flag should be reset when the entire *attempt* sequence finishes, regardless of success/failure.
+                lock (_reconnectionLock)
+                {
+                    _isAttemptingReconnection = false;
+                }
             }
         }
 
+        // Add this new method to the PlexServer.cs class
         public static void StopServerConnectionTestLoop()
         {
-            _cancellationTokenSource?.Cancel();
+            lock (_reconnectionLock)
+            {
+                // Set flag to false *first* to prevent new loops starting immediately after cancel
+                _isAttemptingReconnection = false;
+            }
+            _cancellationTokenSource?.Cancel(); // Primary mechanism
+            _cancellationTokenSource?.Dispose(); // Dispose the source after cancellation
+            _cancellationTokenSource = null;
+            Console.WriteLine("StopServerConnectionTestLoop called: Reconnection attempts stopped.");
         }
 
         // If not able to initially connect, or if the connection is lost, this method can be used to attempt reconnection with exponential backoff
+        // Replace the existing private ServerConnectionTestLoop method in PlexServer.cs with this:
         private static async Task<bool> ServerConnectionTestLoop(CancellationToken token)
         {
             int retryCount = 0;
-            bool result = false;
-
-            // Number of retries and corresponding delay in seconds
+            // Delay tiers (key is attempt number *before* which this delay applies)
             Dictionary<int, int> DelayTiers = new()
-            {
-                // First minute, every 5 seconds
-                { 0, 5 },   
-                // After 1 minute, every 30 seconds
-                { 12, 30 }, 
-                // After 5 more minutes, every 60 seconds
-                { 22, 60 },
-                // After 10 more minutes+, every 120 seconds
-                { 32, 120 }
-            };
+    {
+        { 0, 5 },   // Attempts 1-12 (first minute): 5 seconds delay
+        { 12, 30 }, // Attempts 13-22 (next 5 mins): 30 seconds delay
+        { 22, 60 }, // Attempts 23-32 (next 10 mins): 60 seconds delay
+        { 32, 120 } // Attempts 33+ : 120 seconds delay
+    };
 
-            while (!token.IsCancellationRequested)
+            WriteWarning("\nConnection lost or failed. Attempting to reconnect...\n");
+
+            while (!token.IsCancellationRequested) // Primary exit condition
             {
+                // Secondary check: If another thread reset the global flag, exit.
+                lock (_reconnectionLock)
+                {
+                    if (!_isAttemptingReconnection)
+                    {
+                        Console.WriteLine("Reconnection loop externally stopped via flag.");
+                        return false;
+                    }
+                }
+
                 try
                 {
                     bool connectionSuccess = await TestConnectionAsync();
                     if (connectionSuccess)
                     {
-                        WriteGreen("Connection successful. Starting event listening...\n");
-                        return true;
+                        // Reconnection successful, InitializeMonitoring will be called by the caller (StartServerConnectionTestLoop)
+                        return true; // Return true on success
                     }
-                }
-                catch (HttpRequestException ex)
-                {
-                    Console.WriteLine($"HTTP request error: {ex.Message}");
-                    // Handle connection errors, invalid token (401), etc.
+                    // If TestConnectionAsync returns false, it logs the specific error. Fall through to delay and retry.
                 }
                 catch (OperationCanceledException)
                 {
-                    Console.WriteLine("Event listening cancelled by user.");
-                    break;
+                    Console.WriteLine("Reconnection attempt cancelled by token during test.");
+                    return false; // Return false on cancellation
                 }
-                catch (Exception ex) // Catch other potential errors
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+                    // TestConnectionAsync should handle its own specific exceptions,
+                    // but catch broader errors here if they occur outside TestConnectionAsync
+                    Console.WriteLine($"Unexpected error during reconnection test: {ex.Message}");
+                    // Fall through to delay and retry
                 }
 
-                // Exponential backoff. Check the dictionary for the smallest key that is not greater than the current retry count
-                int delaySeconds = DelayTiers.LastOrDefault(t => t.Key <= retryCount).Value;
+                // If connection failed or threw non-cancellation exception
 
-                Console.WriteLine($"Reconnecting attempt #{retryCount+1} in {delaySeconds} seconds...");
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token);
+                // Determine delay based on retry count
+                int delaySeconds = DelayTiers.OrderByDescending(t => t.Key).FirstOrDefault(t => retryCount >= t.Key).Value;
+                if (delaySeconds == 0) delaySeconds = DelayTiers.First().Value; // Fallback for initial state
+
+
+                Console.WriteLine($"Reconnecting attempt #{retryCount + 1} in {delaySeconds} seconds...");
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine("Reconnection delay cancelled.");
+                    return false; // Return false on cancellation during delay
+                }
                 retryCount++;
             }
 
-            return result;
+            // If the loop exits due to cancellation request before connecting
+            Console.WriteLine("Reconnection loop cancelled before success.");
+            return false;
         }
+
+
 
         // This method is more complex due to the different possible root nodes
         public static async Task<PlexMediaItem> FetchItemAsync(string key)
