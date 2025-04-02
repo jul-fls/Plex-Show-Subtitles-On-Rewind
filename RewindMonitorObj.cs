@@ -79,6 +79,7 @@
             _temporarilyDisplayingSubtitles = true;
         }
 
+        // Disable subtitles but only if they were enabled by the monitor
         private void ReachedOriginalPosition()
         {
             if (_printDebug)
@@ -92,6 +93,7 @@
             _temporarilyDisplayingSubtitles = false;
         }
 
+        // Disables subtitles regardless of how they were enabled
         private void ForceStopShowingSubtitles()
         {
             _activeSession.DisableSubtitles();
@@ -135,7 +137,7 @@
                     {
                         _subtitlesUserEnabled = true;
                         _latestWatchedPosition = positionSec;
-                        WriteWarning($"{_deviceName}: Use appears to have enabled subtitles manually.");
+                        WriteWarning($"{_deviceName}: User appears to have enabled subtitles manually.");
                     }
                     // Only check for rewinds if the user hasn't manually enabled subtitles
                     else

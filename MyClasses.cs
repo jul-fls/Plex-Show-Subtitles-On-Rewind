@@ -538,9 +538,13 @@ public class ActiveSession
 
     public async void DisableSubtitles()
     {
-        await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0, activeSession:this);
-    }
+        CommandResult commandResult = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0, activeSession:this);
 
+        if (commandResult.Success)
+        {
+            KnownIsShowingSubtitles = false; // If the command was successful, we know subtitles are not showing
+        }
+    }
 }
 
 public class CommandResult(bool success, string responseErrorMessage, XmlDocument? responseXml)
