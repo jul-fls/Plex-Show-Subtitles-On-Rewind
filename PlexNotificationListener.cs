@@ -21,6 +21,8 @@ public class PlexNotificationListener : IDisposable
     private CancellationTokenSource? _cancellationTokenSource;
     private Task? _listeningTask;
     private bool _disposedValue;
+    private static bool _lastEventStoppedUnexpectedly = false;
+    private static PlexServer _plexServer;
 
     // Event triggered when any Plex notification is received
     public event EventHandler<PlexEventInfo>? NotificationReceived;
@@ -38,7 +40,7 @@ public class PlexNotificationListener : IDisposable
     /// <param name="useHttps">Whether to use HTTPS (default is false).</param>
     /// <param name="notificationFilters">Comma-separated list of events to listen for (e.g., "playing,activity"). Null or empty for all.</param>
     /// 
-    public PlexNotificationListener(string plexUrl, string plexToken, bool useHttps = false, string? notificationFilters = "playing")
+    public PlexNotificationListener(string plexUrl, string plexToken, PlexServer plexServer, bool useHttps = false, string? notificationFilters = "playing")
     {
         _httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan }; // Important for long-running streams
         _plexToken = plexToken;
@@ -50,6 +52,8 @@ public class PlexNotificationListener : IDisposable
         // Add required Plex headers
         _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", _plexToken);
         _httpClient.DefaultRequestHeaders.Add("Accept", "text/event-stream"); // Crucial for SSE
+
+        _plexServer = plexServer;
     }
 
     /// <summary>
@@ -163,7 +167,16 @@ public class PlexNotificationListener : IDisposable
         }
         finally
         {
-            Console.WriteLine("Stopped listening for Plex events.");
+            if (_lastEventStoppedUnexpectedly)
+            {
+                MonitorManager.StopAllMonitoring();
+                this.StopListening();
+                //this.Dispose(); // StopListening already disposes
+
+                // Try to restart everything
+                Console.WriteLine("Attempting to reconnect");
+                await _plexServer.StartServerConnectionTestLoop();
+            }
         }
     }
 
@@ -171,6 +184,7 @@ public class PlexNotificationListener : IDisposable
     {
         string? currentEvent = null;
         string dataBuffer = string.Empty;
+        bool stoppedUnexpectedly = false;
 
         Console.WriteLine("Connected to Plex event stream. Waiting for events...");
 
@@ -187,6 +201,7 @@ public class PlexNotificationListener : IDisposable
                 if (line == null)
                 {
                     Console.WriteLine("Stream closed by server or read error.");
+                    stoppedUnexpectedly = true;
                     break; // Exit the loop
                 }
             }
@@ -197,8 +212,21 @@ public class PlexNotificationListener : IDisposable
             }
             catch (IOException ex)
             {
+                stoppedUnexpectedly = true;
                 // Handle potential network errors or stream closure issues
-                Console.WriteLine($"IO Error reading event stream: {ex.Message}");
+                if (ex.InnerException is System.Net.Sockets.SocketException innerEx)
+                {
+                    if (innerEx.NativeErrorCode == 10054)
+                        Console.WriteLine($"Plex Server Closed the Connection (Did it shut down)? - IO Error reading event stream: {ex.InnerException.Message}");
+                }
+                else if (ex.InnerException?.Message != null)
+                {
+                    Console.WriteLine($"IO Error reading event stream: {ex.InnerException.Message}");
+                }
+                else
+                {
+                    Console.WriteLine($"IO Error reading event stream: {ex.Message}");
+                }
                 break; // Exit the loop on IO error
             }
 
@@ -225,6 +253,8 @@ public class PlexNotificationListener : IDisposable
             }
             // Ignore comment lines (starting with ':') and other lines
         }
+
+        _lastEventStoppedUnexpectedly = stoppedUnexpectedly;
 
         Console.WriteLine("Exiting event processing loop.");
         // No explicit return needed

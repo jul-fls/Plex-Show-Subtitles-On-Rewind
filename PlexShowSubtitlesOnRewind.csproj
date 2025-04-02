@@ -7,7 +7,7 @@
     <TargetFrameworks>net9.0-windows;net9.0;net9.0-macos;</TargetFrameworks>
 	
 	 <OutputType>Exe</OutputType>
-    <OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows'))">WinExe</OutputType>
+    <!--<OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows'))">WinExe</OutputType>-->
 
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

@@ -10,7 +10,7 @@ namespace PlexShowSubtitlesOnRewind
         public const int DefaultMaxRewindAmount = 60;
         public const int DefaultActiveFrequency = 1;
         public const int DefaultIdleFrequency = 30;
-        public const int DefaultWaitOnEventIdleFrequency = 3600; // Used when preferring event-based polling when idle, so this will be very long
+        public const int DefaultWaitOnEventIdleFrequency_seconds = 3600; // Used when preferring event-based polling when idle, so this will be very long
         public const int DefaultSmallestResolution = 5; // If using the viewOffset, it's usually 5 seconds but apparently can be as high as 10s
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
@@ -21,7 +21,7 @@ namespace PlexShowSubtitlesOnRewind
         private static bool _printDebugAll = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
         private static int _idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
-        private static PollingMode _idlePollingMode = PollingMode.Timer; // Default to timer polling when idle
+        private static PollingMode _idlePollingMode = PollingMode.Timer;
 
         private static ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
         private static bool _sleepCancellationRequested = false;
@@ -30,13 +30,14 @@ namespace PlexShowSubtitlesOnRewind
         private static PlexNotificationListener? _plexListener;
 
         // Create the listener
-        public static void CreatePlexListener(string plexUrl, string plexToken)
+        public static PlexNotificationListener CreatePlexListener(string plexUrl, string plexToken, PlexServer plexServer)
         {
-            _plexListener = new PlexNotificationListener(plexUrl, plexToken, notificationFilters: "playing");
+            _plexListener = new PlexNotificationListener(plexUrl: plexUrl, plexToken: plexToken, plexServer:plexServer, notificationFilters: "playing");
             // Subscribe to the specific 'playing' event
             _plexListener.PlayingNotificationReceived += PlexListener_PlayingEventReceived;
             // Start listening
             _plexListener.StartListening();
+            return _plexListener;
         }
 
         private static void PlexListener_PlayingEventReceived(object? sender, PlexEventInfo e)
@@ -53,6 +54,7 @@ namespace PlexShowSubtitlesOnRewind
                     if (_monitoringState == MonitoringState.Idle)
                     {
                         Console.WriteLine("Switching to active monitoring due to playback event.");
+                        BreakFromIdle();
                     }                   
                 }
                 else if (playState == PlayState.Paused)
@@ -204,6 +206,10 @@ namespace PlexShowSubtitlesOnRewind
                 int sleepTime;
                 if (_monitoringState == MonitoringState.Active)
                     sleepTime = _globalActiveFrequencyMs;
+                // If using event-based polling, use a long sleep time while idle
+                else if (_idlePollingMode == PollingMode.Event) 
+                    sleepTime = DefaultWaitOnEventIdleFrequency_seconds * 1000;
+                // Otherwise use the normal idle frequency
                 else
                     sleepTime = _globalIdleFrequencyMs;
 
@@ -222,7 +228,8 @@ namespace PlexShowSubtitlesOnRewind
             // Signal the event to wake up any waiting thread
             _sleepResetEvent.Set();
 
-            Console.WriteLine("Sleep canceled - switching to active monitoring immediately");
+            if (Program.debugMode)
+                Console.WriteLine("Sleep canceled - switching to active monitoring immediately");
         }
 
         private static void StartRefreshLoop()
@@ -258,7 +265,13 @@ namespace PlexShowSubtitlesOnRewind
                 return MonitoringState.Idle;
         }
 
-        public static void StopAllMonitors()
+        public static void StopAllMonitoring()
+        {
+            _allMonitors.Clear();
+            _isRunning = false;
+        }
+
+        public static void StopAndKeepAllMonitors()
         {
             foreach (RewindMonitor monitor in _allMonitors)
             {

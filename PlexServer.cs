@@ -12,6 +12,8 @@ namespace PlexShowSubtitlesOnRewind
         private readonly string _appClientID;
         private readonly HttpClient _httpClient;
         private readonly HttpClient _httpClientShortTimeout;
+        private CancellationTokenSource? _cancellationTokenSource;
+        private PlexNotificationListener? _currentListener;
 
         public PlexServer(string url, string token, string appClientID)
         {
@@ -33,6 +35,45 @@ namespace PlexShowSubtitlesOnRewind
             _httpClientShortTimeout.Timeout = TimeSpan.FromMilliseconds(Program.config.ShortTimeoutLimit); // Will be used between loop iterations which only last a second
         }
 
+        public async Task<bool> InitializeMonitoring()
+        {
+            bool debugMode = Program.debugMode;
+            // Load active sessions and start monitoring
+            try
+            {
+                if (debugMode)
+                    Console.WriteLine("Loading active sessions...");
+
+                List<ActiveSession> activeSessionList = await SessionHandler.ClearAndLoadActiveSessionsAsync(this);
+
+                if (debugMode)
+                    SessionHandler.PrintSubtitles();
+
+                _currentListener = MonitorManager.CreatePlexListener(plexUrl: Program.config.ServerURL, plexToken: _token, plexServer: this);
+
+                Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
+                MonitorManager.CreateAllMonitoringAllSessions(
+                    activeSessionList,
+                    activeFrequency: Program.config.ActiveMonitorFrequency,
+                    idleFrequency: Program.config.IdleMonitorFrequency,
+                    printDebugAll: debugMode);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                WriteError($"Error getting sessions: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Shouldn't need this since ListenForEvents() stops these if it fails
+        private void KillAllListening()
+        {
+            MonitorManager.StopAllMonitoring();
+            _currentListener?.StopListening();
+        }
+
         // Using XmlSerializer to get sessions
         public async Task<List<PlexSession>?> GetSessionsAsync(bool printDebug = false, bool shortTimeout = false)
         {
@@ -43,6 +84,7 @@ namespace PlexShowSubtitlesOnRewind
                 //string response = await httpClientToUse.GetStringAsync($"{_url}/status/sessions");
                 string responseString;
                 HttpResponseMessage response = await httpClientToUse.GetAsync($"{_url}/status/sessions");
+                responseString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -52,10 +94,6 @@ namespace PlexShowSubtitlesOnRewind
                     errorText = errorText.Replace("\n", " ");
                     WriteError($"Error getting sessions: {statusCode} ({statusName}), Error: {errorText}");
                     return null;
-                }
-                else
-                {
-                    responseString = await response.Content.ReadAsStringAsync();
                 }
 
                 // Deserialize directly to your model
@@ -114,6 +152,103 @@ namespace PlexShowSubtitlesOnRewind
                 Console.WriteLine($"Error testing connection: {ex.Message}\n");
                 return false;
             }
+        }
+
+        public async Task<bool> StartServerConnectionTestLoop()
+        {
+            // Test connection to Plex server by connecting to the base api endpoint
+            bool connected = await TestConnectionAsync();
+
+            // If can't connect, keep trying until connected
+            if (!connected)
+            {
+                WriteWarning("\nFailed to connect to Plex server. Will retry until connected.\n");
+
+                _cancellationTokenSource = new CancellationTokenSource();
+                CancellationToken token = _cancellationTokenSource.Token;
+                try
+                {
+                    connected = await ServerConnectionTestLoop(token);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error starting connection test loop: {ex.Message}");
+                    // Short delay to avoid tight loop on errors
+                    await Task.Delay(5000);
+                    return false;
+                }
+            }
+
+            if (connected)
+            {
+                bool runResult = InitializeMonitoring().Result; // This will start the chain of events that will keep the program running
+                return runResult;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public void StopServerConnectionTestLoop()
+        {
+            _cancellationTokenSource?.Cancel();
+        }
+
+        // If not able to initially connect, or if the connection is lost, this method can be used to attempt reconnection with exponential backoff
+        private async Task<bool> ServerConnectionTestLoop(CancellationToken token)
+        {
+            int retryCount = 0;
+            bool result = false;
+
+            // Number of retries and corresponding delay in seconds
+            Dictionary<int, int> DelayTiers = new()
+            {
+                // First minute, every 5 seconds
+                { 0, 5 },   
+                // After 1 minute, every 30 seconds
+                { 12, 30 }, 
+                // After 5 more minutes, every 60 seconds
+                { 22, 60 },
+                // After 10 more minutes+, every 120 seconds
+                { 32, 120 }
+            };
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    bool connectionSuccess = await TestConnectionAsync();
+                    if (connectionSuccess)
+                    {
+                        WriteGreen("Connection successful. Starting event listening...\n");
+                        return true;
+                    }
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.WriteLine($"HTTP request error: {ex.Message}");
+                    // Handle connection errors, invalid token (401), etc.
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine("Event listening cancelled by user.");
+                    break;
+                }
+                catch (Exception ex) // Catch other potential errors
+                {
+                    Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+                }
+
+                // Exponential backoff. Check the dictionary for the smallest key that is not greater than the current retry count
+                int delaySeconds = DelayTiers.LastOrDefault(t => t.Key <= retryCount).Value;
+
+                Console.WriteLine($"Reconnecting attempt #{retryCount+1} in {delaySeconds} seconds...");
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token);
+                retryCount++;
+            }
+
+            return result;
         }
 
         // This method is more complex due to the different possible root nodes

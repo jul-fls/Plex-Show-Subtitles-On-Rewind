@@ -13,6 +13,7 @@ namespace PlexShowSubtitlesOnRewind
         public static Settings config = new();
 
         public static bool debugMode = false;
+        public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
 
         // ===========================================================================================
 
@@ -73,42 +74,19 @@ namespace PlexShowSubtitlesOnRewind
                 Console.WriteLine($"Connecting to Plex server at {config.ServerURL}\n");
                 PlexServer plexServer = new PlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
-                // Test connection to Plex server by connecting to the base api endpoint
-                if (!await plexServer.TestConnectionAsync())
+                while (KeepAlive)
                 {
-                    WriteError("\nFailed to connect to Plex server. Exiting...");
-                    return;
+                    // Test connection to Plex server by connecting to the base api endpoint
+                    bool connected = await plexServer.StartServerConnectionTestLoop();
                 }
 
-                // Load active sessions and start monitoring
-                try
-                {
-                    if (debugMode)
-                        Console.WriteLine("Loading active sessions...");
+                //// Test connection to Plex server by connecting to the base api endpoint
+                //bool connected = await plexServer.StartServerConnectionTestLoop();
 
-                    List<ActiveSession> activeSessionList = await SessionHandler.ClearAndLoadActiveSessionsAsync(plexServer);
+                //// Clean up when exiting. At this point the main refresh loop would have stopped for whatever reason
+                //WriteWarning("Shutting down...");
 
-                    if (debugMode)
-                        SessionHandler.PrintSubtitles();
-
-                    MonitorManager.CreatePlexListener(config.ServerURL, PLEX_APP_TOKEN);
-
-                    Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
-                    MonitorManager.CreateAllMonitoringAllSessions(
-                        activeSessionList,
-                        activeFrequency: config.ActiveMonitorFrequency,
-                        idleFrequency: config.IdleMonitorFrequency,
-                        printDebugAll: debugMode);
-                }
-                catch (Exception ex)
-                {
-                    WriteError($"Error getting sessions: {ex.Message}");
-                }
-
-                // Clean up when exiting. At this point the main refresh loop would have stopped for whatever reason
-                WriteWarning("Shutting down...");
-
-                MonitorManager.StopAllMonitors();
+                //MonitorManager.StopAllMonitoring();
 
             }
             catch (Exception ex)
@@ -119,7 +97,6 @@ namespace PlexShowSubtitlesOnRewind
                 Console.ReadKey();
             }
         }
-
 
     }  // ---------------- End class Program ----------------
 
