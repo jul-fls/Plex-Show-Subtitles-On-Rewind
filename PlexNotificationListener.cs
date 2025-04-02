@@ -18,163 +18,106 @@ public class PlexNotificationListener : IDisposable
     private readonly string _plexUrl;
     private readonly string _plexToken;
     private readonly string _filters;
-    private CancellationTokenSource? _cancellationTokenSource;
-    private Task? _listeningTask;
-    private bool _disposedValue;
-    private static bool _lastEventStoppedUnexpectedly = false;
+    private readonly CancellationTokenSource _listenerCts; // Renamed, owned by listener
+    private bool _isDisposed;
+
+    // Publicly expose the task for monitoring
+    public Task? ListeningTask { get; private set; }
 
     // Event triggered when any Plex notification is received
     public event EventHandler<PlexEventInfo>? NotificationReceived;
-
     // Specific event for 'playing' state changes
     public event EventHandler<PlexEventInfo>? PlayingNotificationReceived;
-
-    // Optional: Add more specific events if needed (e.g., ActivityNotificationReceived)
-
-    /// <summary>
-    /// Initializes a new instance of the PlexNotificationListener class.
-    /// </summary>
-    /// <param name="plexUrl">The IP address of the Plex server.</param>
-    /// <param name="plexToken">The Plex authentication token.</param>
-    /// <param name="useHttps">Whether to use HTTPS (default is false).</param>
-    /// <param name="notificationFilters">Comma-separated list of events to listen for (e.g., "playing,activity"). Null or empty for all.</param>
-    /// 
+    // Event triggered when the connection is lost/errored
+    public event EventHandler? ConnectionLost;
     public PlexNotificationListener(string plexUrl, string plexToken, bool useHttps = false, string? notificationFilters = "playing")
     {
-        _httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan }; // Important for long-running streams
+        _httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _plexToken = plexToken;
-
         _plexUrl = $"{plexUrl}/:/eventsource/notifications";
-
         _filters = string.IsNullOrWhiteSpace(notificationFilters) ? string.Empty : $"filters={Uri.EscapeDataString(notificationFilters)}";
 
-        // Add required Plex headers
         _httpClient.DefaultRequestHeaders.Add("X-Plex-Token", _plexToken);
-        _httpClient.DefaultRequestHeaders.Add("Accept", "text/event-stream"); // Crucial for SSE
-    }
+        _httpClient.DefaultRequestHeaders.Add("Accept", "text/event-stream");
 
-    /// <summary>
-    /// Starts listening for Plex notifications.
-    /// </summary>
-    public void StartListening()
-    {
-        if (_listeningTask != null && !_listeningTask.IsCompleted)
-        {
-            Console.WriteLine("Notification listener is already running.");
-            return;
-        }
-
-        _cancellationTokenSource = new CancellationTokenSource();
-        CancellationToken token = _cancellationTokenSource.Token;
+        _listenerCts = new CancellationTokenSource();
+        CancellationToken token = _listenerCts.Token;
 
         string requestUri = string.IsNullOrWhiteSpace(_filters) ? _plexUrl : $"{_plexUrl}?{_filters}";
-        requestUri += (requestUri.Contains("?") ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}"; // Also pass token in query for SSE
+        requestUri += (requestUri.Contains("?") ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}";
 
         if (Program.debugMode)
-            Console.WriteLine($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}"); // Avoid logging token
+            Console.WriteLine($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}");
 
-        _listeningTask = Task.Run(async () => await ListenForEvents(requestUri, token), token);
+        // Start listening immediately in the constructor
+        ListeningTask = Task.Run(async () => await ListenForEvents(requestUri, token), token);
     }
 
-    /// <summary>
-    /// Stops listening for Plex notifications.
-    /// </summary>
-    public void StopListening()
-    {
-        if (_cancellationTokenSource == null || _cancellationTokenSource.IsCancellationRequested)
-        {
-            return;
-        }
-
-        Console.WriteLine("Stopping Plex notification listener...");
-        _cancellationTokenSource.Cancel();
-
-        try
-        {
-            // Wait briefly for the task to acknowledge cancellation
-            _listeningTask?.Wait(TimeSpan.FromSeconds(5));
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected exception on cancellation
-            Console.WriteLine("Listener stopped successfully.");
-        }
-        catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException or TaskCanceledException))
-        {
-            // Expected exception(s) on cancellation
-            Console.WriteLine("Listener stopped successfully.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Exception while stopping listener: {ex.Message}");
-        }
-        finally
-        {
-            _listeningTask = null;
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = null;
-            Console.WriteLine("Listener fully stopped.");
-        }
-    }
 
     private async Task ListenForEvents(string requestUri, CancellationToken token)
     {
         using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, requestUri);
-        // Add headers again in case they are needed per-request by some HttpClient handlers/proxies
-        request.Headers.TryAddWithoutValidation("X-Plex-Token", _plexToken);
-        request.Headers.TryAddWithoutValidation("Accept", "text/event-stream");
+        // Headers added in constructor via DefaultRequestHeaders
 
         try
         {
-            using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token); // Read headers first
-            response.EnsureSuccessStatusCode(); // Throw if non-2xx
+            using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            response.EnsureSuccessStatusCode();
 
             using Stream stream = await response.Content.ReadAsStreamAsync(token);
             using StreamReader reader = new StreamReader(stream);
 
-            // *** Consume the events using await foreach ***
+            Console.WriteLine("Listener: Connected to Plex event stream. Waiting for events...");
+
+            // Process events until cancellation or stream end/error
             await foreach (ServerSentEvent serverEvent in ProcessRawEventsAsync(reader, token).WithCancellation(token))
             {
-                //Console.WriteLine($"Received Event Type: {serverEvent.Event}");
-
                 try
                 {
-                    //DeserializeAndHandleEvent(serverEvent);
                     ProcessEvent(serverEvent.Event, serverEvent.Data);
+                }
+                catch (JsonException jsonEx)
+                {
+                    WriteError($"Listener: Error deserializing event data: {jsonEx.Message}");
+                    if (Program.debugMode) Console.WriteLine($"   Raw Data: {serverEvent.Data}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"!! Error deserializing/handling event data: {ex.Message}");
-                    Console.WriteLine($"   Raw Data: {serverEvent.Data}");
+                    WriteError($"Listener: Error handling event: {ex.Message}");
+                    if (Program.debugMode) Console.WriteLine($"   Raw Data: {serverEvent.Data}");
                 }
             }
+
+            WriteWarning("Listener: Event stream finished gracefully (unexpected for infinite stream).");
+            OnConnectionLost(); // Treat graceful end also as a lost connection for simplicity
+
         }
         catch (HttpRequestException ex)
         {
-            Console.WriteLine($"HTTP request error: {ex.Message}");
-            // Handle connection errors, invalid token (401), etc.
+            WriteError($"Listener: HTTP request error: {ex.Message}");
+            OnConnectionLost();
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("Event listening cancelled by user.");
+            WriteWarning("Listener: Event listening cancelled.");
+            // Do not trigger ConnectionLost on explicit cancellation
         }
-        catch (Exception ex) // Catch other potential errors
+        catch (IOException ioEx)
         {
-            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+            WriteError($"Listener: IO error (connection likely lost): {ioEx.Message}");
+            OnConnectionLost();
+        }
+        catch (Exception ex)
+        {
+            WriteError($"Listener: An unexpected error occurred: {ex.Message}");
+            OnConnectionLost(); // Assume connection lost on any other error
         }
         finally
         {
-            if (_lastEventStoppedUnexpectedly)
-            {
-                MonitorManager.StopAllMonitoring();
-                this.StopListening();
-                //this.Dispose(); // StopListening already disposes
-
-                // Try to restart everything
-                Console.WriteLine("Attempting to reconnect");
-                await PlexServer.StartServerConnectionTestLoop();
-            }
+            Console.WriteLine("Listener: ListenForEvents finally block executing.");
+            // No reconnection logic here. Cleanup handled by Dispose.
         }
+        Console.WriteLine("Listener: Exiting ListenForEvents task.");
     }
 
     private static async IAsyncEnumerable<ServerSentEvent> ProcessRawEventsAsync(StreamReader reader, [EnumeratorCancellation] CancellationToken token)
@@ -251,8 +194,6 @@ public class PlexNotificationListener : IDisposable
             // Ignore comment lines (starting with ':') and other lines
         }
 
-        _lastEventStoppedUnexpectedly = stoppedUnexpectedly;
-
         Console.WriteLine("Exiting event processing loop.");
         // No explicit return needed
     }
@@ -280,25 +221,51 @@ public class PlexNotificationListener : IDisposable
         }
     }
 
+    protected virtual void OnConnectionLost()
+    {
+        ConnectionLost?.Invoke(this, EventArgs.Empty);
+    }
+
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposedValue)
+        if (!_isDisposed)
         {
             if (disposing)
             {
-                // Stop listening and release managed resources
-                StopListening();
+                WriteWarning("Disposing PlexNotificationListener...");
+                // Cancel the listener task
+                if (!_listenerCts.IsCancellationRequested)
+                {
+                    _listenerCts.Cancel();
+                }
+
+                // Wait briefly for the task to complete after cancellation
+                try
+                {
+                    // Use Task.WhenAny with a delay to avoid blocking indefinitely
+                    Task delayTask = Task.Delay(TimeSpan.FromSeconds(2)); // Short timeout
+                    Task completed = Task.WhenAny(ListeningTask ?? Task.CompletedTask, delayTask).Result; // Use .Result carefully or make Dispose async
+                    if (completed == delayTask)
+                    {
+                        WriteWarning("Listener task did not complete quickly during dispose.");
+                    }
+                }
+                catch (OperationCanceledException) { /* Expected if task was cancelled */ }
+                catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { /* Expected */ }
+                catch (Exception ex) { WriteError($"Error waiting for listener task during dispose: {ex.Message}"); }
+
+
+                _listenerCts.Dispose();
                 _httpClient.Dispose();
-                _cancellationTokenSource?.Dispose(); // Ensure disposal if StopListening didn't complete fully
+                ListeningTask = null; // Clear the task reference
             }
-            // Release unmanaged resources if any
-            _disposedValue = true;
+            _isDisposed = true;
+            WriteWarning("PlexNotificationListener disposed.");
         }
     }
 
     public void Dispose()
     {
-        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }

@@ -26,21 +26,8 @@ namespace PlexShowSubtitlesOnRewind
         private static ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
         private static bool _sleepCancellationRequested = false;
 
-        // In MonitorManager or Program.cs initialization
-        private static PlexNotificationListener? _plexListener;
 
-        // Create the listener
-        public static PlexNotificationListener CreatePlexListener(string plexUrl, string plexToken)
-        {
-            _plexListener = new PlexNotificationListener(plexUrl: plexUrl, plexToken: plexToken, notificationFilters: "playing");
-            // Subscribe to the specific 'playing' event
-            _plexListener.PlayingNotificationReceived += PlexListener_PlayingEventReceived;
-            // Start listening
-            _plexListener.StartListening();
-            return _plexListener;
-        }
-
-        private static void PlexListener_PlayingEventReceived(object? sender, PlexEventInfo e)
+        public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
         {
             if (e.EventObj is PlayingEvent playEvent && playEvent.playState is PlayState playState)
             {
@@ -102,7 +89,7 @@ namespace PlexShowSubtitlesOnRewind
                 );
             }
 
-            StartRefreshLoop();
+            //StartRefreshLoop(); // Will be called externally
         }
 
         public static void CreateMonitorForSession(
@@ -251,6 +238,9 @@ namespace PlexShowSubtitlesOnRewind
                 // Wait on the event with a timeout, allowing for cancellation
                 _sleepResetEvent.WaitOne(sleepTime);
             }
+
+            Console.WriteLine("MonitorManager: Exiting polling refresh loop.");
+            _isRunning = false; // Ensure state is updated on exit
         }
 
         public static void BreakFromIdle()
@@ -267,18 +257,24 @@ namespace PlexShowSubtitlesOnRewind
                 Console.WriteLine("Sleep canceled - switching to active monitoring immediately");
         }
 
-        private static void StartRefreshLoop()
+        public static void StartMonitoringLoop()
         {
             if (_isRunning)
             {
-                Console.WriteLine("Refresh loop already running. Not starting a new one.");
+                Console.WriteLine("MonitorManager: Refresh loop already running.");
                 return;
             }
-            else
+            if (_allMonitors.Count == 0)
             {
-                _isRunning = true;
-                PollingRefreshLoop();
+                WriteWarning("MonitorManager: No sessions to monitor. Loop not started.");
+                // Optionally, start anyway if you expect sessions to appear later
+                // return;
             }
+
+            _isRunning = true;
+            Console.WriteLine("MonitorManager: Starting polling refresh loop...");
+            // Run the loop in a background thread so it doesn't block
+            Task.Run(() => PollingRefreshLoop());
         }
 
         // Will return false if no monitors are active
@@ -300,18 +296,43 @@ namespace PlexShowSubtitlesOnRewind
                 return MonitoringState.Idle;
         }
 
+        // Ensure StopAllMonitoring sets _isRunning = false and cancels the sleep
         public static void StopAllMonitoring()
         {
-            _allMonitors.Clear();
+            WriteWarning("MonitorManager: Stopping all monitoring...");
             _isRunning = false;
+            _sleepCancellationRequested = true; // Request cancellation of sleep
+            _sleepResetEvent.Set(); // Wake up the sleeping thread
+
+            lock (_allMonitors) // Ensure thread safety when clearing
+            {
+                _allMonitors.Clear();
+            }
+            // Reset state
+            _monitoringState = MonitoringState.Idle;
+            _idleGracePeriodCount = 0;
+            WriteWarning("MonitorManager: Monitoring stopped and monitors cleared.");
         }
 
+        // Ensure StopAndKeepAllMonitors sets _isRunning = false and cancels the sleep
         public static void StopAndKeepAllMonitors()
         {
-            foreach (RewindMonitor monitor in _allMonitors)
+            WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
+            _isRunning = false;
+            _sleepCancellationRequested = true; // Request cancellation of sleep
+            _sleepResetEvent.Set(); // Wake up the sleeping thread
+
+            lock (_allMonitors) // Ensure thread safety when iterating
             {
-                monitor.StopMonitoring();
+                foreach (RewindMonitor monitor in _allMonitors)
+                {
+                    monitor.StopMonitoring(); // Stop individual monitors gracefully
+                }
             }
+            // Reset state
+            _monitoringState = MonitoringState.Idle;
+            _idleGracePeriodCount = 0;
+            WriteWarning("MonitorManager: Monitoring loop stopped.");
         }
     }
 }

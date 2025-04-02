@@ -15,6 +15,9 @@ namespace PlexShowSubtitlesOnRewind
         public static bool debugMode = false;
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
 
+        private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
+        private static readonly ManualResetEvent _exitEvent = new ManualResetEvent(false);
+
         // ===========================================================================================
 
         static async Task Main(string[] args)
@@ -70,69 +73,53 @@ namespace PlexShowSubtitlesOnRewind
 
                 config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
 
-                Console.WriteLine($"Attempting to connect to Plex server at {config.ServerURL}...");
+                Console.WriteLine($"Using Plex server at {config.ServerURL}");
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
-                // --- Initiate Connection and Monitoring ---
-                // Start the connection/monitoring process. StartServerConnectionTestLoop
-                // will handle the initial test and enter the retry loop if necessary.
-                // We don't need to await it here or check its return value for program flow.
-                // Run it in the background (fire-and-forget style for the main thread)
-                // or await if you want Main to wait until the *first* connection attempt
-                // (including potential retries) is resolved before proceeding.
-                // Let's await it to ensure setup is attempted before waiting for exit.
-                try
-                {
-                    await PlexServer.StartServerConnectionTestLoop();
-                    // If it returns false (failed initial connection after retries),
-                    // the ServerConnectionTestLoop within StartServerConnectionTestLoop
-                    // should have already logged the failure. The app will continue waiting.
-                    // If it returns true, monitoring was started successfully.
-                }
-                catch (Exception ex)
-                {
-                    // Catch errors during the initial startup attempt
-                    WriteErrorSuper($"Fatal error during initial connection/monitoring setup: {ex.Message}\n");
-                    Console.WriteLine(ex.StackTrace);
-                    // Decide if the app should exit here or still proceed to wait state
-                    // For robustness, let's allow it to proceed to wait state, maybe the listener can recover later.
-                    WriteWarning("Proceeding to wait state despite initial setup error.");
-                }
+                // --- Instantiate and Start Watchdog ---
+                _connectionWatchdog = new ConnectionWatchdog(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
+
+                // Subscribe MonitorManager to the watchdog's event
+                _connectionWatchdog.PlayingNotificationReceived += MonitorManager.HandlePlayingNotificationReceived; // Static handler now
 
 
-                // --- Wait for Shutdown Signal ---
-                // Set up Ctrl+C handler to gracefully shut down
+                // Set up Ctrl+C handler
                 Console.CancelKeyPress += (sender, eventArgs) => {
-                    Console.WriteLine("Ctrl+C detected. Initiating shutdown...");
+                    Console.WriteLine("\nCtrl+C detected. Initiating shutdown...");
                     eventArgs.Cancel = true; // Prevent immediate process termination
-                    _exitEvent.Set(); // Signal the main thread to exit
+                    _exitEvent.Set();        // Signal the main thread to exit
                 };
 
-                Console.WriteLine("Application running. Press Ctrl+C to exit.");
-                _exitEvent.WaitOne(); // Wait here until Ctrl+C is pressed or exit is signaled otherwise
+                // Start the watchdog - it will handle connection and listener internally
+                _connectionWatchdog.Start();
 
-                // --- Application Shutdown ---
-                WriteWarning("Shutdown signal received.");
+                Console.WriteLine("Application running. Press Ctrl+C to exit.");
+
+                // --- Wait for Exit Signal ---
+                _exitEvent.WaitOne(); // Block main thread until Ctrl+C or other exit signal
+
+                WriteWarning("Exit signal received. Shutting down...");
 
             }
-            catch (Exception ex) // Catch errors during token loading, settings, etc.
+            catch (Exception ex) // Catch errors during initial setup
             {
-                WriteErrorSuper($"Fatal error in main execution: {ex.Message}\n\n");
+                WriteErrorSuper($"Fatal error during startup: {ex.Message}\n");
                 Console.WriteLine(ex.StackTrace);
                 if (!runInBackground)
                 {
-                    Console.WriteLine("\n\nPress Enter to exit...");
+                    Console.WriteLine("\nPress Enter to exit...");
                     Console.ReadKey();
                 }
             }
             finally
             {
-                // --- Ensure cleanup happens on exit ---
+                // --- Cleanup ---
                 WriteWarning("Performing final cleanup...");
-                PlexServer.StopServerConnectionTestLoop(); // Ensure any active test loop is stopped
-                MonitorManager.StopAllMonitoring(); // Stop monitors and listener (safe to call even if not started)
+                _connectionWatchdog?.Stop(); // Stop the watchdog first
+                _connectionWatchdog?.Dispose(); // Dispose the watchdog
+                MonitorManager.StopAllMonitoring(); // Stop any active rewind monitors
                 Console.WriteLine("Application exited.");
-                _exitEvent.Dispose(); // Dispose the event handle
+                _exitEvent.Dispose();
             }
         }
 
