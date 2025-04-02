@@ -10,11 +10,6 @@ namespace PlexShowSubtitlesOnRewind
 
         public static bool debugMode = false;
 
-        // Import AllocConsole from Windows API to create a console window for debugging
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool AllocConsole();
-        
         // ===========================================================================================
 
         static async Task Main(string[] args)
@@ -25,7 +20,9 @@ namespace PlexShowSubtitlesOnRewind
 
             // ------------ Apply launch parameters ------------
             if (!LaunchArgs.Background.CheckIfMatchesInputArgs(args))
-                AllocConsole();
+            {
+                OS_Handlers.InitializeConsole(args);
+            }
 
             if (LaunchArgs.Debug.CheckIfMatchesInputArgs(args))
                 debugMode = true;
