@@ -117,7 +117,7 @@ namespace PlexShowSubtitlesOnRewind
                 WriteWarning("Performing final cleanup...");
                 _connectionWatchdog?.Stop(); // Stop the watchdog first
                 _connectionWatchdog?.Dispose(); // Dispose the watchdog
-                MonitorManager.StopAllMonitoring(); // Stop any active rewind monitors
+                MonitorManager.RemoveAllMonitors(); // Stop any active rewind monitors
                 Console.WriteLine("Application exited.");
                 _exitEvent.Dispose();
             }

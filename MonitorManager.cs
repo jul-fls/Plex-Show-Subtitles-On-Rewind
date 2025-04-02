@@ -42,7 +42,7 @@ namespace PlexShowSubtitlesOnRewind
                     {
                         Console.WriteLine("Switching to active monitoring due to playback event.");
                         BreakFromIdle();
-                    }                   
+                    }
                 }
                 else if (playState == PlayState.Paused)
                 {
@@ -51,7 +51,7 @@ namespace PlexShowSubtitlesOnRewind
                 else if (playState == PlayState.Stopped)
                 {
                     Console.WriteLine("Stopped.");
-                } 
+                }
             }
             else
             {
@@ -117,10 +117,10 @@ namespace PlexShowSubtitlesOnRewind
             else
             {
                 RewindMonitor monitor = new RewindMonitor(
-                    activeSession, 
-                    activeFrequency: activeFrequency, 
-                    idleFrequency: idleFrequency, 
-                    maxRewindAmount: maxRewindAmount, 
+                    activeSession,
+                    activeFrequency: activeFrequency,
+                    idleFrequency: idleFrequency,
+                    maxRewindAmount: maxRewindAmount,
                     printDebug: printDebug,
                     smallestResolution: smallestResolution
                     );
@@ -229,7 +229,7 @@ namespace PlexShowSubtitlesOnRewind
                 if (_monitoringState == MonitoringState.Active)
                     sleepTime = _globalActiveFrequencyMs;
                 // If using event-based polling, use a long sleep time while idle
-                else if (_idlePollingMode == PollingMode.Event) 
+                else if (_idlePollingMode == PollingMode.Event)
                     sleepTime = DefaultWaitOnEventIdleFrequency_seconds * 1000;
                 // Otherwise use the normal idle frequency
                 else
@@ -283,7 +283,7 @@ namespace PlexShowSubtitlesOnRewind
             bool anyMonitorsActive = false;
             foreach (RewindMonitor monitor in monitorsToRefresh)
             {
-                if (monitor.IsMonitoring) // This gets checked inside the loop also but is here for clarity. Might remove later
+                if (monitor.IsMonitoring)
                 {
                     anyMonitorsActive = true;
                     monitor.MakeMonitoringPass();
@@ -296,8 +296,25 @@ namespace PlexShowSubtitlesOnRewind
                 return MonitoringState.Idle;
         }
 
+        // Stop the polling loop but leave individual monitors in their current state
+        public static void PauseMonitoringManager()
+        {
+            if (!_isRunning) // Only act if the loop is actually running
+            {
+                //WriteWarning("MonitorManager: Monitoring loop is already stopped.");
+                return;
+            }
+
+            WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
+            _isRunning = false; // Signal the loop to stop
+            _sleepCancellationRequested = true; // Request cancellation of any current sleep
+            _sleepResetEvent.Set(); // Wake up the sleeping thread immediately
+
+            WriteWarning("MonitorManager: Monitoring loop stopped.");
+        }
+
         // Ensure StopAllMonitoring sets _isRunning = false and cancels the sleep
-        public static void StopAllMonitoring()
+        public static void RemoveAllMonitors()
         {
             WriteWarning("MonitorManager: Stopping all monitoring...");
             _isRunning = false;
@@ -315,7 +332,8 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Ensure StopAndKeepAllMonitors sets _isRunning = false and cancels the sleep
-        public static void StopAndKeepAllMonitors()
+        // Separate from when using _isRunning because this acts on the monitors, not the outer loop
+        public static void StopAndKeepAllMonitorsIndividually()
         {
             WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
             _isRunning = false;
@@ -333,6 +351,19 @@ namespace PlexShowSubtitlesOnRewind
             _monitoringState = MonitoringState.Idle;
             _idleGracePeriodCount = 0;
             WriteWarning("MonitorManager: Monitoring loop stopped.");
+        }
+
+        public static void RestartAllMonitors()
+        {
+            WriteWarning("MonitorManager: Restarting all monitors...");
+            lock (_allMonitors) // Ensure thread safety when iterating
+            {
+                foreach (RewindMonitor monitor in _allMonitors)
+                {
+                    monitor.RestartMonitoring();
+                }
+            }
+            WriteWarning("MonitorManager: All monitors restarted.");
         }
     }
 }

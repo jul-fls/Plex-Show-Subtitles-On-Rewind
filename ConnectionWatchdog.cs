@@ -87,6 +87,7 @@ namespace PlexShowSubtitlesOnRewind
             while (!token.IsCancellationRequested && !_stopRequested)
             {
                 PlexServer.ConnectionResult connectionResult = PlexServer.ConnectionResult.Failure; // Start assuming failure
+                List<ActiveSession> initialSessions = []; // To hold sessions for MonitorManager
 
                 try
                 {
@@ -100,12 +101,40 @@ namespace PlexShowSubtitlesOnRewind
                         break; // Exit loop if connection cannot be established
                     }
 
-                    // 2. Start Listener if connection is successful
-                    Console.WriteLine("Watchdog: Connection successful. Starting listener...");
+                    // --- START: Initialize Monitoring ---
+                    Console.WriteLine("Watchdog: Connection successful. Initializing monitoring...");
+                    try
+                    {
+                        // Load initial sessions
+                        initialSessions = await SessionHandler.ClearAndLoadActiveSessionsAsync();
+                        WriteColor($"Watchdog: Found {initialSessions.Count} initial session(s).", ConsoleColor.Cyan);
+
+                        // Create monitors for these sessions
+                        MonitorManager.CreateAllMonitoringAllSessions(
+                            initialSessions,
+                            activeFrequency: Program.config.ActiveMonitorFrequency,
+                            idleFrequency: Program.config.IdleMonitorFrequency,
+                            printDebugAll: Program.debugMode);
+
+                        // Start the MonitorManager's polling loop
+                        MonitorManager.StartMonitoringLoop();
+
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteError($"Watchdog: Error during monitoring initialization: {ex.Message}");
+                        // Decide how to handle this - maybe retry the loop after a delay?
+                        await Task.Delay(5000, token); // Delay before potentially retrying outer loop
+                        continue; // Retry the main loop
+                    }
+                    // --- END: Initialize Monitoring ---
+
+
+                    // 2. Start Listener
+                    Console.WriteLine("Watchdog: Starting listener...");
                     if (!StartNewListener(token))
                     {
                         WriteError("Watchdog: Failed to start listener even after successful connection test.");
-                        // Optional: Add a delay before retrying the outer loop
                         await Task.Delay(5000, token);
                         continue; // Retry the main loop
                     }
@@ -113,15 +142,11 @@ namespace PlexShowSubtitlesOnRewind
                     Console.WriteLine("Watchdog: Listener started. Monitoring listener status...");
 
                     // 3. Monitor Listener
-                    // Wait indefinitely until the listener task completes (due to error/closure)
-                    // or the watchdog itself is cancelled.
                     if (_currentListener?.ListeningTask != null)
                     {
                         await _currentListener.ListeningTask; // Wait for the listener to complete
-
-                        // Listener completed, check its status if possible (optional, depends on listener implementation)
                         WriteWarning("Watchdog: Listener task completed or faulted.");
-                        // ListenerConnectionLost event should have been triggered if it was an error
+                        // ConnectionLost event should handle notification if it was an error
                     }
                     else
                     {
@@ -142,11 +167,13 @@ namespace PlexShowSubtitlesOnRewind
                 {
                     // Clean up the listener *before* potentially retrying connection
                     DisposeListener();
+                    // Stop the monitor manager's loop if the connection is lost
+                    //MonitorManager.StopAndKeepAllMonitors(); // Stop loop, keep monitors' state
+                    MonitorManager.PauseMonitoringManager(); // Ensure monitors are fully stopped //TODO: Make sure the ismonitoring gets re-enabled on reconnection
                 }
 
 
                 // If the loop didn't break due to cancellation, add a delay before the next cycle
-                // This happens if the connection was lost AFTER being established.
                 if (!token.IsCancellationRequested && !_stopRequested)
                 {
                     WriteWarning("Watchdog: Listener stopped or connection lost. Delaying before restarting cycle...");
@@ -163,6 +190,7 @@ namespace PlexShowSubtitlesOnRewind
             }
             WriteWarning("Exiting Watchdog main loop.");
             DisposeListener(); // Final cleanup
+            MonitorManager.RemoveAllMonitors(); // Ensure monitors are fully stopped on final exit
         }
 
 

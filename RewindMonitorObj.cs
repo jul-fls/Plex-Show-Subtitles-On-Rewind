@@ -102,96 +102,93 @@
 
         public void MakeMonitoringPass()
         {
-            if (_isMonitoring)
+            try
             {
-                try
+                double positionSec = _activeSession.GetPlayPositionSeconds();
+                int _smallestResolution = Math.Max(_activeFrequency, _activeSession.SmallestResolutionExpected);
+                if (_printDebug)
                 {
-                    double positionSec = _activeSession.GetPlayPositionSeconds();
-                    int _smallestResolution = Math.Max(_activeFrequency, _activeSession.SmallestResolutionExpected);
-                    if (_printDebug)
-                    {
-                        Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  -- UserEnabledSubs: ");
-                        // Print last part about user subs with color if enabled so it's more obvious
-                        if (_subtitlesUserEnabled)
-                        {
-                            Console.ForegroundColor = ConsoleColor.Red;
-                        }
-                        Console.Write(_subtitlesUserEnabled);
-                        Console.ResetColor();
-                        Console.WriteLine();
-                    }
-
-                    
-                    // If the user had manually enabled subtitles, check if they disabled them
+                    Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  -- UserEnabledSubs: ");
+                    // Print last part about user subs with color if enabled so it's more obvious
                     if (_subtitlesUserEnabled)
                     {
-                        _latestWatchedPosition = positionSec;
-                        // If the active subtitles are empty, the user must have disabled them
-                        if (_activeSession.HasActiveSubtitles() == false)
+                        Console.ForegroundColor = ConsoleColor.Red;
+                    }
+                    Console.Write(_subtitlesUserEnabled);
+                    Console.ResetColor();
+                    Console.WriteLine();
+                }
+
+                    
+                // If the user had manually enabled subtitles, check if they disabled them
+                if (_subtitlesUserEnabled)
+                {
+                    _latestWatchedPosition = positionSec;
+                    // If the active subtitles are empty, the user must have disabled them
+                    if (_activeSession.HasActiveSubtitles() == false)
+                    {
+                        _subtitlesUserEnabled = false;
+                    }
+                }
+                // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them
+                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
+                {
+                    _subtitlesUserEnabled = true;
+                    _latestWatchedPosition = positionSec;
+                    WriteWarning($"{_deviceName}: User appears to have enabled subtitles manually.");
+                }
+                // Only check for rewinds if the user hasn't manually enabled subtitles
+                else
+                {
+                    // These all stop subtitles, so only bother if they are currently showing
+                    if (_temporarilyDisplayingSubtitles)
+                    {
+                        // If the user fast forwards, stop showing subtitles
+                        if (positionSec > _previousPosition + _smallestResolution + 2)
                         {
-                            _subtitlesUserEnabled = false;
+                            if (_printDebug)
+                                WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
+
+                            _latestWatchedPosition = positionSec;
+                            ForceStopShowingSubtitles();
+                        }
+                        // If they rewind too far, stop showing subtitles, and reset the latest watched position
+                        else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
+                        {
+                            if (_printDebug)
+                                WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
+
+                            _latestWatchedPosition = positionSec;
+                            ForceStopShowingSubtitles();
+                        }
+                        // Check if the position has gone back by the rewind amount. Don't update latest watched position here.
+                        // Add smallest resolution to avoid stopping subtitles too early
+                        else if (positionSec > _latestWatchedPosition + _smallestResolution)
+                        {
+                            ReachedOriginalPosition();
                         }
                     }
-                    // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them
-                    else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
+                    // Check if the position has gone back by 2 seconds. Using 2 seconds just for safety to be sure.
+                    // This also will be valid if the user rewinds multiple times
+                    // But don't count it if the rewind amount is beyond the max
+                    else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmount))
                     {
-                        _subtitlesUserEnabled = true;
-                        _latestWatchedPosition = positionSec;
-                        WriteWarning($"{_deviceName}: User appears to have enabled subtitles manually.");
+                        RewindOccurred();
                     }
-                    // Only check for rewinds if the user hasn't manually enabled subtitles
+                    // Otherwise update the latest watched position
                     else
                     {
-                        // These all stop subtitles, so only bother if they are currently showing
-                        if (_temporarilyDisplayingSubtitles)
-                        {
-                            // If the user fast forwards, stop showing subtitles
-                            if (positionSec > _previousPosition + _smallestResolution + 2)
-                            {
-                                if (_printDebug)
-                                    WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
-
-                                _latestWatchedPosition = positionSec;
-                                ForceStopShowingSubtitles();
-                            }
-                            // If they rewind too far, stop showing subtitles, and reset the latest watched position
-                            else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
-                            {
-                                if (_printDebug)
-                                    WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
-
-                                _latestWatchedPosition = positionSec;
-                                ForceStopShowingSubtitles();
-                            }
-                            // Check if the position has gone back by the rewind amount. Don't update latest watched position here.
-                            // Add smallest resolution to avoid stopping subtitles too early
-                            else if (positionSec > _latestWatchedPosition + _smallestResolution)
-                            {
-                                ReachedOriginalPosition();
-                            }
-                        }
-                        // Check if the position has gone back by 2 seconds. Using 2 seconds just for safety to be sure.
-                        // This also will be valid if the user rewinds multiple times
-                        // But don't count it if the rewind amount is beyond the max
-                        else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmount))
-                        {
-                            RewindOccurred();
-                        }
-                        // Otherwise update the latest watched position
-                        else
-                        {
-                            _latestWatchedPosition = positionSec;
-                        }
+                        _latestWatchedPosition = positionSec;
                     }
+                }
 
-                    _previousPosition = positionSec;
-                }
-                catch (Exception e)
-                {
-                    WriteError($"{_deviceName}: Error in monitor iteration: {e.Message}");
-                    // Add a small delay to avoid tight loop on errors
-                    //Thread.Sleep(1000); // Moving the delay to more global loop
-                }
+                _previousPosition = positionSec;
+            }
+            catch (Exception e)
+            {
+                WriteError($"{_deviceName}: Error in monitor iteration: {e.Message}");
+                // Add a small delay to avoid tight loop on errors
+                //Thread.Sleep(1000); // Moving the delay to more global loop
             }
         }
 
@@ -202,6 +199,11 @@
             {
                 ForceStopShowingSubtitles();
             }
+        }
+
+        public void RestartMonitoring()
+        {
+            _isMonitoring = true;
         }
 
         public void SetupMonitoringInitialConditions()
