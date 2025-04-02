@@ -546,3 +546,47 @@ public class CommandResult(bool success, string responseErrorMessage, XmlDocumen
     public string Message { get; set; } = responseErrorMessage;
     public XmlDocument? ResponseXml { get; set; } = responseXml;
 }
+
+public static class LaunchArgs
+{
+    public class Argument(string arg, string description)
+    {
+        public string Arg { get; } = arg;
+        public string Description { get; } = description;
+        public List<string> Variations { get; } = GetVariations(arg);
+
+        // ------------------ Methods ------------------
+        // Checks if the current argument matches any of the input arguments supplied in the parameter array
+        public bool CheckIfMatchesInputArgs(string[] inputArgs)
+        {
+            return inputArgs.Any(a => this.Variations.Contains(a));
+        }
+
+        // ------------------ Implicit conversions ------------------
+        public static implicit operator List<string>(Argument info) => info.Variations;
+        public static implicit operator string(Argument info) => info.Arg;
+        public override string ToString() => Arg; // Ensure argument string is returned properly when used in string interpolation
+    }
+
+    private static readonly Argument _background = new("background",    "Windows Only: The program runs in the background without showing a console.");
+    private static readonly Argument _debug =      new("debug",         "Enables debug mode to show additional output.");
+    private static readonly Argument _help =       new("help",          "Display help message with info including launch parameters.");
+    private static readonly Argument _helpAlt =    new("?",             _help.Description);
+
+    // -------------------------------------------------
+    public static Argument Background => _background;
+    public static Argument Debug => _debug;
+    public static Argument Help => _help;
+    public static Argument HelpAlt => _helpAlt;
+
+    // --------------------------------------------------------
+    // Get version starting with either hyphen or forward slash
+    private static List<string> GetVariations(string arg)
+    {
+        List <string> variations = [];
+        variations.Add("-" + arg);
+        variations.Add("/" + arg);
+
+        return variations;
+    }
+}
