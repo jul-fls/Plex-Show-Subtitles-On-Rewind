@@ -5,17 +5,18 @@ using System.Xml.Serialization;
 
 namespace PlexShowSubtitlesOnRewind
 {
-    public class PlexServer
+    public static class PlexServer
     {
-        private readonly string _url;
-        private readonly string _token;
-        private readonly string _appClientID;
-        private readonly HttpClient _httpClient;
-        private readonly HttpClient _httpClientShortTimeout;
-        private CancellationTokenSource? _cancellationTokenSource;
-        private PlexNotificationListener? _currentListener;
+        private static string _url;
+        private static string _token;
+        private static string _appClientID;
+        private static HttpClient _httpClient;
+        private static HttpClient _httpClientShortTimeout;
+        private static CancellationTokenSource? _cancellationTokenSource;
+        private static PlexNotificationListener? _currentListener;
+        private static bool _alreadyRetrying = false;
 
-        public PlexServer(string url, string token, string appClientID)
+        public static void SetupPlexServer(string url, string token, string appClientID)
         {
             Dictionary<string, string> defaultHeadersDict = new()
             {
@@ -35,7 +36,7 @@ namespace PlexShowSubtitlesOnRewind
             _httpClientShortTimeout.Timeout = TimeSpan.FromMilliseconds(Program.config.ShortTimeoutLimit); // Will be used between loop iterations which only last a second
         }
 
-        public async Task<bool> InitializeMonitoring()
+        public static async Task<bool> InitializeMonitoring()
         {
             bool debugMode = Program.debugMode;
             // Load active sessions and start monitoring
@@ -44,12 +45,12 @@ namespace PlexShowSubtitlesOnRewind
                 if (debugMode)
                     Console.WriteLine("Loading active sessions...");
 
-                List<ActiveSession> activeSessionList = await SessionHandler.ClearAndLoadActiveSessionsAsync(this);
+                List<ActiveSession> activeSessionList = await SessionHandler.ClearAndLoadActiveSessionsAsync();
 
                 if (debugMode)
                     SessionHandler.PrintSubtitles();
 
-                _currentListener = MonitorManager.CreatePlexListener(plexUrl: Program.config.ServerURL, plexToken: _token, plexServer: this);
+                _currentListener = MonitorManager.CreatePlexListener(plexUrl: Program.config.ServerURL, plexToken: _token);
 
                 Console.WriteLine($"Found {activeSessionList.Count} active session(s). Future sessions will be added. Beginning monitoring...\n");
                 MonitorManager.CreateAllMonitoringAllSessions(
@@ -68,14 +69,14 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Shouldn't need this since ListenForEvents() stops these if it fails
-        private void KillAllListening()
+        private static void KillAllListening()
         {
             MonitorManager.StopAllMonitoring();
             _currentListener?.StopListening();
         }
 
         // Using XmlSerializer to get sessions
-        public async Task<List<PlexSession>?> GetSessionsAsync(bool printDebug = false, bool shortTimeout = false)
+        public static async Task<List<PlexSession>?> GetSessionsAsync(bool printDebug = false, bool shortTimeout = false)
         {
             HttpClient httpClientToUse = shortTimeout ? _httpClientShortTimeout : _httpClient;
 
@@ -125,7 +126,7 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        public async Task<bool> TestConnectionAsync()
+        public static async Task<bool> TestConnectionAsync()
         {
             try
             {
@@ -154,15 +155,15 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        public async Task<bool> StartServerConnectionTestLoop()
+        public static async Task<bool> StartServerConnectionTestLoop()
         {
             // Test connection to Plex server by connecting to the base api endpoint
-            bool connected = await TestConnectionAsync();
-
+            //bool connected = await TestConnectionAsync();
+            bool connected = false;
             // If can't connect, keep trying until connected
             if (!connected)
             {
-                WriteWarning("\nFailed to connect to Plex server. Will retry until connected.\n");
+                //WriteWarning("\nFailed to connect to Plex server. Will retry until connected.\n");
 
                 _cancellationTokenSource = new CancellationTokenSource();
                 CancellationToken token = _cancellationTokenSource.Token;
@@ -181,7 +182,7 @@ namespace PlexShowSubtitlesOnRewind
 
             if (connected)
             {
-                bool runResult = InitializeMonitoring().Result; // This will start the chain of events that will keep the program running
+                bool runResult = await InitializeMonitoring(); // This will start the chain of events that will keep the program running
                 return runResult;
             }
             else
@@ -190,13 +191,13 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        public void StopServerConnectionTestLoop()
+        public static void StopServerConnectionTestLoop()
         {
             _cancellationTokenSource?.Cancel();
         }
 
         // If not able to initially connect, or if the connection is lost, this method can be used to attempt reconnection with exponential backoff
-        private async Task<bool> ServerConnectionTestLoop(CancellationToken token)
+        private static async Task<bool> ServerConnectionTestLoop(CancellationToken token)
         {
             int retryCount = 0;
             bool result = false;
@@ -252,7 +253,7 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // This method is more complex due to the different possible root nodes
-        public async Task<PlexMediaItem> FetchItemAsync(string key)
+        public static async Task<PlexMediaItem> FetchItemAsync(string key)
         {
             try
             {
@@ -318,11 +319,10 @@ namespace PlexShowSubtitlesOnRewind
         /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
         /// <param name="mediaType">Media type to take action against (default: video)</param>
         /// <returns>Task representing the asynchronous operation</returns>
-        public async Task<CommandResult> SetSubtitleStreamAsync(string machineID, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
+        public static async Task<CommandResult> SetSubtitleStreamAsync(string machineID, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
         {
             // Simply call the SetStreamsAsync method with only the subtitle stream ID parameter
             return await SetStreamsAsync(
-                server: this,
                 machineID: machineID,
                 subtitleStreamID: subtitleStreamID,
                 mediaType: mediaType,
@@ -340,7 +340,6 @@ namespace PlexShowSubtitlesOnRewind
         /// <param name="server">The PlexServer instance to send the command through</param>
         /// <returns>Task representing the asynchronous operation</returns>
         public static async Task<CommandResult> SetStreamsAsync(
-            PlexServer server,
             string machineID,
             int? audioStreamID = null,
             int? subtitleStreamID = null,
@@ -366,22 +365,22 @@ namespace PlexShowSubtitlesOnRewind
                 parameters["type"] = mediaType;
 
             // Send the command through the PlexServer
-            return await server.SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters, activeSession:activeSession);
+            return await SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters, activeSession:activeSession);
         }
 
         // Overload
-        public async Task<TimelineMediaContainer?> GetTimelineAsync(PlexPlayer player)
+        public static async Task<TimelineMediaContainer?> GetTimelineAsync(PlexPlayer player)
         {
             return await GetTimelineAsync(player.MachineIdentifier, player.Device, player.DirectUrlPath);
         }
 
         // Overload
-        public async Task<TimelineMediaContainer?> GetTimelineAsync(ActiveSession activeSession)
+        public static async Task<TimelineMediaContainer?> GetTimelineAsync(ActiveSession activeSession)
         {
             return await GetTimelineAsync(activeSession.MachineID, activeSession.DeviceName, activeSession.DirectUrlPath);
         }
 
-        public async Task<TimelineMediaContainer?> GetTimelineAsync(string machineID, string deviceName, string url)
+        public static async Task<TimelineMediaContainer?> GetTimelineAsync(string machineID, string deviceName, string url)
         {
             // Create headers with machine identifier
             Dictionary<string, string> headers = new()
@@ -424,7 +423,7 @@ namespace PlexShowSubtitlesOnRewind
             }
         }
 
-        public async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice = false, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)
+        public static async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice = false, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)
         {
             string mainUrlBase;
             string? retryUrlBase;
@@ -615,8 +614,8 @@ namespace PlexShowSubtitlesOnRewind
         }
 
         // Command ID tracking
-        private int _commandId = 0;
-        private string GetNextCommandId()
+        private static int _commandId = 0;
+        private static string GetNextCommandId()
         {
             return (++_commandId).ToString();
         }

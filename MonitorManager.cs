@@ -30,9 +30,9 @@ namespace PlexShowSubtitlesOnRewind
         private static PlexNotificationListener? _plexListener;
 
         // Create the listener
-        public static PlexNotificationListener CreatePlexListener(string plexUrl, string plexToken, PlexServer plexServer)
+        public static PlexNotificationListener CreatePlexListener(string plexUrl, string plexToken)
         {
-            _plexListener = new PlexNotificationListener(plexUrl: plexUrl, plexToken: plexToken, plexServer:plexServer, notificationFilters: "playing");
+            _plexListener = new PlexNotificationListener(plexUrl: plexUrl, plexToken: plexToken, notificationFilters: "playing");
             // Subscribe to the specific 'playing' event
             _plexListener.PlayingNotificationReceived += PlexListener_PlayingEventReceived;
             // Start listening

@@ -5,11 +5,10 @@ namespace PlexShowSubtitlesOnRewind
     {
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
-        private static PlexServer? _plexServer = null;
         private static bool debugMode = Program.debugMode;
 
         // This not only fetches the sessions, but also gets both active and available subtitles
-        public static async Task<List<ActiveSession>> ProcessActiveSessions(List<PlexSession> sessionsList, PlexServer plexServer)
+        public static async Task<List<ActiveSession>> ProcessActiveSessions(List<PlexSession> sessionsList)
         {
             List<ActiveSession> newActiveSessionList = [];
 
@@ -19,23 +18,21 @@ namespace PlexShowSubtitlesOnRewind
                 List<SubtitleStream> activeSubs = GetOnlyActiveSubtitlesForSession(session);
 
                 // Get ALL available subtitles with a separate metadata call
-                List<SubtitleStream> availableSubs = await FetchAllAvailableSubtitles_ViaServerQuery_Async(session, plexServer);
+                List<SubtitleStream> availableSubs = await FetchAllAvailableSubtitles_ViaServerQuery_Async(session);
 
                 newActiveSessionList.Add(new ActiveSession(
                     session: session,
                     availableSubtitles: availableSubs,
-                    activeSubtitles: activeSubs,
-                    plexServer: plexServer
+                    activeSubtitles: activeSubs
                 ));
             }
 
             return newActiveSessionList;
         }
 
-        public static async Task<List<ActiveSession>> ClearAndLoadActiveSessionsAsync(PlexServer plexServer)
+        public static async Task<List<ActiveSession>> ClearAndLoadActiveSessionsAsync()
         {
-            _plexServer = plexServer;
-            List<PlexSession>? sessionsList = await _plexServer.GetSessionsAsync(shortTimeout:false);
+            List<PlexSession>? sessionsList = await PlexServer.GetSessionsAsync(shortTimeout:false);
 
             // It will only return null for an error
             if (sessionsList == null)
@@ -44,7 +41,7 @@ namespace PlexShowSubtitlesOnRewind
                 return _activeSessionList;
             }
 
-            List <ActiveSession> activeSessions = await ProcessActiveSessions(sessionsList, plexServer);
+            List <ActiveSession> activeSessions = await ProcessActiveSessions(sessionsList);
             lock (_lockObject)
             {
                 _activeSessionList.Clear();
@@ -56,16 +53,8 @@ namespace PlexShowSubtitlesOnRewind
 
         public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync(MonitoringState currentState)
         {
-            // Assume _plexServer is already set. Show error if not
-            if (_plexServer is not PlexServer plexServer)
-            {
-                Console.WriteLine("Error: PlexServer instance is null. Cannot refresh sessions. Must load sessions first.");
-                return _activeSessionList;
-            }
-            // -----------------------------------
-
             bool useShortTimeout = (currentState == MonitoringState.Idle);
-            List<PlexSession>? fetchedSessionsList = await plexServer.GetSessionsAsync(shortTimeout: useShortTimeout);
+            List<PlexSession>? fetchedSessionsList = await PlexServer.GetSessionsAsync(shortTimeout: useShortTimeout);
 
             if (fetchedSessionsList == null)
             {
@@ -92,13 +81,12 @@ namespace PlexShowSubtitlesOnRewind
                         // If the session is not found in the existing list, add it as a new session
                         // First need to get available subs by specifically querying the server for data about the media,
                         //      otherwise the session data doesn't include all available subs
-                        List<SubtitleStream> availableSubs = await FetchAllAvailableSubtitles_ViaServerQuery_Async(fetchedSession, plexServer);
+                        List<SubtitleStream> availableSubs = await FetchAllAvailableSubtitles_ViaServerQuery_Async(fetchedSession);
 
                         ActiveSession newSession = new ActiveSession(
                             session: fetchedSession,
                             availableSubtitles: availableSubs,
-                            activeSubtitles: activeSubtitles,
-                            plexServer: plexServer
+                            activeSubtitles: activeSubtitles
                         );
                         lock (_lockObject)
                         {
@@ -149,14 +137,14 @@ namespace PlexShowSubtitlesOnRewind
 
         // This specifically queries the server for data about the media item, which includes non-active subtitle tracks, whereas the session data does not include that
         // So we usually only use this when initially loading sessions, since available subs don't change often
-        private static async Task<List<SubtitleStream>> FetchAllAvailableSubtitles_ViaServerQuery_Async(PlexSession session, PlexServer plexServer)
+        private static async Task<List<SubtitleStream>> FetchAllAvailableSubtitles_ViaServerQuery_Async(PlexSession session)
         {
             List<SubtitleStream> subtitles = [];
             try
             {
                 // Make a separate call to get the full media metadata including all subtitle tracks
                 string mediaKey = session.Key; // Like '/library/metadata/20884'
-                PlexMediaItem mediaItem = await plexServer.FetchItemAsync(mediaKey);
+                PlexMediaItem mediaItem = await PlexServer.FetchItemAsync(mediaKey);
 
                 // Get all subtitle streams from the media item
                 subtitles = mediaItem.GetSubtitleStreams();

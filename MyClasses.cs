@@ -84,11 +84,11 @@ public class PlexSession
     private PlexMediaItem? _cachedItem;
 
     // Business logic methods
-    public async Task<PlexMediaItem> FetchItemAsync(string key, PlexServer server)
+    public async Task<PlexMediaItem> FetchItemAsync(string key)
     {
         if (_cachedItem == null)
         {
-            _cachedItem = await server.FetchItemAsync(key);
+            _cachedItem = await PlexServer.FetchItemAsync(key);
         }
         return _cachedItem;
     }
@@ -381,7 +381,6 @@ public class ActiveSession
     private PlexSession _session;
     private List<SubtitleStream> _availableSubtitles;
     private List<SubtitleStream> _activeSubtitles;
-    private readonly PlexServer _plexServer;
 
     public string DeviceName { get; }
     public string MachineID { get; }
@@ -397,12 +396,11 @@ public class ActiveSession
     public int SmallestResolutionExpected => AccurateTime != null ? MonitorManager.AccurateTimelineResolution : MonitorManager.DefaultSmallestResolution;
     //-------------------------------------------------------------------------------
 
-    public ActiveSession(PlexSession session, List<SubtitleStream> availableSubtitles, List<SubtitleStream> activeSubtitles, PlexServer plexServer)
+    public ActiveSession(PlexSession session, List<SubtitleStream> availableSubtitles, List<SubtitleStream> activeSubtitles)
     {
         _session = session;
         _availableSubtitles = availableSubtitles;
         _activeSubtitles = activeSubtitles;
-        _plexServer = plexServer;
         DeviceName = session.Player.Title;
         MachineID = session.Player.MachineIdentifier;
         MediaTitle = !string.IsNullOrEmpty(session.GrandparentTitle)
@@ -467,7 +465,7 @@ public class ActiveSession
     public void GetAndApplyTimelineData()
     {
         // Try getting the timeline container, which has more accuate info about current view time and subtitles
-        TimelineMediaContainer? timelineContainer = _plexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
+        TimelineMediaContainer? timelineContainer = PlexServer.GetTimelineAsync(MachineID, SessionID, DirectUrlPath).Result;
 
         // If we can't get the timeline container, we can't do any more here
         if (timelineContainer == null)
@@ -529,13 +527,13 @@ public class ActiveSession
             // Just use the first available subtitle stream for now
             SubtitleStream firstSubtitle = AvailableSubtitles[0];
             int subtitleID = firstSubtitle.Id;
-            await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID, activeSession:this);
+            await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID, activeSession:this);
         }
     }
 
     public async void DisableSubtitles()
     {
-        await _plexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0, activeSession:this);
+        await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0, activeSession:this);
     }
 
 }

@@ -72,12 +72,12 @@ namespace PlexShowSubtitlesOnRewind
                 Settings config = SettingsHandler.LoadSettings();
 
                 Console.WriteLine($"Connecting to Plex server at {config.ServerURL}\n");
-                PlexServer plexServer = new PlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
+                PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
                 while (KeepAlive)
                 {
                     // Test connection to Plex server by connecting to the base api endpoint
-                    bool connected = await plexServer.StartServerConnectionTestLoop();
+                    bool connected = await PlexServer.StartServerConnectionTestLoop();
                 }
 
                 //// Test connection to Plex server by connecting to the base api endpoint
