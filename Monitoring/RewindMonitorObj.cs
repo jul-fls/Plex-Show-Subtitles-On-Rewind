@@ -11,6 +11,8 @@
         private readonly bool _printDebug;
         private readonly string _deviceName;
 
+        private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
+
         private bool _isMonitoring;
         //private Thread _monitorThread;
         private bool _subtitlesUserEnabled;
@@ -144,7 +146,7 @@
                     if (_temporarilyDisplayingSubtitles)
                     {
                         // If the user fast forwards, stop showing subtitles
-                        if (positionSec > _previousPosition + _smallestResolution + 2)
+                        if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
                             if (_printDebug)
                                 WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
