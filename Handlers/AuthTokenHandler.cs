@@ -1,9 +1,21 @@
 ﻿using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml;
 
 namespace PlexShowSubtitlesOnRewind;
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNameCaseInsensitive = false)]
+[JsonSerializable(typeof(AuthTokenHandler.TokenGenJson))]
+// --- Remove the JsonElement line ---
+// [JsonSerializable(typeof(JsonElement))] // No longer needed for this approach
+internal partial class AuthResponseJsonContext : JsonSerializerContext
+{
+}
+
+
+
 public static class AuthTokenHandler
 {
     private static class AuthStrings
@@ -323,54 +335,56 @@ public static class AuthTokenHandler
     // Parse the json response to get the id and code
     public static TokenGenResult ParseTokenGenJsonResponse(string jsonResponse)
     {
-        bool success = false;
         try
         {
-            // Deserialize to JsonElement (general JSON representation)
-            JsonElement deserializedObj = JsonSerializer.Deserialize<JsonElement>(jsonResponse);
+            // Get the default instance of the source-generated context
+            AuthResponseJsonContext context = AuthResponseJsonContext.Default; // Hopefully Default works now!
 
-            string? id = null;
-            string? code = null;
+            // --- Deserialize directly to TokenGenResult using its JsonTypeInfo ---
+            // The source generator should create the 'TokenGenResult' property on the context.
+            TokenGenJson? result = JsonSerializer.Deserialize(jsonResponse, context.TokenGenJson);
+            // --- End of key change ---
 
-            if (deserializedObj.TryGetProperty("id", out JsonElement idElement))
-            {
-                id = idElement.GetRawText();
-            }
-
-            if (deserializedObj.TryGetProperty("code", out JsonElement codeElement))
-            {
-                code = codeElement.GetRawText();
-            }
-
-            if (id != null && code != null)
-            {
-                success = true;
-
-                // Strip quotes from the strings, including escaped quotes
-                id = id.Trim('"').Trim('\\').Trim('"');
-                code = code.Trim('"').Trim('\\').Trim('"');
-
-                //Console.WriteLine($"Token Client ID: {id}");
-                //Console.WriteLine($"Token Code: {code}");
+            TokenGenResult tokenGenResult;
+            // Determine success based on whether we got a result and it has the expected data
+            if (result != null && result.Id != null && !string.IsNullOrEmpty(result.Code))
+            { 
+                tokenGenResult = new TokenGenResult(true, result.Id, result.Code);
             }
             else
             {
-                Console.WriteLine("Received invalid token response.");
+                // If the result is null or doesn't contain the expected data, return a failure
+                Console.WriteLine("Token generation failed. Please check the response.");
+                return new TokenGenResult(false);
             }
 
-            return new TokenGenResult(success, id, code);
+                return tokenGenResult;
         }
-        catch (JsonException ex)
+        catch (JsonException jsonEx)
         {
-            Console.WriteLine($"Failed to parse JSON response: {ex.Message}");
+            // Handle potential JSON parsing errors
+            Console.WriteLine($"Error parsing token generation JSON: {jsonEx.Message}");
+            return new TokenGenResult(false);
+        }
+        catch (Exception ex) // Catch other potential errors (e.g., if context.Default failed)
+        {
+            Console.WriteLine($"Unexpected error in ParseTokenGenJsonResponse: {ex.Message}");
             return new TokenGenResult(false);
         }
     }
 
-    public class TokenGenResult(bool success, string? id = null, string? code = null, string? clientIdentifier = null)
+    public class TokenGenJson
+    {
+        [JsonPropertyName("id")]
+        public long? Id { get; set; } = null;
+        [JsonPropertyName("code")]
+        public string? Code { get; set; } = null;
+    }
+
+    public class TokenGenResult(bool success, long? id = null, string? code = null, string? clientIdentifier = null)
     {
         public bool Success { get; set; } = success;
-        public string? PinID { get; set; } = id;
+        public string? PinID { get; set; } = id.ToString();
         public string? Code { get; set; } = code;
         public string? ClientIdentifier { get; set; } = clientIdentifier;
     }
