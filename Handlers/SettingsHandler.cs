@@ -135,28 +135,45 @@ public static class SettingsHandler
                 string configName = parts[0].Trim();
                 string settingValue = parts[1].Trim().Trim('"');
 
-                // Find the field with this config name
+                // Find the field with this config name (Loop using fieldToConfigName)
                 foreach (KeyValuePair<string, string> kvp in fieldToConfigName)
                 {
-                    if (kvp.Value == configName)
+                    if (kvp.Value == configName) // Found the config name match
                     {
+                        // Get the C# Field name (key) and retrieve the FieldInfo
                         System.Reflection.FieldInfo? field = settingsType.GetField(kvp.Key);
                         if (field != null)
                         {
-                            // Get the generic type parameter of SettingInfo<T>
-                            Type valueType = field.FieldType.GetGenericArguments()[0];
+                            // Get the actual SettingInfo object instance from the 'settings' object
+                            object? settingObj = field.GetValue(settings);
 
-                            // Get the current SettingInfo instance
-                            object? settingInfo = field.GetValue(settings);
-
-                            // Set Value property with converted value
-                            System.Reflection.PropertyInfo? valueProperty = field.FieldType.GetProperty("Value");
-                            if (valueProperty != null)
+                            // Check if it's an ISettingInfo and cast it
+                            if (settingObj is ISettingInfo settingInfo) // <<<< Use the interface
                             {
-                                object convertedValue = Convert.ChangeType(settingValue, valueType);
-                                valueProperty.SetValue(settingInfo, convertedValue);
+                                try
+                                {
+                                    // Use the interface method to set the value - NO REFLECTION HERE
+                                    settingInfo.SetValueFromString(settingValue); // <<<< KEY CHANGE
+                                }
+                                catch (FormatException ex)
+                                {
+                                    // Handle errors during conversion/setting reported by SetValueFromString
+                                    Console.WriteLine($"Error applying setting '{configName}': {ex.Message}");
+                                    // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
+                                }
+                            }
+                            else
+                            {
+                                // Handle case where the field value isn't an ISettingInfo (shouldn't happen if fieldToConfigName is built correctly)
+                                Console.WriteLine($"Warning: Field '{kvp.Key}' associated with config '{configName}' did not contain an ISettingInfo object.");
                             }
                         }
+                        else
+                        {
+                            // Handle case where field name from dictionary doesn't exist in Settings class
+                            Console.WriteLine($"Warning: Field name '{kvp.Key}' (for config '{configName}') not found in Settings class.");
+                        }
+                        break; // Found the setting, exit the inner loop
                     }
                 }
             }
@@ -243,6 +260,7 @@ public interface ISettingInfo
     Type ValueType { get; }     // Property to get the underlying type T
     // Potentially add IsRequired if needed
     bool IsRequired { get; }
+    void SetValueFromString(string stringValue);
 }
 
 // Modify SettingInfo<T> to implement it
@@ -283,5 +301,21 @@ public class SettingInfo<T> : ISettingInfo
     object? ISettingInfo.GetValueAsObject() => this.Value; // Boxes value types
     Type ISettingInfo.ValueType => typeof(T);
     bool ISettingInfo.IsRequired => this.IsRequired;
-    // --- End ISettingInfo Implementation ---
+
+    // Implementation of the new method
+    void ISettingInfo.SetValueFromString(string stringValue)
+    {
+        try
+        {
+            // Perform the conversion from the input string to Type T internally
+            // This uses the known type T of this specific SettingInfo instance
+            this.Value = (T)Convert.ChangeType(stringValue, typeof(T));
+        }
+        catch (Exception ex)
+        {
+            // Handle potential conversion errors (FormatException, InvalidCastException, etc.)
+            // You might want to log this, throw a more specific exception, or set a default.
+            throw new FormatException($"Failed to convert string '{stringValue}' to type {typeof(T).Name} for setting '{this.ConfigName}'. See inner exception for details.", ex);
+        }
+    }
 }
