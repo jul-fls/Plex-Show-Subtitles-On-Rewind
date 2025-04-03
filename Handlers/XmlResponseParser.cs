@@ -25,7 +25,7 @@ public static class XmlResponseParser
 
             if (mediaContainerElement?.Name != nameof(MediaContainer)) return null; // Or throw
 
-            var sessions = mediaContainerElement.Elements(nameof(Video))
+            List<PlexSession?> sessions = mediaContainerElement.Elements(nameof(Video))
                                                .Select(ParsePlexSession)
                                                .Where(s => s != null)
                                                .ToList();
@@ -128,7 +128,7 @@ public static class XmlResponseParser
 
             if (mediaNode == null) return null; // No suitable media node found
 
-            var mediaItem = new PlexMediaItem(itemKey) // Use the passed key
+            PlexMediaItem mediaItem = new PlexMediaItem(itemKey) // Use the passed key
             {
                 Title = GetAttributeValue(mediaNode, nameof(title)),
                 Type = GetAttributeValue(mediaNode, nameof(type)) ?? mediaNode.Name.LocalName // Fallback to node name if 'type' attribute is missing
@@ -157,7 +157,7 @@ public static class XmlResponseParser
     {
         if (videoElement == null || videoElement.Name != nameof(Video)) return null;
 
-        var session = new PlexSession
+        PlexSession session = new PlexSession
         {
             Key = GetAttributeValue(videoElement, nameof(key)),
             RatingKey = GetAttributeValue(videoElement, nameof(ratingKey)),
@@ -234,7 +234,7 @@ public static class XmlResponseParser
     {
         if (mediaElement == null || mediaElement.Name != nameof(Media)) return null;
 
-        var media = new PlexMedia
+        PlexMedia media = new PlexMedia
         {
             Id = GetAttributeValue(mediaElement, nameof(id)),
             Duration = GetIntAttribute(mediaElement, nameof(duration)),
@@ -255,7 +255,7 @@ public static class XmlResponseParser
     {
         if (partElement == null || partElement.Name != nameof(Part)) return null;
 
-        var part = new MediaPart
+        MediaPart part = new MediaPart
         {
             Id = GetAttributeValue(partElement, nameof(id)),
             Key = GetAttributeValue(partElement, nameof(key)),

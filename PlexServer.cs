@@ -55,7 +55,7 @@ namespace PlexShowSubtitlesOnRewind
                 }
 
                 // Deserialize directly to your model
-                SessionMediaContainer? container = XmlSerializerHelper.DeserializeXml<SessionMediaContainer>(responseString);
+                SessionMediaContainer? container = XmlResponseParser.ParseMediaContainer(responseString);
 
                 if (container != null)
                 {
@@ -103,7 +103,7 @@ namespace PlexShowSubtitlesOnRewind
                     errorText = errorText.Replace("\n", " ");
 
                     // Try to parse the errorText XML to a ConnectionTestResponse object
-                    ConnectionTestResponse? testResponse = XmlSerializerHelper.DeserializeXml<ConnectionTestResponse>(errorText);
+                    ConnectionTestResponse? testResponse = XmlResponseParser.ParseConnectionTestResponse(errorText);
 
                     if (testResponse != null)
                     {
@@ -180,66 +180,46 @@ namespace PlexShowSubtitlesOnRewind
             public string? Status { get; set; } = null;
         }
 
-        
+
         // This method is more complex due to the different possible root nodes
         public static async Task<PlexMediaItem> FetchItemAsync(string key)
         {
             try
             {
+                // Get the raw XML response string from the server
                 string response = await _httpClient.GetStringAsync($"{_url}{key}");
-                string rawXml = response;
-                PlexMediaItem mediaItem = new PlexMediaItem(key:key);
 
-                // We need special handling to determine the media type first
-                XmlDocument doc = new XmlDocument();
-                doc.LoadXml(response);
+                // Use the new parser to deserialize the XML into a PlexMediaItem
+                // The parser handles the different root nodes (Video, Track, Episode) internally
+                PlexMediaItem? mediaItem = XmlResponseParser.ParsePlexMediaItem(response, key);
 
-                // Find the content node (Video, Track, or Episode)
-                XmlNode? mediaNode = doc.SelectSingleNode("//MediaContainer/Video") ??
-                   doc.SelectSingleNode("//MediaContainer/Track") ??
-                   doc.SelectSingleNode("//MediaContainer/Episode");
-
-                if (mediaNode != null)
+                // Check if parsing was successful
+                if (mediaItem != null)
                 {
-                    // Get basic attributes
-                    mediaItem.Title = GetAttributeValue(mediaNode, "title");
-                    mediaItem.Type = GetAttributeValue(mediaNode, "type");
+                    // Calculate subtitle count (restored from original logic)
+                    int subtitleCount = mediaItem.GetSubtitleStreams().Count;
+                    // Logging line (restored, still commented out as in original)
+                    // Console.WriteLine($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
 
-                    // Determine the correct node type for deserialization
-                    string nodeType = mediaNode.Name;
-
-                    // Deserialize the node using XPath to get its media children
-                    // Now we use the unified PlexSession class instead of PlexSessionXml
-                    PlexSession? plexSession = XmlSerializerHelper.DeserializeXmlNodes<PlexSession>(response, $"//MediaContainer/{nodeType}").FirstOrDefault();
-
-                    if (plexSession != null && plexSession.Media != null)
-                    {
-                        plexSession.RawXml = rawXml;
-
-                        // We can now directly add the Media objects without conversion
-                        mediaItem.Media.AddRange(plexSession.Media);
-                    }
+                    return mediaItem;
                 }
-
-                int subtitleCount = mediaItem.GetSubtitleStreams().Count;
-                //Console.WriteLine($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
-
-                return mediaItem;
+                else
+                {
+                    // Parsing failed, log an error and return a default/empty item
+                    Console.WriteLine($"Failed to parse media item response for key: {key}");
+                    return new PlexMediaItem(key: key); // Return an empty item with the key
+                }
             }
-            catch (Exception ex)
+            catch (HttpRequestException httpEx)
             {
-                Console.WriteLine($"Error fetching media item: {ex.Message}");
-                return new PlexMediaItem(key: key);
+                Console.WriteLine($"HTTP Error fetching media item {key}: {httpEx.Message}");
+                return new PlexMediaItem(key: key); // Return default on error
             }
-        }
-
-        private static string GetAttributeValue(XmlNode node, string attributeName)
-        {
-            if (node?.Attributes == null)
-                return string.Empty;
-
-            XmlAttribute? attr = node.Attributes[attributeName];
-            return attr?.Value ?? string.Empty;
+            catch (Exception ex) // Catch other potential exceptions (network issues, etc.)
+            {
+                Console.WriteLine($"Error fetching media item {key}: {ex.Message}");
+                return new PlexMediaItem(key: key); // Return default on error
+            }
         }
 
         /// <summary>
@@ -327,15 +307,12 @@ namespace PlexShowSubtitlesOnRewind
                 HttpRequestMessage timelineRequest = new HttpRequestMessage(HttpMethod.Get, path);
                 timelineRequest = Utils.AddHttpRequestHeaders(timelineRequest, headers);
 
-                TimelineMediaContainer? container = new();
                 HttpResponseMessage timelineResponse = await _httpClientShortTimeout.SendAsync(timelineRequest);
 
                 if (timelineResponse.IsSuccessStatusCode)
                 {
                     string responseBody = timelineResponse.Content.ReadAsStringAsync().Result;
-                    XmlSerializer serializer = new(typeof(TimelineMediaContainer));
-                    using StringReader reader = new(responseBody);
-                    container = (TimelineMediaContainer?)serializer.Deserialize(reader);
+                    TimelineMediaContainer? container = XmlResponseParser.ParseTimelineMediaContainer(responseBody);
                     return container;
                 }
                 else
