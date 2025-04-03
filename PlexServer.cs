@@ -6,6 +6,7 @@ using System.Xml.Serialization;
 
 namespace PlexShowSubtitlesOnRewind
 {
+    // PlexServer class which contains many methods to interact with the Plex server
     public static class PlexServer
     {
         private static string _url;
