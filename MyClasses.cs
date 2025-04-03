@@ -1,5 +1,6 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
+using static PlexShowSubtitlesOnRewind.Props;
 
 //#pragma warning disable IDE0074 // Use compound assignment
 #pragma warning disable IDE0290 // Use primary constructor
@@ -18,13 +19,13 @@ public class PlexMediaItem
     public string Key { get; set; }
     public string Title { get; set; }
     public string Type { get; set; }
-    public List<Media> Media { get; set; } = [];
+    public List<PlexMedia> Media { get; set; } = [];
 
     public List<SubtitleStream> GetSubtitleStreams()
     {
         List<SubtitleStream> subtitles = [];
 
-        foreach (Media media in Media)
+        foreach (PlexMedia media in Media)
         {
             foreach (MediaPart part in media.Parts)
             {
@@ -36,39 +37,154 @@ public class PlexMediaItem
     }
 }
 
-[XmlRoot("Video")]
+// Class with all possible property name strings (not organized, just for all of them) just to make it easier to rename and for type safety
+// Case sensitive, so use the same case as in the XML
+public enum Props
+{
+    // Outer Types
+    Player,
+    MediaContainer,
+    Timeline,
+    Part,
+    Response,
+    Stream,
+    Track,
+    Episode,
+
+    // Connecton Test
+    code,
+    message,
+    status,
+
+    // Session / Video
+    Video,
+    key,
+    ratingKey,
+    sessionKey,
+    title,
+    grandparentTitle,
+    type,
+    viewOffset,
+    Media,
+    Session,
+
+    // Plex Inner Session
+    id,
+    bandwidth,
+    location,
+
+    // Player
+    PlayerTitle,
+    machineIdentifier,
+    address,
+    device,
+    model,
+    platform,
+    platformVersion,
+    playbackId,
+    playbackSessionId,
+    product,
+    profile,
+    state,
+    vendor,
+    version,
+    local,
+    relayed,
+    secure,
+    userID,
+
+    // Media Container
+    size,
+
+    // Timeline
+    containerKey,
+    //state
+    repeat,
+    //address
+    duration,
+    subtitleStreamID,
+    //key
+    playQueueVersion,
+    time,
+    //machineIdentifier
+    //type
+    volume,
+    controllable,
+    //ratingKey
+    playQueueID,
+    autoPlay,
+    seekRange,
+    shuffle,
+    playQueueItemID,
+    port,
+    videoStreamID,
+    providerIdentifier,
+    guid,
+    protocol,
+    subtitlePosition,
+    audioStreamID,
+
+    // Media
+    //id,
+    //duration,
+    videoCodec,
+    audioCodec,
+    container,
+    //Part,
+
+    // Part
+    //id
+    //key
+    //duration
+    file,
+    //Stream
+
+    // Stream (StreamData)
+    //id
+    streamType,
+    index,
+    extendedDisplayTitle,
+    language,
+    selected,
+    format,
+    //title
+    //location
+
+}
+
+[XmlRoot(nameof(Video))]
 public class PlexSession
 {
     // XML mapped properties
-    [XmlAttribute("key")]
+    [XmlAttribute(nameof(key))]
     public string Key { get; set; } = string.Empty;
 
-    [XmlAttribute("ratingKey")]
+    [XmlAttribute(nameof(ratingKey))]
     public string RatingKey { get; set; } = string.Empty;
 
-    [XmlAttribute("sessionKey")]
+    [XmlAttribute(nameof(sessionKey))]
     public string SessionKey { get; set; } = string.Empty;
 
-    [XmlAttribute("title")]
+    [XmlAttribute(nameof(title))]
     public string Title { get; set; } = string.Empty;
 
-    [XmlAttribute("grandparentTitle")]
+    [XmlAttribute(nameof(grandparentTitle))]
     public string GrandparentTitle { get; set; } = string.Empty;
 
-    [XmlAttribute("type")]
+    [XmlAttribute(nameof(type))]
     public string Type { get; set; } = string.Empty;
 
-    [XmlAttribute("viewOffset")]
+    [XmlAttribute(nameof(viewOffset))]
     public int ViewOffset { get; set; }
 
-    [XmlElement("Player")]
+    [XmlElement(nameof(Player))]
     public PlexPlayer Player { get; set; } = new();
 
-    [XmlElement("Media")]
-    public List<Media> Media { get; set; } = [];
+    [XmlElement(nameof(Media))]
+    public List<PlexMedia> Media { get; set; } = [];
 
     // The Session element is at the same level as Media, Player, etc.
-    [XmlElement("Session")]
+    [XmlElement(nameof(Session))]
     public PlexInnerSession InnerSession { get; set; } = new();
 
     [XmlIgnore]
@@ -96,73 +212,73 @@ public class PlexSession
     // For the "Session" node within the "Video" node. Even though we're calling the "video" node the "session"
     public class PlexInnerSession
     {
-        [XmlAttribute("id")]
+        [XmlAttribute(nameof(id))]
         public string Id { get; set; } = string.Empty;
 
-        [XmlAttribute("bandwidth")]
+        [XmlAttribute(nameof(bandwidth))]
         public string Bandwidth { get; set; } = string.Empty;
 
-        [XmlAttribute("location")]
+        [XmlAttribute(nameof(location))]
         public string Location { get; set; } = string.Empty;
     }
 }
 
 
-[XmlRoot("Player")]
+[XmlRoot(nameof(Player))]
 public class PlexPlayer
 {
-    [XmlAttribute("title")]
+    [XmlAttribute(nameof(title))]
     public string Title { get; set; } = string.Empty;
 
-    [XmlAttribute("machineIdentifier")]
+    [XmlAttribute(nameof(machineIdentifier))]
     public string MachineIdentifier { get; set; } = string.Empty;
 
-    [XmlAttribute("address")]
+    [XmlAttribute(nameof(address))]
     public string Address { get; set; } = string.Empty;
 
-    [XmlAttribute("device")]
+    [XmlAttribute(nameof(device))]
     public string Device { get; set; } = string.Empty;
 
-    [XmlAttribute("model")]
+    [XmlAttribute(nameof(model))]
     public string Model { get; set; } = string.Empty;
 
-    [XmlAttribute("platform")]
+    [XmlAttribute(nameof(platform))]
     public string Platform { get; set; } = string.Empty;
 
-    [XmlAttribute("platformVersion")]
+    [XmlAttribute(nameof(platformVersion))]
     public string PlatformVersion { get; set; } = string.Empty;
 
-    [XmlAttribute("playbackId")]
+    [XmlAttribute(nameof(playbackId))]
     public string PlaybackId { get; set; } = string.Empty;
 
-    [XmlAttribute("playbackSessionId")]
+    [XmlAttribute(nameof(playbackSessionId))]
     public string PlaybackSessionId { get; set; } = string.Empty;
 
-    [XmlAttribute("product")]
+    [XmlAttribute(nameof(product))]
     public string Product { get; set; } = string.Empty;
 
-    [XmlAttribute("profile")]
+    [XmlAttribute(nameof(profile))]
     public string Profile { get; set; } = string.Empty;
 
-    [XmlAttribute("state")]
+    [XmlAttribute(nameof(state))]
     public string State { get; set; } = string.Empty;
 
-    [XmlAttribute("vendor")]
+    [XmlAttribute(nameof(vendor))]
     public string Vendor { get; set; } = string.Empty;
 
-    [XmlAttribute("version")]
+    [XmlAttribute(nameof(version))]
     public string Version { get; set; } = string.Empty;
 
-    [XmlAttribute("local")]
+    [XmlAttribute(nameof(local))]
     public string Local { get; set; } = string.Empty;
 
-    [XmlAttribute("relayed")]
+    [XmlAttribute(nameof(relayed))]
     public string Relayed { get; set; } = string.Empty;
 
-    [XmlAttribute("secure")]
+    [XmlAttribute(nameof(secure))]
     public string Secure { get; set; } = string.Empty;
 
-    [XmlAttribute("userID")]
+    [XmlAttribute(nameof(userID))]
     public string UserID { get; set; } = string.Empty;
 
     // ------------------- Other properties that are not part of the XML mapping -------------------
@@ -174,135 +290,135 @@ public class PlexPlayer
     public string DirectUrlPath => $"http://{Address}:{Port}";
 }
 
-[XmlRoot("MediaContainer")]
+[XmlRoot(nameof(MediaContainer))]
 public class TimelineMediaContainer
 {
-    [XmlElement("Timeline")]
+    [XmlElement(nameof(Timeline))]
     public List<PlexTimeline> Timeline { get; set; } = new(); // Added to hold timeline information
-    [XmlAttribute("size")]
+    [XmlAttribute(nameof(size))]
     public int Size { get; set; } = 0;
 }
 
-[XmlRoot("Timeline")]
+[XmlRoot(nameof(Timeline))]
 public class PlexTimeline
 {
-    [XmlAttribute("containerKey")]
+    [XmlAttribute(nameof(containerKey))]
     public string ContainerKey { get; set; } = string.Empty;
 
-    [XmlAttribute("state")]
+    [XmlAttribute(nameof(state))]
     public string State { get; set; } = string.Empty;
 
-    [XmlAttribute("repeat")]
+    [XmlAttribute(nameof(repeat))]
     public string Repeat { get; set; } = string.Empty;
 
-    [XmlAttribute("address")]
+    [XmlAttribute(nameof(address))]
     public string Address { get; set; } = string.Empty;
 
-    [XmlAttribute("duration")]
+    [XmlAttribute(nameof(duration))]
     public string Duration { get; set; } = string.Empty;
 
-    [XmlAttribute("subtitleStreamID")]
+    [XmlAttribute(nameof(subtitleStreamID))]
     public string SubtitleStreamID { get; set; } = string.Empty;
 
-    [XmlAttribute("key")]
+    [XmlAttribute(nameof(key))]
     public string Key { get; set; } = string.Empty;
 
-    [XmlAttribute("playQueueVersion")]
+    [XmlAttribute(nameof(playQueueVersion))]
     public string PlayQueueVersion { get; set; } = string.Empty;
 
-    [XmlAttribute("time")]
+    [XmlAttribute(nameof(time))]
     public string Time { get; set; } = string.Empty;
 
-    [XmlAttribute("machineIdentifier")]
+    [XmlAttribute(nameof(machineIdentifier))]
     public string MachineIdentifier { get; set; } = string.Empty;
 
-    [XmlAttribute("type")]
+    [XmlAttribute(nameof(type))]
     public string Type { get; set; } = string.Empty;
 
-    [XmlAttribute("volume")]
+    [XmlAttribute(nameof(volume))]
     public string Volume { get; set; } = string.Empty;
 
-    [XmlAttribute("controllable")]
+    [XmlAttribute(nameof(controllable))]
     public string Controllable { get; set; } = string.Empty;
 
-    [XmlAttribute("ratingKey")]
+    [XmlAttribute(nameof(ratingKey))]
     public string RatingKey { get; set; } = string.Empty;
 
-    [XmlAttribute("playQueueID")]
+    [XmlAttribute(nameof(playQueueID))]
     public string PlayQueueID { get; set; } = string.Empty;
 
-    [XmlAttribute("autoPlay")]
+    [XmlAttribute(nameof(autoPlay))]
     public string AutoPlay { get; set; } = string.Empty;
 
-    [XmlAttribute("seekRange")]
+    [XmlAttribute(nameof(seekRange))]
     public string SeekRange { get; set; } = string.Empty;
 
-    [XmlAttribute("shuffle")]
+    [XmlAttribute(nameof(shuffle))]
     public string Shuffle { get; set; } = string.Empty;
 
-    [XmlAttribute("playQueueItemID")]
+    [XmlAttribute(nameof(playQueueItemID))]
     public string PlayQueueItemID { get; set; } = string.Empty;
 
-    [XmlAttribute("port")]
+    [XmlAttribute(nameof(port))]
     public string Port { get; set; } = string.Empty;
 
-    [XmlAttribute("videoStreamID")]
+    [XmlAttribute(nameof(videoStreamID))]
     public string VideoStreamID { get; set; } = string.Empty;
 
-    [XmlAttribute("providerIdentifier")]
+    [XmlAttribute(nameof(providerIdentifier))]
     public string ProviderIdentifier { get; set; } = string.Empty;
 
-    [XmlAttribute("guid")]
+    [XmlAttribute(nameof(guid))]
     public string Guid { get; set; } = string.Empty;
 
-    [XmlAttribute("protocol")]
+    [XmlAttribute(nameof(protocol))]
     public string Protocol { get; set; } = string.Empty;
 
-    [XmlAttribute("subtitlePosition")]
+    [XmlAttribute(nameof(subtitlePosition))]
     public string SubtitlePosition { get; set; } = string.Empty;
 
-    [XmlAttribute("audioStreamID")]
+    [XmlAttribute(nameof(audioStreamID))]
     public string AudioStreamID { get; set; } = string.Empty;
 }
 
-[XmlRoot("Media")]
-public class Media
+[XmlRoot(nameof(Media))]
+public class PlexMedia
 {
-    [XmlAttribute("id")]
+    [XmlAttribute(nameof(id))]
     public string Id { get; set; } = string.Empty;
 
-    [XmlAttribute("duration")]
+    [XmlAttribute(nameof(duration))]
     public int Duration { get; set; }
 
-    [XmlAttribute("videoCodec")]
+    [XmlAttribute(nameof(videoCodec))]
     public string VideoCodec { get; set; } = string.Empty;
 
-    [XmlAttribute("audioCodec")]
+    [XmlAttribute(nameof(audioCodec))]
     public string AudioCodec { get; set; } = string.Empty;
 
-    [XmlAttribute("container")]
+    [XmlAttribute(nameof(container))]
     public string Container { get; set; } = string.Empty;
 
-    [XmlElement("Part")]
+    [XmlElement(nameof(Part))]
     public List<MediaPart> Parts { get; set; } = [];
 }
 
-[XmlRoot("Part")]
+[XmlRoot(nameof(Part))]
 public class MediaPart
 {
-    [XmlAttribute("id")]
+    [XmlAttribute(nameof(id))]
     public string Id { get; set; } = string.Empty;
 
-    [XmlAttribute("key")]
+    [XmlAttribute(nameof(key))]
     public string Key { get; set; } = string.Empty;
 
-    [XmlAttribute("duration")]
+    [XmlAttribute(nameof(duration))]
     public int Duration { get; set; }
 
-    [XmlAttribute("file")]
+    [XmlAttribute(nameof(file))]
     public string File { get; set; } = string.Empty;
 
-    [XmlElement("Stream")]
+    [XmlElement(nameof(Props.Stream))]
     public List<StreamData> AllStreams { get; set; } = [];
 
     // This exposes only subtitle streams as a computed property. They have stream type 3.
@@ -326,31 +442,31 @@ public class MediaPart
     // Helper class for XML mapping
     public class StreamData
     {
-        [XmlAttribute("id")]
+        [XmlAttribute(nameof(id))]
         public int Id { get; set; }
 
-        [XmlAttribute("streamType")]
+        [XmlAttribute(nameof(streamType))]
         public int StreamType { get; set; }
 
-        [XmlAttribute("index")]
+        [XmlAttribute(nameof(index))]
         public int Index { get; set; }
 
-        [XmlAttribute("extendedDisplayTitle")]
+        [XmlAttribute(nameof(extendedDisplayTitle))]
         public string ExtendedDisplayTitle { get; set; } = string.Empty;
 
-        [XmlAttribute("language")]
+        [XmlAttribute(nameof(language))]
         public string Language { get; set; } = string.Empty;
 
-        [XmlAttribute("selected")]
+        [XmlAttribute(nameof(selected))]
         public string SelectedValue { get; set; } = string.Empty;
 
-        [XmlAttribute("format")]
+        [XmlAttribute(nameof(format))]
         public string Format { get; set; } = string.Empty;
 
-        [XmlAttribute("title")]
+        [XmlAttribute(nameof(title))]
         public string Title { get; set; } = string.Empty;
 
-        [XmlAttribute("location")]
+        [XmlAttribute(nameof(location))]
         public string Location { get; set; } = string.Empty;
     }
 }
@@ -368,10 +484,10 @@ public class SubtitleStream
     public bool IsExternal { get; set; }
 }
 
-[XmlRoot("MediaContainer")]
-public class MediaContainer
+[XmlRoot(nameof(MediaContainer))]
+public class SessionMediaContainer
 {
-    [XmlElement("Video")]
+    [XmlElement(nameof(Video))]
     public List<PlexSession> Sessions { get; set; } = [];
 }
 

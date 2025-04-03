@@ -55,7 +55,7 @@ namespace PlexShowSubtitlesOnRewind
                 }
 
                 // Deserialize directly to your model
-                MediaContainer? container = XmlSerializerHelper.DeserializeXml<MediaContainer>(responseString);
+                SessionMediaContainer? container = XmlSerializerHelper.DeserializeXml<SessionMediaContainer>(responseString);
 
                 if (container != null)
                 {

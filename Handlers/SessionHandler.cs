@@ -228,7 +228,7 @@ namespace PlexShowSubtitlesOnRewind
 
             if (session.Media != null && session.Media.Count > 0)
             {
-                foreach (Media media in session.Media)
+                foreach (PlexMedia media in session.Media)
                 {
                     if (media.Parts != null && media.Parts.Count > 0)
                     {
