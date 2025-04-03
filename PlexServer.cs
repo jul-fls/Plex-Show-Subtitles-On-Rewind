@@ -9,12 +9,11 @@ namespace PlexShowSubtitlesOnRewind
     // PlexServer class which contains many methods to interact with the Plex server
     public static class PlexServer
     {
-        private static string _url;
-        private static string _token;
-        private static string _appClientID;
-        private static HttpClient _httpClient;
-        private static HttpClient _httpClientShortTimeout;
-        private static bool _alreadyRetrying = false;
+        private static string _url = string.Empty;
+        private static string _token = string.Empty;
+        private static string _appClientID = string.Empty;
+        private static HttpClient _httpClient = new HttpClient();
+        private static HttpClient _httpClientShortTimeout = new HttpClient();
 
         public static void SetupPlexServer(string url, string token, string appClientID)
         {
@@ -27,9 +26,6 @@ namespace PlexShowSubtitlesOnRewind
             _url = url;
             _token = token;
             _appClientID = appClientID;
-
-            _httpClient = new HttpClient();
-            _httpClientShortTimeout = new HttpClient();
 
             _httpClient = Utils.AddHttpClientHeaders(_httpClient, defaultHeadersDict);
             _httpClientShortTimeout = Utils.AddHttpClientHeaders(_httpClientShortTimeout, defaultHeadersDict);

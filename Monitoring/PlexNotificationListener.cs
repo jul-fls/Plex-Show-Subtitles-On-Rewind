@@ -124,7 +124,6 @@ public class PlexNotificationListener : IDisposable
     {
         string? currentEvent = null;
         string dataBuffer = string.Empty;
-        bool stoppedUnexpectedly = false;
 
         Console.WriteLine("Connected to Plex event stream. Waiting for events...");
 
@@ -141,7 +140,6 @@ public class PlexNotificationListener : IDisposable
                 if (line == null)
                 {
                     Console.WriteLine("Stream closed by server or read error.");
-                    stoppedUnexpectedly = true;
                     break; // Exit the loop
                 }
             }
@@ -152,7 +150,6 @@ public class PlexNotificationListener : IDisposable
             }
             catch (IOException ex)
             {
-                stoppedUnexpectedly = true;
                 // Handle potential network errors or stream closure issues
                 if (ex.InnerException is System.Net.Sockets.SocketException innerEx)
                 {
@@ -442,8 +439,8 @@ public struct EventType
     public const string TranscodeSessionStart = "transcodeSession.start";
     public const string TranscodeSessionUpdate = "transcodeSession.update";
     public const string TranscodeSessionEnd = "transcodeSession.end";
-    public const string Ping = "ping"; // Used to keep the connection alive
-    public const string Unknown = "unknown"; // For any unrecognized event types
+    public const string Ping = "ping";
+    public const string Unknown = "unknown";
 
     private string _value;
 
@@ -462,7 +459,7 @@ public struct EventType
         return _value;
     }
 
-    public override bool Equals([NotNullWhen(true)] object? testObj)
+    public override bool Equals(object? testObj)
     {
         if (testObj is EventType eventType)
         {
@@ -475,6 +472,11 @@ public struct EventType
         }
 
         return false;
+    }
+
+    public override int GetHashCode()
+    {
+        return _value.ToLowerInvariant().GetHashCode();
     }
 }
 

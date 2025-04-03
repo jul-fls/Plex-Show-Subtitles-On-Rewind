@@ -20,11 +20,11 @@ namespace PlexShowSubtitlesOnRewind
 
         // ===========================================================================================
 
-        static async Task Main(string[] args)
+        static void Main(string[] args)
         {
-#if DEBUG
-            debugMode = true;
-#endif
+            #if DEBUG
+                debugMode = true;
+            #endif
 
             // Event to signal application exit
             ManualResetEvent _exitEvent = new ManualResetEvent(false);
@@ -84,7 +84,8 @@ namespace PlexShowSubtitlesOnRewind
 
 
                 // Set up Ctrl+C handler
-                Console.CancelKeyPress += (sender, eventArgs) => {
+                Console.CancelKeyPress += (sender, eventArgs) =>
+                {
                     Console.WriteLine("\nCtrl+C detected. Initiating shutdown...");
                     eventArgs.Cancel = true; // Prevent immediate process termination
                     _exitEvent.Set();        // Signal the main thread to exit

@@ -24,8 +24,6 @@ namespace PlexShowSubtitlesOnRewind
         private static PollingMode _idlePollingMode = PollingMode.Timer;
 
         private static ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
-        private static bool _sleepCancellationRequested = false;
-
 
         public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
         {
@@ -193,8 +191,6 @@ namespace PlexShowSubtitlesOnRewind
         {
             while (_isRunning)
             {
-                // Reset the cancellation flag at the start of each loop
-                _sleepCancellationRequested = false;
                 _sleepResetEvent.Reset();
 
                 List<ActiveSession> updatedSessions = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState).Result;
@@ -246,9 +242,6 @@ namespace PlexShowSubtitlesOnRewind
         public static void BreakFromIdle()
         {
             _monitoringState = MonitoringState.Active;
-
-            // Request cancellation of the current sleep operation
-            _sleepCancellationRequested = true;
 
             // Signal the event to wake up any waiting thread
             _sleepResetEvent.Set();
@@ -307,7 +300,6 @@ namespace PlexShowSubtitlesOnRewind
 
             WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
             _isRunning = false; // Signal the loop to stop
-            _sleepCancellationRequested = true; // Request cancellation of any current sleep
             _sleepResetEvent.Set(); // Wake up the sleeping thread immediately
 
             WriteWarning("MonitorManager: Monitoring loop stopped.");
@@ -318,7 +310,6 @@ namespace PlexShowSubtitlesOnRewind
         {
             WriteWarning("MonitorManager: Stopping all monitoring...");
             _isRunning = false;
-            _sleepCancellationRequested = true; // Request cancellation of sleep
             _sleepResetEvent.Set(); // Wake up the sleeping thread
 
             lock (_allMonitors) // Ensure thread safety when clearing
@@ -337,7 +328,6 @@ namespace PlexShowSubtitlesOnRewind
         {
             WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
             _isRunning = false;
-            _sleepCancellationRequested = true; // Request cancellation of sleep
             _sleepResetEvent.Set(); // Wake up the sleeping thread
 
             lock (_allMonitors) // Ensure thread safety when iterating
