@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic; // Required for Dictionary
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -11,6 +12,17 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace PlexShowSubtitlesOnRewind;
+
+// Define the context for the source generator
+[JsonSourceGenerationOptions(WriteIndented = true)] // Optional: for debugging output
+// Add JsonSerializable attribute for each Dictionary<string, T> type you deserialize
+[JsonSerializable(typeof(Dictionary<string, PlayingEvent>))]
+[JsonSerializable(typeof(Dictionary<string, ActivityNotification>))]
+[JsonSerializable(typeof(Dictionary<string, TranscodeSession>))]
+[JsonSerializable(typeof(Dictionary<string, object>))] // For the fallback case
+internal partial class PlexEventJsonContext : JsonSerializerContext
+{
+}
 
 public class PlexNotificationListener : IDisposable
 {
@@ -320,32 +332,68 @@ public class PlexEventInfo : EventArgs
     private static object? ParseToProperType(EventType eventTypeName, Type deserializeType, string rawData)
     {
         // For pings we know it won't have any data
-        if (eventTypeName.Equals(EventType.Ping))
+        if (eventTypeName.Equals(EventType.Ping) || string.IsNullOrWhiteSpace(rawData))
         {
             return null;
         }
 
-        // Deserialize the JSON data based on the event type.
-        // We need to get rid of the top-level key, so we'll create a dictionary in each case then get the first value.
-        if (deserializeType == typeof(PlayingEvent))
+        // Get the default instance of the source-generated context
+        PlexEventJsonContext context = PlexEventJsonContext.Default;
+        object? deserializedDictionary = null;
+
+        try
         {
-            Dictionary<string, PlayingEvent>? dataDict = JsonSerializer.Deserialize<Dictionary<string, PlayingEvent>>(rawData);
-            return dataDict?[dataDict.Keys.First()];
+            // Determine the correct JsonTypeInfo based on the target type
+            // and deserialize using the source-generated context
+            if (deserializeType == typeof(PlayingEvent))
+            {
+                deserializedDictionary = JsonSerializer.Deserialize(rawData, context.DictionaryStringPlayingEvent);
+            }
+            else if (deserializeType == typeof(ActivityNotification))
+            {
+                deserializedDictionary = JsonSerializer.Deserialize(rawData, context.DictionaryStringActivityNotification);
+            }
+            else if (deserializeType == typeof(TranscodeSession))
+            {
+                deserializedDictionary = JsonSerializer.Deserialize(rawData, context.DictionaryStringTranscodeSession);
+            }
+            else // Fallback for unknown types (if any were expected)
+            {
+                // Using Dictionary<string, object> with source gen might still have limitations
+                // if the 'object' represents completely unknown types at compile time.
+                deserializedDictionary = JsonSerializer.Deserialize(rawData, context.DictionaryStringObject);
+            }
+
+            // Cast to non-generic IDictionary to access keys/values safely
+            IDictionary? dataDict = (IDictionary?)deserializedDictionary;
+
+            // Extract the first value from the dictionary
+            if (dataDict != null && dataDict.Keys.Count > 0)
+            {
+                object? firstKey = dataDict.Keys.Cast<object>().First();
+                return dataDict[firstKey];
+            }
+            else
+            {
+                WriteError($"[{eventTypeName}] SourceGen Deserialization resulted in a null or empty dictionary. Raw Data: {rawData}");
+                return null;
+            }
         }
-        else if (deserializeType == typeof(ActivityNotification))
+        catch (JsonException jsonEx)
         {
-            Dictionary<string, ActivityNotification>? dataDict = JsonSerializer.Deserialize<Dictionary<string, ActivityNotification>>(rawData);
-            return dataDict?[dataDict.Keys.First()];
+            WriteError($"[{eventTypeName}] Error deserializing JSON with SourceGen: {jsonEx.Message}. Raw Data: {rawData}");
+            return null;
         }
-        else if (deserializeType == typeof(TranscodeSession))
+        // Catching NotSupportedException can be useful with source gen if a type wasn't included
+        catch (NotSupportedException nse)
         {
-            Dictionary<string, TranscodeSession>? dataDict = JsonSerializer.Deserialize<Dictionary<string, TranscodeSession>>(rawData);
-            return dataDict?[dataDict.Keys.First()];
+            WriteError($"[{eventTypeName}] Type not supported by SourceGen context: {nse.Message}. Ensure the required Dictionary<string, T> is in PlexEventJsonContext.");
+            return null;
         }
-        else
+        catch (Exception ex)
         {
-            Dictionary<string, object>? dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(rawData);
-            return dataDict?[dataDict.Keys.First()];
+            WriteError($"[{eventTypeName}] Unexpected error during SourceGen parsing: {ex.Message}. Raw Data: {rawData}");
+            return null;
         }
     }
 }
