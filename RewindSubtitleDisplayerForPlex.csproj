@@ -21,6 +21,12 @@
 		<PublishTrimmed>False</PublishTrimmed>
 		<ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
 	</PropertyGroup>
+	
+	<PropertyGroup>
+		<TargetName>$(AssemblyName)_$(FileVersion)</TargetName>
+		<AssemblyName>$(TargetName)</AssemblyName>
+	</PropertyGroup>
+	
 
 	<!-- Enable Native AOT and Trimming only if publishing self contained mode AND it's for windows since native AOT doesn't work when cross compiling -->
 	<PropertyGroup Condition="'$(SelfContained)' == 'true' And $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
