@@ -1,21 +1,35 @@
 # PowerShell script to run all publishing profiles for a Visual Studio .NET project. Also automatically renames resulting binary file to include version number.
 # Author: ThioJoe (https://github.com/ThioJoe)
 
-# VERSION: 1.2 (Updated 4/4/25)
+# VERSION: 1.2.0 (Updated 4/4/25)
 
 # --------------------------------------------------------------
 
-# Tip: Make this script easier to run by adding it as an "External Tool" so it will show up in the "Tools" dropdown menu.
+# Tip 1: Make this script easier to run by adding it as an "External Tool" so it will show up in the "Tools" dropdown menu.
 #
-# You can do this by:
-#      1. Going to Tools > External Tools > Add
-#      2. For 'Command' put 'powershell.exe'
-#      3. For 'Arguments' use the -File parameter with the relative path (relative to project directory) and filename you have this script, for example:
-#			-File "Resources\publish-all.ps1"
-#      4. Be sure to set the "Initial Directory" box to:
+#     You can do this by:
+#          1. Going to Tools > External Tools > Add
+#          2. For 'Command' put 'powershell.exe'
+#          3. For 'Arguments' use the -File parameter with the relative path (relative to project directory) and filename you have this script, for example:
+#  	  		-File "Resources\publish-all.ps1"
+#          4. Be sure to set the "Initial Directory" box to:
 #            $(ProjectDir)
 #
+# Tip 2: You can pass built in variables in the Arguments box.
+#
+#     For example to set the file name base to the project target name:
+#          -File "Resources\publish-all.ps1" -FileNameBase $(TargetName)
+#
 # --------------------------------------------------------------
+
+param(
+    [switch]$AddVersion,        # Switch: Adds the version number to the filename (defaulting to FileVersion, then AssemblyVersion, then Assembly Version Info)
+	[switch]$AddRuntime,        # Switch to add FULL runtime ID + Type (e.g., _linux-x64-SelfContained)
+	[switch]$AddArchitecture,   # Switch to add ONLY architecture (e.g., _x64)
+    [string]$FileNameBase,      # String: Set the base name of the file instead of defaulting to Assembly Name
+	[object]$AddType = $null    # Switch to add deployment Type (e.g., -SelfContained). Also accepts "auto" to only add the type if there are multiple for the same runtime
+
+)
 
 # Helper function to get a property value from the first .csproj file found
 function Get-CsProjProperty {
@@ -239,21 +253,29 @@ $resultsDir = "bin\Publish"
 New-Item -ItemType Directory -Force -Path $resultsDir | Out-Null
 Write-Host "Publishing results will be copied to: $($resultsDir)"
 
-# --- Determine FileNameBase dynamically from csproj AssemblyName or default ---
-$fileNameBase = Get-CsProjProperty -PropertyName "AssemblyName"
-if ([string]::IsNullOrEmpty($fileNameBase)) {
-    # Fallback: try to get it from the .csproj filename
-    $csprojFile = Get-ChildItem -Filter "*.csproj" -File | Select-Object -First 1
-    if ($csprojFile) {
-        $fileNameBase = $csprojFile.BaseName
-        Write-Warning "AssemblyName not found in .csproj. Using .csproj filename as base: $fileNameBase"
-    } else {
-        # Ultimate fallback if somehow csproj disappeared after initial check
-        $fileNameBase = "ProjectNameUnknown"
-        Write-Warning "Cannot determine AssemblyName or .csproj filename. Using default base: $fileNameBase"
-    }
+# --- Determine FileNameBase ---
+# Check if the FileNameBase parameter was provided via command line and has a value
+if (-not [string]::IsNullOrEmpty($FileNameBase)) {
+    # If provided via parameter, the variable $FileNameBase is already set by PowerShell. Just log it.
+    Write-Host "Using FileNameBase provided via parameter: $FileNameBase"
 } else {
-     Write-Host "Using AssemblyName from .csproj: $fileNameBase"
+    # Parameter was NOT provided or was empty, determine dynamically from csproj AssemblyName or default
+    Write-Verbose "FileNameBase parameter not provided or empty. Attempting to determine from .csproj..."
+    $fileNameBase = Get-CsProjProperty -PropertyName "AssemblyName" # This assigns to the $fileNameBase variable only if the parameter wasn't used
+    if ([string]::IsNullOrEmpty($fileNameBase)) {
+        # Fallback: try to get it from the .csproj filename
+        $csprojFile = Get-ChildItem -Filter "*.csproj" -File | Select-Object -First 1
+        if ($csprojFile) {
+            $fileNameBase = $csprojFile.BaseName # Assign the fallback value
+            Write-Warning "AssemblyName not found in .csproj. Using .csproj filename as base: $fileNameBase"
+        } else {
+            # Ultimate fallback if somehow csproj disappeared after initial check
+            $fileNameBase = "ProjectNameUnknown" # Assign the ultimate fallback value
+            Write-Warning "Cannot determine AssemblyName or .csproj filename. Using default base: $fileNameBase"
+        }
+    } else {
+         Write-Host "Using AssemblyName from .csproj: $fileNameBase"
+    }
 }
 # --- End FileNameBase determination ---
 
@@ -264,6 +286,38 @@ $pubxmlFiles = Get-ChildItem -Path "Properties\PublishProfiles\*.pubxml" -File
 if ($pubxmlFiles.Count -eq 0) {
     Write-Warning "No .pubxml files found in Properties\PublishProfiles\"
 }
+
+# --- Pre-process profiles to count runtimes (for AddType="auto") ---
+$runtimeCounts = @{}
+if ($AddType -is [string] -and $AddType -eq 'auto') {
+    Write-Verbose "AddType='auto' detected. Pre-calculating runtime counts."
+    foreach ($file in $pubxmlFiles) {
+        try {
+            [xml]$xmlContent = Get-Content $file.FullName
+            # Check if PropertyGroup and RuntimeIdentifier exist before accessing
+            $profileRuntimeNode = $xmlContent.SelectSingleNode("/Project/PropertyGroup/RuntimeIdentifier")
+            if ($null -ne $profileRuntimeNode) {
+                $profileRuntime = $profileRuntimeNode.'#text'.Trim()
+                if (-not [string]::IsNullOrEmpty($profileRuntime)) {
+                    if ($runtimeCounts.ContainsKey($profileRuntime)) {
+                        $runtimeCounts[$profileRuntime]++
+                    } else {
+                        $runtimeCounts[$profileRuntime] = 1
+                    }
+                } else {
+                     Write-Verbose "Profile '$($file.Name)' has an empty RuntimeIdentifier. Skipping for count."
+                }
+            } else {
+                Write-Verbose "Skipping profile '$($file.Name)' for runtime count: RuntimeIdentifier node not found."
+            }
+        } catch {
+            Write-Warning "Error processing '$($file.Name)' for runtime count: $($_.Exception.Message)"
+        }
+    }
+    # You can uncomment the next line for debugging if needed
+    # Write-Host "DEBUG: Runtime counts calculated: $($runtimeCounts | Out-String)"
+}
+# --- End Pre-processing ---
 
 foreach ($pubxmlFile in $pubxmlFiles) {
     Write-Host "`n--------------------------------------------------"
@@ -308,34 +362,145 @@ foreach ($pubxmlFile in $pubxmlFiles) {
         continue # Skip this profile if version couldn't be found
     }
 
-    # Sanitize version string for filename (replace potentially invalid chars like '+')
-    $safeVersion = $version -replace '[^a-zA-Z0-9\.\-]', '_'
+    # Construct the desired output assembly name based on parameters
+	# --- Initialize filename components ---
+	$versionPart = ""
+	$runtimePart = ""
+	$logVersion = "(without version)"
+	$logRuntime = "(without runtime)"
 
-    # Construct the desired output assembly name
-    $assemblyName = "{0}_{1}_{2}-{3}" -f $fileNameBase, $safeVersion, $architecture, $type
+	# --- Populate Version Component (if requested) ---
+	if ($AddVersion) {
+		# Note: $version should have been retrieved earlier, before the original block you're replacing.
+		# If $version retrieval failed earlier, the script should have already skipped via 'continue'.
+		if (-not [string]::IsNullOrEmpty($version)) {
+			$safeVersion = $version -replace '[^a-zA-Z0-9\.\-]', '_'
+			$versionPart = "_$safeVersion" # Set the version part including separator
+			$logVersion = "(with version $version)"
+		} else {
+			 # This case should ideally not be reached if the earlier check worked, but as a safeguard:
+			 Write-Warning "Version was requested but could not be determined for '$($pubxmlFile.Name)'. Version part will be missing."
+		}
+	}
 
-    # Run publish command
-    Write-Host "Publishing '$($pubxmlFile.BaseName)' | Runtime: $runtime | Arch: $architecture | Type: $type | Version: $version | Output Assembly: $assemblyName"
-    # Add /p:UseAppHost=true to ensure an .exe is generated, especially for framework-dependent console apps if needed. Often default for WinExe.
+	# --- Populate Runtime/Architecture Component (based on switches) ---
+	$runtimeOrArchPart = "_$safeRuntime"               # Holds the string to append (e.g., "_linux-x64-SelfContained" or "_x64")
+	$logRuntimeOrArch = "(with runtime $safeRuntime)" # Log message part
+
+	if ($AddRuntime) { # Add Full Runtime + Type (takes precedence)
+		# $runtime is the full ID from pubxml (e.g., "linux-x64", "osx-arm64", "win-x64")
+		# $isSelfContained is boolean from pubxml
+		$type = if ($isSelfContained) { "SelfContained" } else { "Framework" }
+		# Sanitize the runtime string if needed (hyphens are generally safe)
+		$safeRuntime = $runtime # Or add: -replace '[^a-zA-Z0-9\-\.]', '_'
+		if (-not [string]::IsNullOrEmpty($safeRuntime)) {
+			 $runtimeOrArchPart = "_$safeRuntime"
+			 $logRuntimeOrArch = "(with runtime $safeRuntime)"
+		} else {
+			 Write-Warning "Runtime info was requested (-AddRuntime) but runtime ID from profile '$($pubxmlFile.Name)' was empty. Runtime part will be missing."
+		}
+
+	} elseif ($AddArchitecture) { # Add Architecture ONLY (if -AddRuntime wasn't used)
+		 # $runtime is the full ID from pubxml
+		 $architecture = if ($runtime -like "*-arm64*") { "ARM64" } elseif ($runtime -like "*-x64*") { "x64" } elseif ($runtime -like "*-x86*") { "x86" } else { $null } # Added x86 explicitly and default null
+		 if (-not [string]::IsNullOrEmpty($architecture)) {
+			$runtimeOrArchPart = "_$architecture"
+			$logRuntimeOrArch = "(with architecture $architecture)"
+		 } else {
+			Write-Warning "Architecture info was requested (-AddArchitecture) but could not be determined from runtime ID '$runtime' in profile '$($pubxmlFile.Name)'. Architecture part will be missing."
+		 }
+	}
+	
+	# --- Populate Type Component (if requested based on $AddType mode) ---
+	$typePart = ""
+	$logType = "(without type info)"
+	$addTypeFlag = $false # Flag to indicate if type should be added for this profile
+
+	# Determine the type string based on SelfContained property (needed for all modes)
+	# $isSelfContained is derived earlier in the loop from the pubxml
+	$type = if ($isSelfContained) { "SelfContained" } else { "Framework" }
+
+	# Check the state of the $AddType parameter
+	if ($AddType -is [System.Management.Automation.SwitchParameter] -and $AddType.IsPresent) {
+		# Mode 1: -AddType used as a switch - always add type
+		$addTypeFlag = $true
+		Write-Verbose "AddType switch detected. Adding type '$type'."
+
+	} elseif ($AddType -is [string] -and $AddType -eq 'auto') {
+		# Mode 2: -AddType "auto" - add type only if runtime is duplicated
+		# $runtime is derived earlier in the loop from the pubxml
+		Write-Verbose "AddType='auto' detected. Checking runtime '$runtime' count."
+		if ($runtimeCounts.ContainsKey($runtime) -and $runtimeCounts[$runtime] -gt 1) {
+			$addTypeFlag = $true
+			Write-Verbose "Runtime '$runtime' has count $($runtimeCounts[$runtime]) (>1). Adding type '$type'."
+		} else {
+			$countInfo = if ($runtimeCounts.ContainsKey($runtime)) { $runtimeCounts[$runtime] } else { 0 }
+			Write-Verbose "Runtime '$runtime' count is $countInfo (not >1). Not adding type."
+		}
+
+	} elseif ($AddType -is [string] -and -not [string]::IsNullOrEmpty($AddType) -and $AddType -ne 'auto') {
+		# Handle invalid string value for AddType
+		Write-Warning "Invalid string value '$AddType' provided for -AddType parameter. Ignoring type addition. Use '-AddType' (switch) or '-AddType auto'."
+	}
+	# If $AddType is $null (not provided), $addTypeFlag remains $false
+
+	# Add the type part if the flag is set
+	if ($addTypeFlag) {
+		$typePart = "-$type" # Use hyphen as separator based on previous structure
+		$logType = "(with type $type)"
+	}
+	# --- End Type Component Population ---
+
+	# If neither switch is present, $runtimeOrArchPart remains ""
+
+	# --- Assemble Final Name and Log Message (Single Point) ---
+	# $versionPart should have been calculated based on $AddVersion before this block
+	$assemblyName = $fileNameBase + $versionPart + $runtimeOrArchPart + $typePart
+
+	# Construct log message using the pre-determined parts
+	# $logVersion should be set based on $AddVersion before this block
+	$publishLogMessage = "Publishing '$($pubxmlFile.BaseName)' $logVersion $logRuntimeOrArch $logType | Profile Runtime: $runtime | Output Assembly: $assemblyName"
+
+	Write-Host $publishLogMessage
+	
+	# Add /p:UseAppHost=true to ensure an .exe is generated, especially for framework-dependent console apps if needed. Often default for WinExe.
     # Consider adding /p:PublishSingleFile=true or /p:PublishTrimmed=true if desired based on profiles
     dotnet publish /p:PublishProfile=$($pubxmlFile.BaseName) /p:AssemblyName=$assemblyName /p:Configuration=Release # Ensure Release config is passed
 
     # Check the expected output path based on PublishDir and AssemblyName
-    $sourceExe = Join-Path $publishDir "$assemblyName.exe"
-    if (Test-Path $sourceExe) {
-        Copy-Item $sourceExe -Destination $resultsDir -Force
-        Write-Host "Successfully published and copied '$($assemblyName).exe' to $resultsDir"
-    } else {
-        # If .exe isn't found, maybe it's a DLL (e.g., class library)? Check for .dll
-        $sourceDll = Join-Path $publishDir "$assemblyName.dll"
-        if (Test-Path $sourceDll) {
-             Copy-Item $sourceDll -Destination $resultsDir -Force
-             Write-Host "Successfully published and copied '$($assemblyName).dll' to $resultsDir"
-        } else {
-             Write-Warning "Warning: Could not find published output '$($assemblyName).exe' or '$($assemblyName).dll' at expected location: $publishDir"
-             Write-Warning "Check the build output and ensure the PublishDir '$publishDir' in '$($pubxmlFile.Name)' is correct relative to the project directory."
-        }
-    }
+	# Define potential output file paths
+	$sourceExe = Join-Path $publishDir "$assemblyName.exe"       # Windows executable
+	$sourceNoExt = Join-Path $publishDir $assemblyName           # Linux/macOS executable (no extension)
+	$sourceDll = Join-Path $publishDir "$assemblyName.dll"       # DLL (less common for executables with current settings)
+
+	# Determine which file actually exists
+	$sourceFileToCopy = $null
+	$foundFileName = $null
+
+	if (Test-Path $sourceExe) {
+		$sourceFileToCopy = $sourceExe
+		$foundFileName = "$assemblyName.exe"
+	} elseif (Test-Path $sourceNoExt) { # IMPORTANT: Check for no extension *before* DLL
+		$sourceFileToCopy = $sourceNoExt
+		$foundFileName = $assemblyName
+	} elseif (Test-Path $sourceDll) {
+		$sourceFileToCopy = $sourceDll
+		$foundFileName = "$assemblyName.dll"
+	}
+
+	# Copy the file if one was found, otherwise issue a warning
+	if ($sourceFileToCopy) {
+		try {
+			Copy-Item -Path $sourceFileToCopy -Destination $resultsDir -Force -ErrorAction Stop
+			Write-Host "Successfully published and copied '$foundFileName' to $resultsDir"
+		} catch {
+			Write-Error "Error copying '$foundFileName' from '$($sourceFileToCopy)' to '$resultsDir': $($_.Exception.Message)"
+		}
+	} else {
+		# None of the expected formats were found
+		Write-Warning "Warning: Could not find published output '$($assemblyName).exe', '$assemblyName' (no extension), or '$($assemblyName).dll' at expected location: '$publishDir'"
+		Write-Warning "Check the build output, ensure PublishDir in '$($pubxmlFile.Name)' is correct, and that the AssemblyName parameter passed to dotnet publish matches the actual output file name."
+	}
 }
 
 # List all files in the results directory
@@ -354,10 +519,10 @@ Write-Host "--------------------------------------------------"
 # Keep the window open
 Read-Host "Script finished. Press Enter to exit..."
 # SIG # Begin signature block
-# MII6fgYJKoZIhvcNAQcCoII6bzCCOmsCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MII6jwYJKoZIhvcNAQcCoII6gDCCOnwCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCASj0cFzjSaOedi
-# E8JgySGJVfy7JnbUw2I84NHUepgm6aCCIrQwggXMMIIDtKADAgECAhBUmNLR1FsZ
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCOOOqA3sEO7r4v
+# /+WkzWUjZ43FiAYnATVn359LPNH+qaCCIrQwggXMMIIDtKADAgECAhBUmNLR1FsZ
 # lUgTecgRwIeZMA0GCSqGSIb3DQEBDAUAMHcxCzAJBgNVBAYTAlVTMR4wHAYDVQQK
 # ExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xSDBGBgNVBAMTP01pY3Jvc29mdCBJZGVu
 # dGl0eSBWZXJpZmljYXRpb24gUm9vdCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkgMjAy
@@ -542,129 +707,129 @@ Read-Host "Script finished. Press Enter to exit..."
 # Dwqq/jwzwd8Wo2J83r7O3onQbDO9TyDStgaBNlHzMMQgl95nHBYMelLEHkUnVVVT
 # UsgC0Huj09duNfMaJ9ogxhPNThgq3i8w3DAGZ61AMeF0C1M+mU5eucj1Ijod5O2M
 # MPeJQ3/vKBtqGZg4eTtUHt/BPjN74SsJsyHqAdXVS5c+ItyKWg3Eforhox9k3Wgt
-# WTpgV4gkSiS4+A09roSdOI4vrRw+p+fL4WrxSK5nMYIXIDCCFxwCAQEwcTBaMQsw
+# WTpgV4gkSiS4+A09roSdOI4vrRw+p+fL4WrxSK5nMYIXMTCCFy0CAQEwcTBaMQsw
 # CQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMSswKQYD
 # VQQDEyJNaWNyb3NvZnQgSUQgVmVyaWZpZWQgQ1MgQU9DIENBIDAyAhMzAAM6+rLY
 # O+J0xhAzAAAAAzr6MA0GCWCGSAFlAwQCAQUAoF4wEAYKKwYBBAGCNwIBDDECMAAw
-# GQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwLwYJKoZIhvcNAQkEMSIEIPadbYj8
-# vbQliqSGprdzwpJKJr22+TXZ2m7282sfO/yyMA0GCSqGSIb3DQEBAQUABIIBgBmI
-# 1fY5yuc3KjGxw9XjASfHy8uEaXeoBR8F6VQ1DBSSwqWZsG5/Y/3bvyhi9EimrBX0
-# c+8OCETBJ+wVy47LCo9comhmgEe3WRiGxDr2L8KAyZ7nH03nXASj7q5etYjy5m3F
-# UZYZD7ZYvdpE9/1NF1WA7LKwFRHidnpOLRNsk1RGyfwnNNZ5VZyVqIGrLRdsu2Rc
-# DW86kUYt3Ug3SMKw6CFSfLOHBGq4TBdFUlTOv5yEJ9Vy378nLbltROYqtqSRe7lq
-# EHQezFz9najVdjWyWmQTAkxA/mAe4ioOM/yfR9Xqo1R1ToeQB5bTwMBo8UVrnjVm
-# h5NQdsFEN7R66SLOMSH0/+Xmq18QEVZXdZA32aUBxVgeo8NvvVoQxJ2BDzGBM64h
-# 5l2oG7PdU1rHt1GH4kwCgfoNd02OzqFupexSSfP4swF1dGmF2KwPNa6AKz0IErz8
-# JwbEkp5CxpWfcdgoZAazkZdrm5tJ8x0B9Xa15j+JGP4PaapuVzjh0YG4Xjt5vKGC
-# FKAwghScBgorBgEEAYI3AwMBMYIUjDCCFIgGCSqGSIb3DQEHAqCCFHkwghR1AgED
-# MQ8wDQYJYIZIAWUDBAIBBQAwggFhBgsqhkiG9w0BCRABBKCCAVAEggFMMIIBSAIB
-# AQYKKwYBBAGEWQoDATAxMA0GCWCGSAFlAwQCAQUABCBFtwqg6aaEcQ0Z6XtruNxN
-# t4zft8zn6QGjE9BUGvqARAIGZ+bp8BM2GBMyMDI1MDQwNDE4NTQyMS4zMzhaMASA
-# AgH0oIHgpIHdMIHaMQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQ
-# MA4GA1UEBxMHUmVkbW9uZDEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
-# MSUwIwYDVQQLExxNaWNyb3NvZnQgQW1lcmljYSBPcGVyYXRpb25zMSYwJAYDVQQL
-# Ex1UaGFsZXMgVFNTIEVTTjpCQjczLTk2RkQtNzdFRjE1MDMGA1UEAxMsTWljcm9z
-# b2Z0IFB1YmxpYyBSU0EgVGltZSBTdGFtcGluZyBBdXRob3JpdHmggg8gMIIHgjCC
-# BWqgAwIBAgITMwAAAAXlzw//Zi7JhwAAAAAABTANBgkqhkiG9w0BAQwFADB3MQsw
-# CQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMUgwRgYD
-# VQQDEz9NaWNyb3NvZnQgSWRlbnRpdHkgVmVyaWZpY2F0aW9uIFJvb3QgQ2VydGlm
-# aWNhdGUgQXV0aG9yaXR5IDIwMjAwHhcNMjAxMTE5MjAzMjMxWhcNMzUxMTE5MjA0
-# MjMxWjBhMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0
+# GQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwLwYJKoZIhvcNAQkEMSIEIL/qT2EW
+# eb0rB0zaiDhnc/0htDFET1F3T7qNJPPfcPaHMA0GCSqGSIb3DQEBAQUABIIBgIEL
+# Plyh+0qBvsVPC5VIZ/DxhGQ36A0a7s+NuNuQmGFzwDjTLJHq18bo1hgwpq6jePNM
+# ZD4nOczpgzFuawZRiyEGXUIaW7RH/hoiJbOG4FxhqeXw54j8xoD862dDdmBHwaSB
+# Zey/+ylTJHJMuSbMllV+z9pR+vwSJqop4hBGfG6Mya2kdNrDv6tlhU6HCEp+EZ8F
+# RpmNl8NB/PMao/yhYWXPzjBV/VmVWaxp5sFG4pA9f/zIlBV411zx4FO46/Qs8TK0
+# jaf5g/ARQec+lNwcksG4qUMA6R2A1Ir7FJ0bQxl7kY3b0WGLv6vE8EUe+3/axTN0
+# 7ZMjhDfGO56DwVnBUL8qiDwyXqZTFhD2z52p7R5wEo8VrU/akciX2ETi96VZyVQd
+# +B6sshk9OYhVcWT0bW5ADwWtZ6BfInYPuD8KQc1MXNzGK6TgGdvbOXMMEQAUJ/Sh
+# chcr/+SUJQt2992ZHBhzrU+WbrXq5RqjTdHeOWJITgAxqdPE+4QMDINoz7OZSKGC
+# FLEwghStBgorBgEEAYI3AwMBMYIUnTCCFJkGCSqGSIb3DQEHAqCCFIowghSGAgED
+# MQ8wDQYJYIZIAWUDBAIBBQAwggFpBgsqhkiG9w0BCRABBKCCAVgEggFUMIIBUAIB
+# AQYKKwYBBAGEWQoDATAxMA0GCWCGSAFlAwQCAQUABCBuwUoJJ8XbL7n0vGRJaGL/
+# w+9/3gcJ016QhW5bh+VGewIGZ+U6K7QPGBIyMDI1MDQwNDIwMzQyNC4wN1owBIAC
+# AfSggemkgeYwgeMxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAw
+# DgYDVQQHEwdSZWRtb25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24x
+# LTArBgNVBAsTJE1pY3Jvc29mdCBJcmVsYW5kIE9wZXJhdGlvbnMgTGltaXRlZDEn
+# MCUGA1UECxMeblNoaWVsZCBUU1MgRVNOOjQ5MUEtMDVFMC1EOTQ3MTUwMwYDVQQD
+# EyxNaWNyb3NvZnQgUHVibGljIFJTQSBUaW1lIFN0YW1waW5nIEF1dGhvcml0eaCC
+# DykwggeCMIIFaqADAgECAhMzAAAABeXPD/9mLsmHAAAAAAAFMA0GCSqGSIb3DQEB
+# DAUAMHcxCzAJBgNVBAYTAlVTMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRp
+# b24xSDBGBgNVBAMTP01pY3Jvc29mdCBJZGVudGl0eSBWZXJpZmljYXRpb24gUm9v
+# dCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkgMjAyMDAeFw0yMDExMTkyMDMyMzFaFw0z
+# NTExMTkyMDQyMzFaMGExCzAJBgNVBAYTAlVTMR4wHAYDVQQKExVNaWNyb3NvZnQg
+# Q29ycG9yYXRpb24xMjAwBgNVBAMTKU1pY3Jvc29mdCBQdWJsaWMgUlNBIFRpbWVz
+# dGFtcGluZyBDQSAyMDIwMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA
+# nnznUmP94MWfBX1jtQYioxwe1+eXM9ETBb1lRkd3kcFdcG9/sqtDlwxKoVIcaqDb
+# +omFio5DHC4RBcbyQHjXCwMk/l3TOYtgoBjxnG/eViS4sOx8y4gSq8Zg49REAf5h
+# uXhIkQRKe3Qxs8Sgp02KHAznEa/Ssah8nWo5hJM1xznkRsFPu6rfDHeZeG1Wa1wI
+# SvlkpOQooTULFm809Z0ZYlQ8Lp7i5F9YciFlyAKwn6yjN/kR4fkquUWfGmMopNq/
+# B8U/pdoZkZZQbxNlqJOiBGgCWpx69uKqKhTPVi3gVErnc/qi+dR8A2MiAz0kN0nh
+# 7SqINGbmw5OIRC0EsZ31WF3Uxp3GgZwetEKxLms73KG/Z+MkeuaVDQQheangOEMG
+# J4pQZH55ngI0Tdy1bi69INBV5Kn2HVJo9XxRYR/JPGAaM6xGl57Ei95HUw9NV/uC
+# 3yFjrhc087qLJQawSC3xzY/EXzsT4I7sDbxOmM2rl4uKK6eEpurRduOQ2hTkmG1h
+# SuWYBunFGNv21Kt4N20AKmbeuSnGnsBCd2cjRKG79+TX+sTehawOoxfeOO/jR7wo
+# 3liwkGdzPJYHgnJ54UxbckF914AqHOiEV7xTnD1a69w/UTxwjEugpIPMIIE67SFZ
+# 2PMo27xjlLAHWW3l1CEAFjLNHd3EQ79PUr8FUXetXr0CAwEAAaOCAhswggIXMA4G
+# A1UdDwEB/wQEAwIBhjAQBgkrBgEEAYI3FQEEAwIBADAdBgNVHQ4EFgQUa2koOjUv
+# SGNAz3vYr0npPtk92yEwVAYDVR0gBE0wSzBJBgRVHSAAMEEwPwYIKwYBBQUHAgEW
+# M2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvRG9jcy9SZXBvc2l0b3J5
+# Lmh0bTATBgNVHSUEDDAKBggrBgEFBQcDCDAZBgkrBgEEAYI3FAIEDB4KAFMAdQBi
+# AEMAQTAPBgNVHRMBAf8EBTADAQH/MB8GA1UdIwQYMBaAFMh+0mqFKhvKGZgEByfP
+# UBBPaKiiMIGEBgNVHR8EfTB7MHmgd6B1hnNodHRwOi8vd3d3Lm1pY3Jvc29mdC5j
+# b20vcGtpb3BzL2NybC9NaWNyb3NvZnQlMjBJZGVudGl0eSUyMFZlcmlmaWNhdGlv
+# biUyMFJvb3QlMjBDZXJ0aWZpY2F0ZSUyMEF1dGhvcml0eSUyMDIwMjAuY3JsMIGU
+# BggrBgEFBQcBAQSBhzCBhDCBgQYIKwYBBQUHMAKGdWh0dHA6Ly93d3cubWljcm9z
+# b2Z0LmNvbS9wa2lvcHMvY2VydHMvTWljcm9zb2Z0JTIwSWRlbnRpdHklMjBWZXJp
+# ZmljYXRpb24lMjBSb290JTIwQ2VydGlmaWNhdGUlMjBBdXRob3JpdHklMjAyMDIw
+# LmNydDANBgkqhkiG9w0BAQwFAAOCAgEAX4h2x35ttVoVdedMeGj6TuHYRJklFaW4
+# sTQ5r+k77iB79cSLNe+GzRjv4pVjJviceW6AF6ycWoEYR0LYhaa0ozJLU5Yi+LCm
+# crdovkl53DNt4EXs87KDogYb9eGEndSpZ5ZM74LNvVzY0/nPISHz0Xva71QjD4h+
+# 8z2XMOZzY7YQ0Psw+etyNZ1CesufU211rLslLKsO8F2aBs2cIo1k+aHOhrw9xw6J
+# CWONNboZ497mwYW5EfN0W3zL5s3ad4Xtm7yFM7Ujrhc0aqy3xL7D5FR2J7x9cLWM
+# q7eb0oYioXhqV2tgFqbKHeDick+P8tHYIFovIP7YG4ZkJWag1H91KlELGWi3SLv1
+# 0o4KGag42pswjybTi4toQcC/irAodDW8HNtX+cbz0sMptFJK+KObAnDFHEsukxD+
+# 7jFfEV9Hh/+CSxKRsmnuiovCWIOb+H7DRon9TlxydiFhvu88o0w35JkNbJxTk4Mh
+# F/KgaXn0GxdH8elEa2Imq45gaa8D+mTm8LWVydt4ytxYP/bqjN49D9NZ81coE6aQ
+# Wm88TwIf4R4YZbOpMKN0CyejaPNN41LGXHeCUMYmBx3PkP8ADHD1J2Cr/6tjuOOC
+# ztfp+o9Nc+ZoIAkpUcA/X2gSMkgHAPUvIdtoSAHEUKiBhI6JQivRepyvWcl+JYbY
+# bBh7pmgAXVswggefMIIFh6ADAgECAhMzAAAATqPGDj4xw3QnAAAAAABOMA0GCSqG
+# SIb3DQEBDAUAMGExCzAJBgNVBAYTAlVTMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29y
+# cG9yYXRpb24xMjAwBgNVBAMTKU1pY3Jvc29mdCBQdWJsaWMgUlNBIFRpbWVzdGFt
+# cGluZyBDQSAyMDIwMB4XDTI1MDIyNzE5NDAxN1oXDTI2MDIyNjE5NDAxN1owgeMx
+# CzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdSZWRt
+# b25kMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLTArBgNVBAsTJE1p
+# Y3Jvc29mdCBJcmVsYW5kIE9wZXJhdGlvbnMgTGltaXRlZDEnMCUGA1UECxMeblNo
+# aWVsZCBUU1MgRVNOOjQ5MUEtMDVFMC1EOTQ3MTUwMwYDVQQDEyxNaWNyb3NvZnQg
+# UHVibGljIFJTQSBUaW1lIFN0YW1waW5nIEF1dGhvcml0eTCCAiIwDQYJKoZIhvcN
+# AQEBBQADggIPADCCAgoCggIBAIbflIu6bAltld7nRX0T6SbF4bEMjoEmU7dL7ZHB
+# sOQtg5hiGs8GQlrZVE1yAWzGArehop47rm2Q0Widteu8M0H/c7caoehVD1so8GY0
+# Vo12kfImQp1qt5A1kcTcYXWmyQbeLx9w8KHBnIHpesP+sk2STglYsFu3CtHtIFXj
+# rLAF7+NjA0Urws3ny5bPd+tjxO6vFIY3V6yXb3GIbcHbfmleNfra4ZEAA/hFxDDd
+# m2ReLt/6ij7iVM7Q6EbDQrguRMQydF8HEyLP98iGKHEH36mcz+eJ9Xl/bva+Pk/9
+# Yj1aic2MBrA7YTbY/hdw3HSskxvUUgNIcKFQVsz36FSMXQOzVXW1cFXL4UiGqw+y
+# lClJcZ0l3H0Aiwsnpvo0t9v4zD5jwJrmeNIlKBeH5EGbfXPelbVEZ2ntMBCgPegB
+# 5qelqo+bMfSz9lRTO2c7LByYfQs6UOJL2JhgrZoT+g7WNSEZKXQ+o6DXujpif5XT
+# MdMzWCOOiJnMcevpZdD2aYaOEGFXUm51QE2JLKni/71ecZjI6Df4C6vBXRV7WT76
+# BYUgcEa08kYbW5kN0jjnBPGFASr9SSnZNGFKQ4J8MyRxEBPZTN33MX9Pz+3ZfZF4
+# mS8oyXMCcOmE406M9RSQP9bTVWVuOR0MHo56EpUAK1hVLKfuSD0dEwbGiMawHrel
+# OKNBAgMBAAGjggHLMIIBxzAdBgNVHQ4EFgQU8Me6g3SqStL0tyd5iw4rvw1NamIw
+# HwYDVR0jBBgwFoAUa2koOjUvSGNAz3vYr0npPtk92yEwbAYDVR0fBGUwYzBhoF+g
+# XYZbaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9jcmwvTWljcm9zb2Z0
+# JTIwUHVibGljJTIwUlNBJTIwVGltZXN0YW1waW5nJTIwQ0ElMjAyMDIwLmNybDB5
+# BggrBgEFBQcBAQRtMGswaQYIKwYBBQUHMAKGXWh0dHA6Ly93d3cubWljcm9zb2Z0
+# LmNvbS9wa2lvcHMvY2VydHMvTWljcm9zb2Z0JTIwUHVibGljJTIwUlNBJTIwVGlt
+# ZXN0YW1waW5nJTIwQ0ElMjAyMDIwLmNydDAMBgNVHRMBAf8EAjAAMBYGA1UdJQEB
+# /wQMMAoGCCsGAQUFBwMIMA4GA1UdDwEB/wQEAwIHgDBmBgNVHSAEXzBdMFEGDCsG
+# AQQBgjdMg30BATBBMD8GCCsGAQUFBwIBFjNodHRwOi8vd3d3Lm1pY3Jvc29mdC5j
+# b20vcGtpb3BzL0RvY3MvUmVwb3NpdG9yeS5odG0wCAYGZ4EMAQQCMA0GCSqGSIb3
+# DQEBDAUAA4ICAQATJnMrpCGuWq9ZOgEKcKyPZj71n/JpX9SYaTK/qOrPsIxzf/qv
+# q//uj0dTBnfx7KW0aI1Yz2C6Q78g1b80AU8ARNyoIhmT2SWNI8k7FLo7qeWSzN4b
+# cgDgTRSaKGPiWWbJtEjbCgbIkNJ3ZTP9iBJCsxZwv6a45an9ApG1NV/wP8niV0RB
+# CH9SIHmD6sv34lxlzHTgGGf1n289fg/LoSMsLFPZ4+G3p0KYu7A5fz616IBk9ZWp
+# XQxHFNcSMg/rlwbO65k0k0sRrUlIWkk+71nt2NgpsFaWi2JYq0msX0uzV3LbLaWf
+# Kzg1B3ugoSXLypZg3pPypkdXh1wra9h222RuzjyOmwyWi7jTQUBOPZenyapbJhAZ
+# XlCxOBaN00bs1V+zUg2miNte9E8CWHagq+Rts/1iSiPCwWmMKfqilSSdSMtYSXMy
+# ciCKWexeRjAX0QovSsGv0pMqkYfPa5ubnI03ab/A6Kod2TEF8ufShV9sQSqbDscM
+# W12TQOboyTUhc8wPp8p2WWejvrH+9AUO6hToaYeM4jMmmOcAAlpHm2AY+GAk+Y54
+# d6DYA6NBED+CSEFSakUVRqNbkN4mN1SOklodZhvRphmF9Ot0DuzLu/KByWIfHbaY
+# /wTusrEVGH4W4n39FmcMIvVbMpeOENZ59+xGiFwt5izuabZiHN/EFR4leTGCA9Qw
+# ggPQAgEBMHgwYTELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jw
+# b3JhdGlvbjEyMDAGA1UEAxMpTWljcm9zb2Z0IFB1YmxpYyBSU0EgVGltZXN0YW1w
+# aW5nIENBIDIwMjACEzMAAABOo8YOPjHDdCcAAAAAAE4wDQYJYIZIAWUDBAIBBQCg
+# ggEtMBoGCSqGSIb3DQEJAzENBgsqhkiG9w0BCRABBDAvBgkqhkiG9w0BCQQxIgQg
+# zQIoL69ZCBr7L5Ie7appyokBHCNmFgEypalQ5Ap8bAcwgd0GCyqGSIb3DQEJEAIv
+# MYHNMIHKMIHHMIGgBCBvsqfT7ygFHbDe/Tj3QCn25JHDuUhgytNPRb67/5ZKFzB8
+# MGWkYzBhMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0
 # aW9uMTIwMAYDVQQDEylNaWNyb3NvZnQgUHVibGljIFJTQSBUaW1lc3RhbXBpbmcg
-# Q0EgMjAyMDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAJ5851Jj/eDF
-# nwV9Y7UGIqMcHtfnlzPREwW9ZUZHd5HBXXBvf7KrQ5cMSqFSHGqg2/qJhYqOQxwu
-# EQXG8kB41wsDJP5d0zmLYKAY8Zxv3lYkuLDsfMuIEqvGYOPURAH+Ybl4SJEESnt0
-# MbPEoKdNihwM5xGv0rGofJ1qOYSTNcc55EbBT7uq3wx3mXhtVmtcCEr5ZKTkKKE1
-# CxZvNPWdGWJUPC6e4uRfWHIhZcgCsJ+sozf5EeH5KrlFnxpjKKTavwfFP6XaGZGW
-# UG8TZaiTogRoAlqcevbiqioUz1Yt4FRK53P6ovnUfANjIgM9JDdJ4e0qiDRm5sOT
-# iEQtBLGd9Vhd1MadxoGcHrRCsS5rO9yhv2fjJHrmlQ0EIXmp4DhDBieKUGR+eZ4C
-# NE3ctW4uvSDQVeSp9h1SaPV8UWEfyTxgGjOsRpeexIveR1MPTVf7gt8hY64XNPO6
-# iyUGsEgt8c2PxF87E+CO7A28TpjNq5eLiiunhKbq0XbjkNoU5JhtYUrlmAbpxRjb
-# 9tSreDdtACpm3rkpxp7AQndnI0Shu/fk1/rE3oWsDqMX3jjv40e8KN5YsJBnczyW
-# B4JyeeFMW3JBfdeAKhzohFe8U5w9WuvcP1E8cIxLoKSDzCCBOu0hWdjzKNu8Y5Sw
-# B1lt5dQhABYyzR3dxEO/T1K/BVF3rV69AgMBAAGjggIbMIICFzAOBgNVHQ8BAf8E
-# BAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFGtpKDo1L0hjQM972K9J
-# 6T7ZPdshMFQGA1UdIARNMEswSQYEVR0gADBBMD8GCCsGAQUFBwIBFjNodHRwOi8v
-# d3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL0RvY3MvUmVwb3NpdG9yeS5odG0wEwYD
-# VR0lBAwwCgYIKwYBBQUHAwgwGQYJKwYBBAGCNxQCBAweCgBTAHUAYgBDAEEwDwYD
-# VR0TAQH/BAUwAwEB/zAfBgNVHSMEGDAWgBTIftJqhSobyhmYBAcnz1AQT2ioojCB
-# hAYDVR0fBH0wezB5oHegdYZzaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9w
-# cy9jcmwvTWljcm9zb2Z0JTIwSWRlbnRpdHklMjBWZXJpZmljYXRpb24lMjBSb290
-# JTIwQ2VydGlmaWNhdGUlMjBBdXRob3JpdHklMjAyMDIwLmNybDCBlAYIKwYBBQUH
-# AQEEgYcwgYQwgYEGCCsGAQUFBzAChnVodHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20v
-# cGtpb3BzL2NlcnRzL01pY3Jvc29mdCUyMElkZW50aXR5JTIwVmVyaWZpY2F0aW9u
-# JTIwUm9vdCUyMENlcnRpZmljYXRlJTIwQXV0aG9yaXR5JTIwMjAyMC5jcnQwDQYJ
-# KoZIhvcNAQEMBQADggIBAF+Idsd+bbVaFXXnTHho+k7h2ESZJRWluLE0Oa/pO+4g
-# e/XEizXvhs0Y7+KVYyb4nHlugBesnFqBGEdC2IWmtKMyS1OWIviwpnK3aL5Jedwz
-# beBF7POyg6IGG/XhhJ3UqWeWTO+Czb1c2NP5zyEh89F72u9UIw+IfvM9lzDmc2O2
-# END7MPnrcjWdQnrLn1Ntday7JSyrDvBdmgbNnCKNZPmhzoa8PccOiQljjTW6GePe
-# 5sGFuRHzdFt8y+bN2neF7Zu8hTO1I64XNGqst8S+w+RUdie8fXC1jKu3m9KGIqF4
-# aldrYBamyh3g4nJPj/LR2CBaLyD+2BuGZCVmoNR/dSpRCxlot0i79dKOChmoONqb
-# MI8m04uLaEHAv4qwKHQ1vBzbV/nG89LDKbRSSvijmwJwxRxLLpMQ/u4xXxFfR4f/
-# gksSkbJp7oqLwliDm/h+w0aJ/U5ccnYhYb7vPKNMN+SZDWycU5ODIRfyoGl59BsX
-# R/HpRGtiJquOYGmvA/pk5vC1lcnbeMrcWD/26ozePQ/TWfNXKBOmkFpvPE8CH+Ee
-# GGWzqTCjdAsno2jzTeNSxlx3glDGJgcdz5D/AAxw9Sdgq/+rY7jjgs7X6fqPTXPm
-# aCAJKVHAP19oEjJIBwD1LyHbaEgBxFCogYSOiUIr0Xqcr1nJfiWG2GwYe6ZoAF1b
-# MIIHljCCBX6gAwIBAgITMwAAAEXfe+fnDAkWngAAAAAARTANBgkqhkiG9w0BAQwF
-# ADBhMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
-# MTIwMAYDVQQDEylNaWNyb3NvZnQgUHVibGljIFJTQSBUaW1lc3RhbXBpbmcgQ0Eg
-# MjAyMDAeFw0yNDExMjYxODQ4NDdaFw0yNTExMTkxODQ4NDdaMIHaMQswCQYDVQQG
-# EwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHUmVkbW9uZDEeMBwG
-# A1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9uMSUwIwYDVQQLExxNaWNyb3NvZnQg
-# QW1lcmljYSBPcGVyYXRpb25zMSYwJAYDVQQLEx1UaGFsZXMgVFNTIEVTTjpCQjcz
-# LTk2RkQtNzdFRjE1MDMGA1UEAxMsTWljcm9zb2Z0IFB1YmxpYyBSU0EgVGltZSBT
-# dGFtcGluZyBBdXRob3JpdHkwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoIC
-# AQDAjtP0N0JgNSdh+Pi9r4yT210+bHbdwvCUccgDxkQi5MSCsVXwXmAgAcPO+B2s
-# uloB81i3nL5W2nHlEdsVUmdGCfBYTcWsMoY7Wv6QVdxdELHNqNvuu/uf6kFLCHDA
-# qZB6JMDxRk26OiwtDVbSiM4QvvExziXmbMu6ADoIvrXzAvuBplbBo4arpFE4Lti/
-# WvXz7LU7aZKgQzMzeVWvc+8iPdROa1ui9F5k5zs2U+4Y9MDCNe2qlLXoZTsN/gKs
-# G8L1rmf0zXmioK1aNkRmWyB8zMDbwq9IqqpL9TJEFTBssQLSQ/p3+s7PLLS7EKA/
-# bn2e3NQXpz43teYLlfTg8Wjs5KcpywnTTiP1biCSLoy1EcGU9bWEHcRSU/Mx/Hu8
-# 9WT7/R6uHcMp7lRSJnnhoLqFyWTepzvg6hFxeRGKqF4Tt8MsyaQbMbOIx+KLyjUr
-# R9wNSEvUS19/YYvobQ3eqz/ay0mu2bijKhRElrCVM3nInznPNwXVdJozs/n3mOEX
-# PyAHhAFO+zrvBBrmeswlEc1ZOW+phsiahhhfvKHOYBQsU7d6yyeu8iuIamLWm/g2
-# +g9Ky+ChDvQONVSsNuJ/yDA6Uh5+ly6dsZjMIo1kLes57FTokZ5TQ2VksD1Q9oXe
-# nF6eMQWqxlZWvckp/r+xuy0AgWzIzZk4yK+Ujyl9pZLhbwIDAQABo4IByzCCAccw
-# HQYDVR0OBBYEFCXQ2+r1JdBEyafwHcavPYdjK5XyMB8GA1UdIwQYMBaAFGtpKDo1
-# L0hjQM972K9J6T7ZPdshMGwGA1UdHwRlMGMwYaBfoF2GW2h0dHA6Ly93d3cubWlj
-# cm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFB1YmxpYyUyMFJTQSUy
-# MFRpbWVzdGFtcGluZyUyMENBJTIwMjAyMC5jcmwweQYIKwYBBQUHAQEEbTBrMGkG
-# CCsGAQUFBzAChl1odHRwOi8vd3d3Lm1pY3Jvc29mdC5jb20vcGtpb3BzL2NlcnRz
-# L01pY3Jvc29mdCUyMFB1YmxpYyUyMFJTQSUyMFRpbWVzdGFtcGluZyUyMENBJTIw
-# MjAyMC5jcnQwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDAO
-# BgNVHQ8BAf8EBAMCB4AwZgYDVR0gBF8wXTBRBgwrBgEEAYI3TIN9AQEwQTA/Bggr
-# BgEFBQcCARYzaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9Eb2NzL1Jl
-# cG9zaXRvcnkuaHRtMAgGBmeBDAEEAjANBgkqhkiG9w0BAQwFAAOCAgEAbL2151p4
-# JPix4UcYsqBC15GI/LS3A22guo5TzSBZrOiLQvkMdAaFeJUMxUlv3O7UhTcnm6c3
-# HBp32EDr/iN67+QeBkXPcQSzNzNPjzSfPDHr3Na1U+4If/9vuHWo1nSntgqlqZQO
-# 7VmMFa5KaA+Er8aBUtcs7VNDqe2uNvPxswl/fkexQVa8JGts+lfiGE16lRsvSNTe
-# XVgQIeiV4OG2uepXm/6vP+VdDGEbJVKM+H41ODzRfCTw5//uxpie8x1bbzGh6VQs
-# hicWpPE+f7W8olfVCeUfMEFS1YpUM9T98wRFxTZQXTnZyGKfRMJBrI/xwAF3WNhg
-# gtAxq2JgnNIsAB02I8zH9yWmgPTDXd6CkwP0HdvHSrKu7PYxArfUpHhnCgoYt8LC
-# 65rLMHZoQNyndD5JUaCeBifxJpOOd5RkuiGH9aT0Dgs6RmEMFiMVDUGi1tNz0phR
-# XTklc1qF4xLBGIVC4J5mdO2rCE35SlM76VkbMGPE9hNc5tBitjq+wHiPOaDNXb5S
-# QTonadzMk/ot2KMavY8o+lDdtUbx2mqc5pjxqEq1Ci6hN8k8cbbkGutfbCE9yHzF
-# kFhJafQ1iP/JkqN79yuoli9SgQAuGiZBu4FTn4W/hT9HzHMxQYmCh4ciHyf06g03
-# YkS0w57KkjqhOsZVG0pi0fJmZvhrmBQzxNcxggPUMIID0AIBATB4MGExCzAJBgNV
-# BAYTAlVTMR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xMjAwBgNVBAMT
-# KU1pY3Jvc29mdCBQdWJsaWMgUlNBIFRpbWVzdGFtcGluZyBDQSAyMDIwAhMzAAAA
-# Rd975+cMCRaeAAAAAABFMA0GCWCGSAFlAwQCAQUAoIIBLTAaBgkqhkiG9w0BCQMx
-# DQYLKoZIhvcNAQkQAQQwLwYJKoZIhvcNAQkEMSIEIDXtI7TpQURnzH3YKsf1AO3f
-# pWMCJd5WD2GI/7a0S1HnMIHdBgsqhkiG9w0BCRACLzGBzTCByjCBxzCBoAQguARV
-# OsjIij9x4y/muE8czvSIz0XS68pBFQ5+Id/SbnEwfDBlpGMwYTELMAkGA1UEBhMC
-# VVMxHjAcBgNVBAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEyMDAGA1UEAxMpTWlj
-# cm9zb2Z0IFB1YmxpYyBSU0EgVGltZXN0YW1waW5nIENBIDIwMjACEzMAAABF33vn
-# 5wwJFp4AAAAAAEUwIgQgXsFeUvl2/QP8n8lYrnQNmVY7PxTPJSmCUXKBDAkfTcYw
-# DQYJKoZIhvcNAQELBQAEggIApV+qVSP/AnzqoGQRMV1Z/KSPBXd05xEK2TSI63xX
-# yTWRVlRpeQ/oMYQnAmJNtv8+7OnkitAlAH9kNLxtSx9OnbzYj29SC2RS7yCoQeQ2
-# 2Z4QpEBx7VXpC9p4J112c4/YtDnB8RKFp4LbvMjeeEuDxvRp/MGZ0oT3ufVmr0TW
-# DaJvF5OM3LnY8d2r2LoRRkBpBKK+SilqxtWBsC40HAvt0W+SgOEan24BAIozFfpi
-# vF9WUq4KZLYeFSlBPjnOh9O0mkAt8yemCyQTlBmp1xSOTw49SeGau2JdDNVw8qKs
-# vz4T+hRAUhF05aQK8srsNVHfNFdCJszo8tkSJBsBOPgEUWR5XW1SGYC6ZcxHE38r
-# RYVWwrRqPdOF7sGcr1eypvFe4vSGbfwlBCAlFxXMO8J/vZiAwXCiHrhxJItrU1D4
-# q2nadMYQd0W7oZ6uEJj2P8ER3J0FcZOX9k8W+pRZnxdFjCx/2oCGEwM1qjoTZB6z
-# qOGhfhb31DkOIvdVUe8MxScMbBSfS30Tru8I13Y8sHulmfqgr1KxdXGY3CEFvI5Y
-# TSU/pmrXgCE+UreZndNIPRTZ1/G5nYFSVRBve7th+5fst+XtSknRZCfrHtIYzLSQ
-# CIwkJ+b+M9ePcHaH908uyFe/WBnX3z5dzfS8ypRkExqvn8X0vDdARYGhuv5+Y8eQ
-# UUE=
+# Q0EgMjAyMAITMwAAAE6jxg4+McN0JwAAAAAATjAiBCCT1OrKp73/Yzob/NPOikig
+# aVFRhHGj9eRClEDIs0ro/jANBgkqhkiG9w0BAQsFAASCAgB2MMoUTrhas/Q0plqU
+# 00ZCj15pBcIUY2q5/5n9uetU8GsYoKqLaUfLWzDweqiKr0XLFeiawJBpd5J33ITe
+# XsT0DTQKdcqjIuKaqmbiuzLQQV3EiQbZzHeEjTpujK1iXzWWxli4A8u+T8U+mIrW
+# V6IUPS/MAj1CR5wH8VM2hG9Lb2eybZPsBTsLu87vYF3O6ALh4MDhUseWe3qxzynK
+# arqsVn0GejnF+OtMMz3F6/0/O2Iis3xoALa8cWW08LgbXDf5JA0u93cZuR6MwbZd
+# /MZ1swSFqwwACnxi+akp8CDyAm9D+v7TlHGNzdb2ls/P90N2Ajj1G6X90pTb4jle
+# Y+Ust9uYoY8GW3x41BpKy5JAvFCTHyv85N9I+aV13Cze61Cb2twqJHrwAVQLqIjP
+# j0aE6+2wDtKipicmdSgRy+mWnmJ93NcnhTCRMnyKQWCYuy5z29jT3nMInqPXE3YV
+# DP6yQx3H9YQ4xd0zNcSAN8VqF1ZElY9nfndsv3mHrG+BLhZCZiIOR33uwRUVkHpc
+# Ek7LHGv0XbPiiBaHsMG787tvG0LsFIS7mx+pnjABDbdkpYi1dqEdwgnjvUy/DY9p
+# Hc6IbQSqDFrFJhvfNfZGqDE4l78MGwdJo0j9lQQRdgbwG+7TPfo7PnZT6FnFTSWP
+# CEFx7fLIr8qBr8Cd0DzB2a7HjQ==
 # SIG # End signature block
