@@ -366,6 +366,10 @@ FodyWeavers.xsd
 *.config
 
 # Allow certain publishing profiles
-!Windows-FrameworkDependent-SingleFile.pubxml
-!Windows-Native-SingleFile.pubxml
+!Linux-arm64.pubxml
+!Linux-x64.pubxml
+!MacOS-arm64.pubxml
+!MacOS-x64.pubxml
+!Windows-FrameworkDependent.pubxml
+!Windows-Native.pubxml
 

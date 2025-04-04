@@ -1,13 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- Note: If multiple frameworks targeted, apparently the first framework listed is what gets used when debugging -->
-		<!-- <TargetFrameworks>net9.0</TargetFrameworks> -->
+		<!-- Note: If multiple framework OS versions targeted like net9.0-windows vs net9.0-macos, apparently the first framework listed is what gets used when debugging -->
+		<!-- <TargetFrameworks>net9.0;net6.0;net7.0;net8.0;</TargetFrameworks> -->
 		<TargetFramework>net9.0</TargetFramework>
 		
-		<!-- Default to console app, but on Windows make it a "Windows Application" so it doesn't attach to console by default, so can run purely background. -->
+		<!-- Default to console app, but if for Windows make it a "Windows Application" so it doesn't attach to console by default, so can run purely background. -->
 		<OutputType>Exe</OutputType>
-		<OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows'))">WinExe</OutputType>
+		<OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows')) Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
+			WinExe
+		</OutputType>
 
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
@@ -20,11 +22,12 @@
 		<ApplicationIcon>Icon.ico</ApplicationIcon>
 	</PropertyGroup>
 
-	<!-- Enable Native AOT and Trimming only if publishing self contained mode -->
-	<PropertyGroup Condition="'$(SelfContained)' == 'true'">
+	<!-- Enable Native AOT and Trimming only if publishing self contained mode AND it's for windows since native AOT doesn't work when cross compiling -->
+	<PropertyGroup Condition="'$(SelfContained)' == 'true' And $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
 		<PublishAot>true</PublishAot>
 		<PublishTrimmed>true</PublishTrimmed>
-    </PropertyGroup>
+	</PropertyGroup>
+	
 	<ItemGroup>
 	  <Content Include="Icon.ico" />
 	</ItemGroup>
