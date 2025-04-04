@@ -71,9 +71,32 @@
             _smallestResolution = otherMonitor._smallestResolution;
         }
 
+        private string GetTimeString(double seconds)
+        {
+            // ---------------- Local function -------------------
+            static string SecondsToTimeString(double seconds)
+            {
+                TimeSpan time = TimeSpan.FromSeconds(seconds);
+                if (time.Hours > 0)
+                {
+                    return $"{time.Hours:D2}:{time.Minutes:D2}:{time.Seconds:D2}";
+                }
+                else
+                {
+                    return $"{time.Minutes:D2}:{time.Seconds:D2}";
+                }
+            }
+            // --------------------------------------------------
+
+            if (_printDebug)
+                return seconds.ToString() + $" ({SecondsToTimeString(seconds)})";
+            else
+                return SecondsToTimeString(seconds);
+        }
+
         private void RewindOccurred()
         {
-            WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {_latestWatchedPosition}");
+            WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}");
             _activeSession.EnableSubtitles();
             _temporarilyDisplayingSubtitles = true;
         }
@@ -81,7 +104,7 @@
         // Disable subtitles but only if they were enabled by the monitor
         private void ReachedOriginalPosition()
         {
-            WriteWarning($"{_deviceName}: Reached original position ({_latestWatchedPosition}) for {_activeSession.MediaTitle}");
+            WriteWarning($"{_deviceName}: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}");
             if (!_subtitlesUserEnabled)
             {
                 _activeSession.DisableSubtitles();
