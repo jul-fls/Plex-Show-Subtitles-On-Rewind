@@ -19,7 +19,7 @@
 		<FileVersion>1.0.0</FileVersion>
 		<PublishAot>False</PublishAot>
 		<PublishTrimmed>False</PublishTrimmed>
-		<ApplicationIcon>Icon.ico</ApplicationIcon>
+		<ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<!-- Enable Native AOT and Trimming only if publishing self contained mode AND it's for windows since native AOT doesn't work when cross compiling -->
