@@ -30,11 +30,8 @@ namespace RewindSubtitleDisplayerForPlex
             ManualResetEvent _exitEvent = new ManualResetEvent(false);
 
             // ------------ Apply launch parameters ------------
-            bool runInBackground = LaunchArgs.Background.CheckIfMatchesInputArgs(args);
-            if (!runInBackground)
-            {
-                OS_Handlers.InitializeConsole(args);
-            }
+            bool runBackgroundArg = LaunchArgs.Background.CheckIfMatchesInputArgs(args);
+            OS_Handlers.HandleBackgroundArg(runBackgroundArg);
 
             if (LaunchArgs.Debug.CheckIfMatchesInputArgs(args))
                 debugMode = true;
@@ -64,7 +61,7 @@ namespace RewindSubtitleDisplayerForPlex
                 if (resultTuple == null)
                 {
                     Console.WriteLine("Failed to load tokens. Exiting.");
-                    if (!runInBackground) { Console.ReadLine(); }
+                    if (!runBackgroundArg) { Console.ReadLine(); }
                     return;
                 }
 
@@ -106,7 +103,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteErrorSuper($"Fatal error during startup: {ex.Message}\n");
                 Console.WriteLine(ex.StackTrace);
-                if (!runInBackground)
+                if (!runBackgroundArg)
                 {
                     Console.WriteLine("\nPress Enter to exit...");
                     Console.ReadKey();

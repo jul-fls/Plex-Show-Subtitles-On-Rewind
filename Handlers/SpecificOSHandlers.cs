@@ -17,16 +17,22 @@ internal static partial class OS_Handlers
         public static partial bool AllocConsole();
     }
 
-    public static void InitializeConsole(string[] args)
+    public static void HandleBackgroundArg(bool runInBackgroundArg)
     {
         //DEBUG - Get os and current target framework
         //OperatingSystem os = Environment.OSVersion;
         //string? targetFramework = System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>()?.FrameworkName;
 
         #if WINDOWS
-            WindowsNativeMethods.AllocConsole();
+            if (runInBackgroundArg == false)
+            {
+                WindowsNativeMethods.AllocConsole();
+            }
         #else
-            WriteError("Error: Can only use \"background\" mode (without console window) on Windows.");
+            if (runInBackgroundArg)
+            {
+                WriteError("Error: Can only use \"background\" mode (without console window) on Windows.");
+            }
         #endif
     }
 }
