@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace PlexShowSubtitlesOnRewind
+namespace RewindSubtitleDisplayerForPlex
 {
     // PlexServer class which contains many methods to interact with the Plex server
     public static class PlexServer

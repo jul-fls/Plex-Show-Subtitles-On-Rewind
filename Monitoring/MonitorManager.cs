@@ -2,7 +2,7 @@
 
 using System;
 
-namespace PlexShowSubtitlesOnRewind
+namespace RewindSubtitleDisplayerForPlex
 {
     public static class MonitorManager
     {

@@ -1,4 +1,4 @@
-﻿namespace PlexShowSubtitlesOnRewind
+﻿namespace RewindSubtitleDisplayerForPlex
 {
     // Monitors a single session for rewinding
     public class RewindMonitor

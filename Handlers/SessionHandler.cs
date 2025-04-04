@@ -1,5 +1,5 @@
 ﻿
-namespace PlexShowSubtitlesOnRewind
+namespace RewindSubtitleDisplayerForPlex
 {
     public static class SessionHandler
     {

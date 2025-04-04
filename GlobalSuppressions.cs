@@ -7,7 +7,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "<Pending>", Scope = "member", Target = "~P:PlexShowSubtitlesOnRewind.MediaPart.Subtitles")]
-[assembly: SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "<Pending>", Scope = "member", Target = "~M:PlexShowSubtitlesOnRewind.PlexServer.CleanXmlString(System.String)~System.String")]
+[assembly: SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "<Pending>", Scope = "member", Target = "~P:RewindSubtitleDisplayerForPlex.MediaPart.Subtitles")]
+[assembly: SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "<Pending>", Scope = "member", Target = "~M:RewindSubtitleDisplayerForPlex.PlexServer.CleanXmlString(System.String)~System.String")]
 //[assembly: SuppressMessage("Style", "IDE0074:Use compound assignment", Justification = "<Pending>", Scope = "namespace", Target = "~N:PlexShowSubtitlesOnRewind")]
 [assembly: SuppressMessage("Style", "IDE0074:Use compound assignment", Justification = "<Pending>")]

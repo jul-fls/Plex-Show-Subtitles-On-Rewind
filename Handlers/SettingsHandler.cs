@@ -1,4 +1,4 @@
-﻿namespace PlexShowSubtitlesOnRewind;
+﻿namespace RewindSubtitleDisplayerForPlex;
 
 
 

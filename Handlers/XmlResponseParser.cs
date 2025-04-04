@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Linq;
-using PlexShowSubtitlesOnRewind; // Assuming MyClasses.cs is in this namespace
-using static PlexShowSubtitlesOnRewind.Props;
+using RewindSubtitleDisplayerForPlex; // Assuming MyClasses.cs is in this namespace
+using static RewindSubtitleDisplayerForPlex.Props;
 
 #nullable enable
 

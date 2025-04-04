@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 #nullable enable
 
-namespace PlexShowSubtitlesOnRewind
+namespace RewindSubtitleDisplayerForPlex
 {
     static class Program
     {

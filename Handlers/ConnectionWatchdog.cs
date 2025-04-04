@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlexShowSubtitlesOnRewind
+namespace RewindSubtitleDisplayerForPlex
 {
     public class ConnectionWatchdog : IDisposable
     {

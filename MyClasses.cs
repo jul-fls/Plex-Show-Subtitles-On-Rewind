@@ -1,11 +1,11 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
-using static PlexShowSubtitlesOnRewind.Props;
+using static RewindSubtitleDisplayerForPlex.Props;
 
 //#pragma warning disable IDE0074 // Use compound assignment
 #pragma warning disable IDE0290 // Use primary constructor
 
-namespace PlexShowSubtitlesOnRewind;
+namespace RewindSubtitleDisplayerForPlex;
 
 public class PlexMediaItem
 {

@@ -1,7 +1,7 @@
 ﻿using System.Reflection;
 using System.Text.RegularExpressions;
 
-namespace PlexShowSubtitlesOnRewind;
+namespace RewindSubtitleDisplayerForPlex;
 internal class Utils
 {
     // Function that compares two strings using regex but allows user to use asterisks as wildcards

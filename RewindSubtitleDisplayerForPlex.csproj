@@ -27,9 +27,5 @@
 		<PublishAot>true</PublishAot>
 		<PublishTrimmed>true</PublishTrimmed>
 	</PropertyGroup>
-	
-	<ItemGroup>
-	  <Content Include="Icon.ico" />
-	</ItemGroup>
 
 </Project>

@@ -11,7 +11,7 @@ using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlexShowSubtitlesOnRewind;
+namespace RewindSubtitleDisplayerForPlex;
 
 // Define the context for the source generator
 [JsonSourceGenerationOptions(WriteIndented = true)] // Optional: for debugging output

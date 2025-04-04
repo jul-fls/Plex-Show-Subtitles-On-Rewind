@@ -1,13 +1,13 @@
 ﻿//--------------------------- Global Usings ------------------------------------------
-global using static PlexShowSubtitlesOnRewind.GlobalDefinitions;
-global using static PlexShowSubtitlesOnRewind.Utils;
-global using static PlexShowSubtitlesOnRewind.MyStrings;
-global using static PlexShowSubtitlesOnRewind.LaunchArgs;
-using static PlexShowSubtitlesOnRewind.Program;
+global using static RewindSubtitleDisplayerForPlex.GlobalDefinitions;
+global using static RewindSubtitleDisplayerForPlex.Utils;
+global using static RewindSubtitleDisplayerForPlex.MyStrings;
+global using static RewindSubtitleDisplayerForPlex.LaunchArgs;
+using static RewindSubtitleDisplayerForPlex.Program;
 
 #nullable enable
 
-namespace PlexShowSubtitlesOnRewind
+namespace RewindSubtitleDisplayerForPlex
 {
     public static class GlobalDefinitions
     {

@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml;
 
-namespace PlexShowSubtitlesOnRewind;
+namespace RewindSubtitleDisplayerForPlex;
 
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNameCaseInsensitive = false)]
 [JsonSerializable(typeof(AuthTokenHandler.TokenGenJson))]
