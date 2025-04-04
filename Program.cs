@@ -60,7 +60,7 @@ namespace RewindSubtitleDisplayerForPlex
                 (string, string)? resultTuple = AuthTokenHandler.LoadTokens();
                 if (resultTuple == null)
                 {
-                    Console.WriteLine("Failed to load tokens. Exiting.");
+                    Console.WriteLine("\nFailed to load tokens. Exiting.");
                     if (!runBackgroundArg) { Console.ReadLine(); }
                     return;
                 }
@@ -96,7 +96,7 @@ namespace RewindSubtitleDisplayerForPlex
                 // --- Wait for Exit Signal ---
                 _exitEvent.WaitOne(); // Block main thread until Ctrl+C or other exit signal
 
-                WriteWarning("Exit signal received. Shutting down...");
+                WriteWarning("Exit signal received. Shutting down (this might take several seconds)...");
 
             }
             catch (Exception ex) // Catch errors during initial setup

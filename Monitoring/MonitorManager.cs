@@ -29,10 +29,13 @@ namespace RewindSubtitleDisplayerForPlex
         {
             if (e.EventObj is PlayingEvent playEvent && playEvent.playState is PlayState playState)
             {
-                WriteColor(
+                if (Program.debugMode)
+                {
+                    WriteColor(
                     message: $"[Notification] Playback Update: Client={playEvent.clientIdentifier}, Key={playEvent.key}, State={playEvent.state}, Offset={playEvent.viewOffset}ms",
                     foreground: ConsoleColor.Cyan
                     );
+                }
 
                 if (playState == PlayState.Playing)
                 {

@@ -73,10 +73,7 @@
 
         private void RewindOccurred()
         {
-            if (_printDebug)
-            {
-                WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {_latestWatchedPosition}");
-            }
+            WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {_latestWatchedPosition}");
             _activeSession.EnableSubtitles();
             _temporarilyDisplayingSubtitles = true;
         }
@@ -84,10 +81,7 @@
         // Disable subtitles but only if they were enabled by the monitor
         private void ReachedOriginalPosition()
         {
-            if (_printDebug)
-            {
-                WriteWarning($"{_deviceName}: Reached original position ({_latestWatchedPosition}) for {_activeSession.MediaTitle}");
-            }
+            WriteWarning($"{_deviceName}: Reached original position ({_latestWatchedPosition}) for {_activeSession.MediaTitle}");
             if (!_subtitlesUserEnabled)
             {
                 _activeSession.DisableSubtitles();
@@ -148,8 +142,7 @@
                         // If the user fast forwards, stop showing subtitles
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
-                            if (_printDebug)
-                                WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
+                            WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
 
                             _latestWatchedPosition = positionSec;
                             ForceStopShowingSubtitles();
@@ -157,8 +150,7 @@
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
                         {
-                            if (_printDebug)
-                                WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
+                            WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
 
                             _latestWatchedPosition = positionSec;
                             ForceStopShowingSubtitles();
