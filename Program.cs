@@ -36,6 +36,12 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.Debug.CheckIfMatchesInputArgs(args))
                 debugMode = true;
 
+            if (LaunchArgs.TokenTemplate.CheckIfMatchesInputArgs(args))
+            {
+                AuthTokenHandler.CreateTemplateTokenFile(force:true);
+                WriteGreen("\nToken template generated.");
+            }
+
             if (LaunchArgs.Help.CheckIfMatchesInputArgs(args) || LaunchArgs.HelpAlt.CheckIfMatchesInputArgs(args))
             {
                 Console.WriteLine(MyStrings.LaunchArgsInfo + "\n\n");

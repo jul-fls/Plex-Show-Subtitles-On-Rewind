@@ -27,26 +27,41 @@ public static class AuthTokenHandler
         public const string UserAuthConfirmationURL = "https://app.plex.tv/auth#?";
         public const string configUUIDSetting = "ClientIdentifier";
         public const string configTokenSetting = "AppToken";
-        public const string configFileName = "token.config";
+        public const string tokenFileName = "token.config";
+        public static string tokenFileTemplateName = $"{tokenFileName}.example";
+        public static string tokenNote = "    Note: This is not the same Plex token for your account that you see mentioned in other tutorials.\n" +
+                                         "        This is a token specifically for the individual app.\n" +
+                                         "        It will appear in the 'Devices' section of your account and can be revoked whenever you want.";
     }
 
     static void CreateTokenFile(string token = AuthStrings.TokenPlaceholder, string uuid = AuthStrings.UUIDPlaceholder)
     {
-        string tokenFilePath = AuthStrings.configFileName;
+        string tokenFilePath = AuthStrings.tokenFileName;
         File.WriteAllText(tokenFilePath, $"AppToken={token}\nClientIdentifier={uuid}");
+    }
+
+    public static void CreateTemplateTokenFile(bool force = false)
+    {
+        // First check if the template file already exists
+        if (force == true || !File.Exists(AuthStrings.tokenFileTemplateName))
+        {
+            string tokenFilePath = AuthStrings.tokenFileTemplateName;
+            File.WriteAllText(tokenFilePath, $"AppToken={AuthStrings.TokenPlaceholder}\nClientIdentifier={AuthStrings.UUIDPlaceholder}");
+        }
     }
 
     public static (string, string)? LoadTokens()
     {
-        string tokenFilePath = AuthStrings.configFileName;
+        string tokenFilePath = AuthStrings.tokenFileName;
         bool tokenFileExists = false;
 
         // If it doesn't exist, prompt the user to go through the auth flow to create one
         if (!File.Exists(tokenFilePath))
         {
             // Prompt the user if they want to go through the auth flow to generate a token
-            Console.WriteLine($"Required \"{AuthStrings.configFileName}\" file not found. Do you want to go through the necessary authorization flow?\n");
-            Console.Write("Enter your choice (y/n): ");
+            WriteWarning($"Required \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
+            Console.WriteLine(AuthStrings.tokenNote);
+            Console.Write("\nAuthorize App? (y/n): ");
             string? userInput = Console.ReadLine();
             if (userInput != null && userInput.Equals("y", StringComparison.CurrentCultureIgnoreCase))
             {
@@ -57,14 +72,15 @@ public static class AuthTokenHandler
                 }
                 else
                 {
-                    Utils.WriteError($"Token generation failed. Please check the {AuthStrings.configFileName} file.\n");
+                    Utils.WriteError($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.\n");
                 }
             }
             else
             {
-                // Create a placeholder tokens file
-                CreateTokenFile(AuthStrings.TokenPlaceholder);
-                Console.WriteLine($"Please edit the {AuthStrings.configFileName} file with your Plex app and/or personal tokens.\n");
+                WriteWarning("\nYou'll need to generate an auth token for the app to work.\n" +
+                    $"   - Either restart the app and go through the token flow\n" +
+                    $"   - Or if you know how, you can manually make the API REST requests and use {AuthStrings.tokenFileTemplateName} to store the token.\n");
+                CreateTemplateTokenFile();
             }
         }
         else
@@ -126,12 +142,12 @@ public static class AuthTokenHandler
 
             if (string.IsNullOrWhiteSpace(token))
             {
-                Console.WriteLine($"Auth token is empty or not found. Update {AuthStrings.configFileName}.");
+                Console.WriteLine($"Auth token is empty or not found. Update {AuthStrings.tokenFileName}.");
                 return null;
             }
             else if (token == AuthStrings.TokenPlaceholder || token == AuthStrings.UUIDPlaceholder)
             {
-                Console.WriteLine($"Update {AuthStrings.configFileName} to use your actual auth token for your plex server.\n" +
+                Console.WriteLine($"Update {AuthStrings.tokenFileName} to use your actual auth token for your plex server.\n" +
                     "Or delete the config and run the app again to go through the token generation steps.");
                 return null;
             }
@@ -157,17 +173,22 @@ public static class AuthTokenHandler
 
             Console.WriteLine("\n----------------------------------------------------------------");
             Utils.WriteColor($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}", ConsoleColor.Green);
-            Console.WriteLine("\n\nTip: You can check if it shows up here (replace the IP with your server IP and port if necessary):" +
-                "\n     http://127.0.0.1:32400/web/index.html#!/settings/devices/all");
+            Console.WriteLine("\n\nTip: After authorizing, you should see it show up in the 'devices' section at:" +
+                "\n     http://<Your Server IP>:<Port>/web/index.html#!/settings/devices/all");
 
             Console.WriteLine("\n----------------------------------------------------------------");
-            Console.WriteLine("Press Enter to continue after you have authorized the app.");
+            Console.Write("Press Enter to continue ");
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Write("after you have authorized the app.");
+            Console.ResetColor();
+            Console.WriteLine();
+
             // Wait for user to press a key
             Console.ReadLine();
         }
         else
         {
-            Console.WriteLine($"Token generation failed. Please check the {AuthStrings.configFileName} file.");
+            Console.WriteLine($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.");
             return false;
         }
 
@@ -184,8 +205,10 @@ public static class AuthTokenHandler
             }
             else
             {
-                Console.WriteLine("----------------------------------------------------");
-                Console.WriteLine("\nThe app does not appear authorized.\nVisit this URL and sign in if you haven't already: ");
+                Console.WriteLine("----------------------------------------------------------------");
+                WriteErrorSuper("\nThe app does not appear authorized.", noNewLine:true);
+                WriteError("  Visit this URL and sign in if you haven't already: ");
+
                 WriteGreen($"\n\t{authUrl}");
                 Console.WriteLine("\nThen press Enter to check again.");
                 Console.ReadLine();
@@ -316,25 +339,29 @@ public static class AuthTokenHandler
             if (pinNode != null && pinNode.Attributes != null)
             {
                 XmlAttribute? authTokenAttr = pinNode.Attributes?["authToken"];
-                if (authTokenAttr != null)
+                if (authTokenAttr != null && !string.IsNullOrEmpty(authTokenAttr.Value))
                 {
                     authToken = authTokenAttr.Value;
-                    Console.WriteLine($"Successfully created auth token: {authToken}\nIt will automatically be stored in the file {AuthStrings.configFileName}\n");
+                    Console.WriteLine("----------------------------------------------------------------");
+                    WriteSuccessSuper("\t    Success!    ");
+                    Console.WriteLine($"\tSuccessfully created auth token: {authToken}");
+                    Console.WriteLine($"\tIt will automatically be stored in the file {AuthStrings.tokenFileName}");
+                    Console.WriteLine("----------------------------------------------------------------");
                 }
                 else
                 {
-                    Console.WriteLine("Received invalid token response.");
+                    Console.WriteLine("\tReceived invalid token response.");
                 }
             }
             else
             {
-                Console.WriteLine("Received invalid token response.");
+                Console.WriteLine("\tReceived invalid token response.");
             }
             return authToken;
         }
         catch (XmlException ex)
         {
-            Console.WriteLine($"Failed to parse XML response: {ex.Message}");
+            Console.WriteLine($"\tFailed to parse XML response: {ex.Message}");
             return "";
         }
     }

@@ -691,13 +691,15 @@ public static class LaunchArgs
         public override string ToString() => Arg; // Ensure argument string is returned properly when used in string interpolation
     }
 
-    private static readonly Argument _background = new("background",    "Windows Only: The program runs in the background without showing a console.");
-    private static readonly Argument _debug =      new("debug",         "Enables debug mode to show additional output.");
-    private static readonly Argument _help =       new("help",          "Display help message with info including launch parameters.");
-    private static readonly Argument _helpAlt =    new("?",             _help.Description);
+    private static readonly Argument _background =      new("background",    "Windows Only: The program runs in the background without showing a console.");
+    private static readonly Argument _tokenTemplate =   new ("token-template", "Generate an example token config file.");
+    private static readonly Argument _debug =           new("debug",         "Enables debug mode to show additional output.");
+    private static readonly Argument _help =            new("help",          "Display help message with info including launch parameters.");
+    private static readonly Argument _helpAlt =         new("?",             _help.Description);
 
     // -------------------------------------------------
     public static Argument Background => _background;
+    public static Argument TokenTemplate => _tokenTemplate;
     public static Argument Debug => _debug;
     public static Argument Help => _help;
     public static Argument HelpAlt => _helpAlt;

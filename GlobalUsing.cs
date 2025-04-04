@@ -40,6 +40,7 @@ namespace RewindSubtitleDisplayerForPlex
             Optional Launch parameters:
                 -{LaunchArgs.Background}: {LaunchArgs.Background.Description}
                 -{LaunchArgs.Debug}: {LaunchArgs.Debug.Description}
+                -{LaunchArgs.TokenTemplate}: {LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt}: {LaunchArgs.Help.Description}
             """;
         public static string HeadingTitle => $"\n----------- {AppName} - Version {AssemblyFileVersion} -----------\n";
