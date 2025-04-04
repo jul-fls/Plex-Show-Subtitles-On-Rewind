@@ -1,21 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <!--
-		Note: Apparently the first framework listed is what gets used when debugging
-	-->
-    <TargetFrameworks>net9.0-windows;net9.0;net9.0-macos;</TargetFrameworks>
-	
-	 <OutputType>Exe</OutputType>
-    <OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows'))">WinExe</OutputType>
+	<PropertyGroup>
+		<!-- Note: If multiple frameworks targeted, apparently the first framework listed is what gets used when debugging -->
+		<TargetFrameworks>net9.0-windows</TargetFrameworks>
+		
+		<!-- Default to console app, but on Windows make it a "Windows Application" so it doesn't attach to console by default, so can run purely background. -->
+		<OutputType>Exe</OutputType>
+		<OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows'))">WinExe</OutputType>
 
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-	<LangVersion>13.0</LangVersion>
-	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-	<AssemblyVersion>1.0.0</AssemblyVersion>
-	<FileVersion>1.0.0</FileVersion>
-	<PublishAot>True</PublishAot>
-  </PropertyGroup>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>13.0</LangVersion>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<AssemblyVersion>1.0.0</AssemblyVersion>
+		<FileVersion>1.0.0</FileVersion>
+		<PublishAot>False</PublishAot>
+		<PublishTrimmed>False</PublishTrimmed>
+	</PropertyGroup>
+
+	<!-- Enable Native AOT and Trimming only if publishing self contained mode -->
+	<PropertyGroup Condition="'$(SelfContained)' == 'true'">
+		<PublishAot>true</PublishAot>
+		<PublishTrimmed>true</PublishTrimmed>
+    </PropertyGroup>
 
 </Project>

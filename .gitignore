@@ -364,3 +364,8 @@ FodyWeavers.xsd
 
 ##### Customm Ignores #####
 *.config
+
+# Allow certain publishing profiles
+!Windows-FrameworkDependent-SingleFile.pubxml
+!Windows-Native-SingleFile.pubxml
+
