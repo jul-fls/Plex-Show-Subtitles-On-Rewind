@@ -91,14 +91,21 @@ public static class AuthTokenHandler
                 {
                     string rawToken = line.Substring($"{AuthStrings.configTokenSetting}=".Length);
                     validatedToken = validateToken(rawToken);
+
+                    if (validatedToken == null)
+                        return null;
                 }
 
                 if (line.StartsWith($"{AuthStrings.configUUIDSetting}="))
                 {
                     string rawUUID = line.Substring($"{AuthStrings.configUUIDSetting}=".Length);
                     validatedUUID = validateToken(rawUUID);
+
+                    if (validatedUUID == null)
+                        return null;
                 }
 
+                // If both tokens are validated, return them
                 if (validatedToken != null && validatedUUID != null)
                 {
                     return (validatedToken, validatedUUID);
@@ -106,7 +113,7 @@ public static class AuthTokenHandler
             }
         }
 
-        // If no valid token is found, return null
+        // Should only get here if no token or UUID lines were found at all, because if they were found but invalid would have already returned
         return null;
 
         // ---------------- Local Functions ----------------
