@@ -311,6 +311,12 @@ namespace RewindSubtitleDisplayerForPlex
         // Ensure StopAllMonitoring sets _isRunning = false and cancels the sleep
         public static void RemoveAllMonitors()
         {
+            // Stop subtitles if they are running and not user enabled
+            foreach (RewindMonitor monitor in _allMonitors)
+            {
+                monitor.StopMonitoring(); // Stops them and disables subtitles if they were temporarily enabled
+            }
+
             WriteWarning("MonitorManager: Stopping all monitoring...");
             _isRunning = false;
             _sleepResetEvent.Set(); // Wake up the sleeping thread

@@ -89,6 +89,15 @@
             _temporarilyDisplayingSubtitles = false;
         }
 
+        public void StopSubtitlesIfNotUserEnabled()
+        {
+            if (_temporarilyDisplayingSubtitles)
+            {
+                _activeSession.DisableSubtitles();
+                _temporarilyDisplayingSubtitles = false;
+            }
+        }
+
         // Disables subtitles regardless of how they were enabled
         private void ForceStopShowingSubtitles()
         {
@@ -145,7 +154,7 @@
                             WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
 
                             _latestWatchedPosition = positionSec;
-                            ForceStopShowingSubtitles();
+                            StopSubtitlesIfNotUserEnabled();
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
@@ -153,7 +162,7 @@
                             WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
 
                             _latestWatchedPosition = positionSec;
-                            ForceStopShowingSubtitles();
+                            StopSubtitlesIfNotUserEnabled();
                         }
                         // Check if the position has gone back by the rewind amount. Don't update latest watched position here.
                         // Add smallest resolution to avoid stopping subtitles too early
@@ -189,10 +198,7 @@
         public void StopMonitoring()
         {
             _isMonitoring = false;
-            if (_temporarilyDisplayingSubtitles)
-            {
-                ForceStopShowingSubtitles();
-            }
+            StopSubtitlesIfNotUserEnabled();
         }
 
         public void RestartMonitoring()

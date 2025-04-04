@@ -80,7 +80,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _connectionWatchdog.PlayingNotificationReceived += MonitorManager.HandlePlayingNotificationReceived; // Static handler now
 
 
-                // Set up Ctrl+C handler
+                // Set up Ctrl+C handler. This doesn't run now, it just gets registered.
                 Console.CancelKeyPress += (sender, eventArgs) =>
                 {
                     Console.WriteLine("\nCtrl+C detected. Initiating shutdown...");
