@@ -2,7 +2,8 @@
 
 	<PropertyGroup>
 		<!-- Note: If multiple frameworks targeted, apparently the first framework listed is what gets used when debugging -->
-		<TargetFrameworks>net9.0-windows</TargetFrameworks>
+		<!-- <TargetFrameworks>net9.0</TargetFrameworks> -->
+		<TargetFramework>net9.0</TargetFramework>
 		
 		<!-- Default to console app, but on Windows make it a "Windows Application" so it doesn't attach to console by default, so can run purely background. -->
 		<OutputType>Exe</OutputType>
