@@ -696,6 +696,7 @@ public static class LaunchArgs
     private static readonly Argument _debug =           new("debug",         "Enables debug mode to show additional output.");
     private static readonly Argument _help =            new("help",          "Display help message with info including launch parameters.");
     private static readonly Argument _helpAlt =         new("?",             _help.Description);
+    private static readonly Argument _stop =            new("stop",             "Stop other running instances of the app.");
 
     // -------------------------------------------------
     public static Argument Background => _background;
@@ -703,6 +704,7 @@ public static class LaunchArgs
     public static Argument Debug => _debug;
     public static Argument Help => _help;
     public static Argument HelpAlt => _helpAlt;
+    public static Argument Stop => _stop;
 
     // --------------------------------------------------------
     // Get version starting with either hyphen or forward slash

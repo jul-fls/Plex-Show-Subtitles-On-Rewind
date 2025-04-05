@@ -17,7 +17,12 @@ namespace RewindSubtitleDisplayerForPlex
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
 
         private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
-        private static readonly ManualResetEvent _exitEvent = new ManualResetEvent(false);
+
+        // ManualResetEvent for Ctrl+C
+        private static readonly ManualResetEvent _ctrlCExitEvent = new ManualResetEvent(false);
+        // CancellationTokenSource for graceful shutdown propagation
+        private static readonly CancellationTokenSource _appShutdownCts = new CancellationTokenSource();
+
 
         // ===========================================================================================
 
@@ -33,11 +38,27 @@ namespace RewindSubtitleDisplayerForPlex
                 verboseMode = true;
             }
 
-            // Event to signal application exit
-            ManualResetEvent _exitEvent = new ManualResetEvent(false);
-
             // ------------ Apply launch parameters ------------
+
             bool runBackgroundArg = LaunchArgs.Background.CheckIfMatchesInputArgs(args);
+
+            if (LaunchArgs.Stop.CheckIfMatchesInputArgs(args))
+            {
+                InstanceCoordinator.SignalShutdown();
+                // Clean up handles for this short-lived instance
+                InstanceCoordinator.Cleanup();
+                return; // Exit after signaling
+            }
+
+            // ------------ Initialize Coordination Handles ------------
+            if (!InstanceCoordinator.InitializeHandles())
+            {
+                // Error already logged by InitializeHandles
+                if (!runBackgroundArg) { Console.WriteLine("Press Enter to exit..."); Console.ReadKey(); }
+                return; // Cannot proceed
+            }
+
+           
             OS_Handlers.HandleBackgroundArg(runBackgroundArg);
 
             if (LaunchArgs.Debug.CheckIfMatchesInputArgs(args))
@@ -67,6 +88,19 @@ namespace RewindSubtitleDisplayerForPlex
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
 
+            config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
+
+            // ------------ NI Logic: Check for Duplicates ------------
+            bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL).Result;
+            if (duplicateFound)
+            {
+                // Error already logged by CheckForDuplicateServersAsync
+                LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
+                if (!runBackgroundArg) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
+                InstanceCoordinator.Cleanup(); // Cleanup handles
+                return; // Exit NI
+            }
+
             // ------------------ Start Main ------------------
 
             try
@@ -81,8 +115,6 @@ namespace RewindSubtitleDisplayerForPlex
 
                 PLEX_APP_TOKEN = resultTuple.Value.Item1;
                 PLEX_APP_IDENTIFIER = resultTuple.Value.Item2;
-
-                config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
 
                 Console.WriteLine($"Using Plex server at {config.ServerURL}");
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
@@ -99,16 +131,42 @@ namespace RewindSubtitleDisplayerForPlex
                 {
                     WriteYellow("\n***** Ctrl+C detected. Initiating shutdown... *****\n");
                     eventArgs.Cancel = true; // Prevent immediate process termination
-                    _exitEvent.Set();        // Signal the main thread to exit
+                    _ctrlCExitEvent.Set(); // Signal the legacy Ctrl+C event
+                    _appShutdownCts.Cancel(); // Signal cancellation token for newer async waits
                 };
+
 
                 // Start the watchdog - it will handle connection and listener internally
                 _connectionWatchdog.Start();
 
+                // --- Start EI Listener Task (This instance now acts as an EI too) ---
+                InstanceCoordinator.StartExistingInstanceListener(config.ServerURL, _appShutdownCts.Token);
+
+                var shutdownHandle = InstanceCoordinator.GetShutdownWaitHandle();
+                WaitHandle[] waitHandles = [_ctrlCExitEvent, shutdownHandle, _appShutdownCts.Token.WaitHandle];
+
+                int signaledHandleIndex = WaitHandle.WaitAny(waitHandles);
+
+                // Determine reason for exit
+                string exitReason = signaledHandleIndex switch
+                {
+                    0 => "Ctrl+C detected",
+                    1 => "External shutdown signal received",
+                    2 => "Application cancellation token triggered",
+                    _ => "WaitAny returned an unexpected index"
+                };
+                LogInfo($"Exit signal received ({exitReason}). Shutting down (this might take several seconds)...", ConsoleColor.Yellow);
+
+                // Ensure cancellation is signaled if not already
+                if (!_appShutdownCts.IsCancellationRequested)
+                {
+                    _appShutdownCts.Cancel();
+                }
+
                 Console.WriteLine("Application running. Press Ctrl+C to exit.");
 
                 // --- Wait for Exit Signal ---
-                _exitEvent.WaitOne(); // Block main thread until Ctrl+C or other exit signal
+                _ctrlCExitEvent.WaitOne(); // Block main thread until Ctrl+C or other exit signal
 
                 LogInfo("Exit signal received. Shutting down (this might take several seconds)...", Yellow);
 
@@ -131,7 +189,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _connectionWatchdog?.Dispose(); // Dispose the watchdog
                 //MonitorManager.RemoveAllMonitors(); // Not needed if we're just exiting the app, plus should be already handled
                 LogInfo("    Application exited.");
-                _exitEvent.Dispose();
+                _ctrlCExitEvent.Dispose();
             }
         }
 

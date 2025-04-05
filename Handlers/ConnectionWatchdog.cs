@@ -21,6 +21,8 @@ namespace RewindSubtitleDisplayerForPlex
         public event EventHandler? ListenerConnectionLost;
         // Event to notify when a 'playing' event is received from the listener
         public event EventHandler<PlexEventInfo>? PlayingNotificationReceived;
+        private static readonly CancellationTokenSource _appShutdownCts = new CancellationTokenSource();
+
 
         public ConnectionWatchdog(string plexUrl, string plexToken, string appClientId)
         {
