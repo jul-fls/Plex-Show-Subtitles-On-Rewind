@@ -30,7 +30,7 @@ public class PlexNotificationListener : IDisposable
     private readonly string _plexUrl;
     private readonly string _plexToken;
     private readonly string _filters;
-    private readonly CancellationTokenSource _listenerCts; // Renamed, owned by listener
+    private readonly CancellationTokenSource _listenerCts;
     private bool _isDisposed;
 
     // Publicly expose the task for monitoring
@@ -58,8 +58,7 @@ public class PlexNotificationListener : IDisposable
         string requestUri = string.IsNullOrWhiteSpace(_filters) ? _plexUrl : $"{_plexUrl}?{_filters}";
         requestUri += (requestUri.Contains("?") ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}";
 
-        if (Program.debugMode)
-            Console.WriteLine($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}");
+        LogDebug($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}");
 
         // Start listening immediately in the constructor
         ListeningTask = Task.Run(async () => await ListenForEvents(requestUri, token), token);
@@ -79,7 +78,7 @@ public class PlexNotificationListener : IDisposable
             using Stream stream = await response.Content.ReadAsStreamAsync(token);
             using StreamReader reader = new StreamReader(stream);
 
-            Console.WriteLine("Listener: Connected to Plex event stream. Waiting for events...");
+            LogSuccess("Established Plex event stream connection.");
 
             // Process events until cancellation or stream end/error
             await foreach (ServerSentEvent serverEvent in ProcessRawEventsAsync(reader, token).WithCancellation(token))
@@ -90,46 +89,42 @@ public class PlexNotificationListener : IDisposable
                 }
                 catch (JsonException jsonEx)
                 {
-                    WriteError($"Listener: Error deserializing event data: {jsonEx.Message}");
+                    LogError($"Listener: Error deserializing event data: {jsonEx.Message}");
                     if (Program.debugMode) Console.WriteLine($"   Raw Data: {serverEvent.Data}");
                 }
                 catch (Exception ex)
                 {
-                    WriteError($"Listener: Error handling event: {ex.Message}");
+                    LogError($"Listener: Error handling event: {ex.Message}");
                     if (Program.debugMode) Console.WriteLine($"   Raw Data: {serverEvent.Data}");
                 }
             }
 
-            WriteWarning("Listener: Event stream finished gracefully (unexpected for infinite stream).");
+            LogWarning("Listener: Event stream finished gracefully (unexpected for infinite stream).");
             OnConnectionLost(); // Treat graceful end also as a lost connection for simplicity
 
         }
         catch (HttpRequestException ex)
         {
-            WriteError($"Listener: HTTP request error: {ex.Message}");
+            LogError($"Listener: HTTP request error: {ex.Message}");
             OnConnectionLost();
         }
         catch (OperationCanceledException)
         {
-            WriteWarning("Listener: Event listening cancelled.");
+            LogWarning("Listener: Event listening cancelled.");
             // Do not trigger ConnectionLost on explicit cancellation
         }
         catch (IOException ioEx)
         {
-            WriteError($"Listener: IO error (connection likely lost): {ioEx.Message}");
+            LogError($"Listener: IO error (connection likely lost): {ioEx.Message}");
             OnConnectionLost();
         }
         catch (Exception ex)
         {
-            WriteError($"Listener: An unexpected error occurred: {ex.Message}");
+            LogError($"Listener: An unexpected error occurred: {ex.Message}");
             OnConnectionLost(); // Assume connection lost on any other error
         }
-        finally
-        {
-            Console.WriteLine("Listener: ListenForEvents finally block executing.");
-            // No reconnection logic here. Cleanup handled by Dispose.
-        }
-        Console.WriteLine("Listener: Exiting ListenForEvents task.");
+
+        LogDebug("Listener: Exiting ListenForEvents task.");
     }
 
     private static async IAsyncEnumerable<ServerSentEvent> ProcessRawEventsAsync(StreamReader reader, [EnumeratorCancellation] CancellationToken token)
@@ -137,7 +132,7 @@ public class PlexNotificationListener : IDisposable
         string? currentEvent = null;
         string dataBuffer = string.Empty;
 
-        Console.WriteLine("Connected to Plex event stream. Waiting for events...");
+        LogInfo("Connected to Plex event stream. Waiting for events...");
 
         // Loop indefinitely until cancelled or the stream closes/errors
         while (!token.IsCancellationRequested)
@@ -151,13 +146,13 @@ public class PlexNotificationListener : IDisposable
                 // If the stream closes from the server side or due to an error detected by ReadLineAsync
                 if (line == null)
                 {
-                    Console.WriteLine("Stream closed by server or read error.");
+                    LogWarning("Stream closed by server or read error.");
                     break; // Exit the loop
                 }
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Event stream processing cancelled.");
+                LogDebug("Event stream processing cancelled.");
                 break; // Exit the loop gracefully
             }
             catch (IOException ex)
@@ -166,15 +161,15 @@ public class PlexNotificationListener : IDisposable
                 if (ex.InnerException is System.Net.Sockets.SocketException innerEx)
                 {
                     if (innerEx.NativeErrorCode == 10054)
-                        Console.WriteLine($"Plex Server Closed the Connection (Did it shut down)? - IO Error reading event stream: {ex.InnerException.Message}");
+                        LogInfo($"Plex Server Closed the Connection (Did it shut down)? - IO Error reading event stream: {ex.InnerException.Message}");
                 }
                 else if (ex.InnerException?.Message != null)
                 {
-                    Console.WriteLine($"IO Error reading event stream: {ex.InnerException.Message}");
+                    LogWarning($"IO Error reading event stream: {ex.InnerException.Message}");
                 }
                 else
                 {
-                    Console.WriteLine($"IO Error reading event stream: {ex.Message}");
+                    LogWarning($"IO Error reading event stream: {ex.Message}");
                 }
                 break; // Exit the loop on IO error
             }
@@ -203,7 +198,7 @@ public class PlexNotificationListener : IDisposable
             // Ignore comment lines (starting with ':') and other lines
         }
 
-        Console.WriteLine("Exiting event processing loop.");
+        LogDebug("Exiting event processing loop.");
         // No explicit return needed
     }
 
@@ -226,7 +221,7 @@ public class PlexNotificationListener : IDisposable
         }
         else
         {
-            Console.WriteLine($"Received Plex Event: {plexEventInfo.EventName}");
+            LogDebug($"Received Plex Event: {plexEventInfo.EventName}");
         }
     }
 
@@ -241,7 +236,7 @@ public class PlexNotificationListener : IDisposable
         {
             if (disposing)
             {
-                WriteWarning("Disposing PlexNotificationListener...");
+                LogDebug("Disposing PlexNotificationListener...");
                 // Cancel the listener task
                 if (!_listenerCts.IsCancellationRequested)
                 {
@@ -256,7 +251,7 @@ public class PlexNotificationListener : IDisposable
                     Task completed = Task.WhenAny(ListeningTask ?? Task.CompletedTask, delayTask).Result; // Use .Result carefully or make Dispose async
                     if (completed == delayTask)
                     {
-                        WriteWarning("Listener task did not complete quickly during dispose.");
+                        LogDebug("Listener task did not complete quickly during dispose.");
                     }
                 }
                 catch (OperationCanceledException) { /* Expected if task was cancelled */ }
@@ -269,7 +264,7 @@ public class PlexNotificationListener : IDisposable
                 ListeningTask = null; // Clear the task reference
             }
             _isDisposed = true;
-            WriteWarning("PlexNotificationListener disposed.");
+            LogDebug("PlexNotificationListener disposed.");
         }
     }
 
@@ -375,24 +370,24 @@ public class PlexEventInfo : EventArgs
             }
             else
             {
-                WriteError($"[{eventTypeName}] SourceGen Deserialization resulted in a null or empty dictionary. Raw Data: {rawData}");
+                LogError($"[{eventTypeName}] SourceGen Deserialization resulted in a null or empty dictionary. Raw Data: {rawData}");
                 return null;
             }
         }
         catch (JsonException jsonEx)
         {
-            WriteError($"[{eventTypeName}] Error deserializing JSON with SourceGen: {jsonEx.Message}. Raw Data: {rawData}");
+            LogError($"[{eventTypeName}] Error deserializing JSON with SourceGen: {jsonEx.Message}. Raw Data: {rawData}");
             return null;
         }
         // Catching NotSupportedException can be useful with source gen if a type wasn't included
         catch (NotSupportedException nse)
         {
-            WriteError($"[{eventTypeName}] Type not supported by SourceGen context: {nse.Message}. Ensure the required Dictionary<string, T> is in PlexEventJsonContext.");
+            LogError($"[{eventTypeName}] Type not supported by SourceGen context: {nse.Message}. Ensure the required Dictionary<string, T> is in PlexEventJsonContext.");
             return null;
         }
         catch (Exception ex)
         {
-            WriteError($"[{eventTypeName}] Unexpected error during SourceGen parsing: {ex.Message}. Raw Data: {rawData}");
+            LogError($"[{eventTypeName}] Unexpected error during SourceGen parsing: {ex.Message}. Raw Data: {rawData}");
             return null;
         }
     }

@@ -29,34 +29,29 @@ namespace RewindSubtitleDisplayerForPlex
         {
             if (e.EventObj is PlayingEvent playEvent && playEvent.playState is PlayState playState)
             {
-                if (Program.debugMode)
-                {
-                    WriteColor(
-                    message: $"[Notification] Playback Update: Client={playEvent.clientIdentifier}, Key={playEvent.key}, State={playEvent.state}, Offset={playEvent.viewOffset}ms",
-                    foreground: ConsoleColor.Cyan
-                    );
-                }
+                LogDebug($"[Notification] Playback Update: Client={playEvent.clientIdentifier}, Key={playEvent.key}, State={playEvent.state}, Offset={playEvent.viewOffset}ms",
+                    ConsoleColor.Cyan);
 
                 if (playState == PlayState.Playing)
                 {
                     if (_monitoringState == MonitoringState.Idle)
                     {
-                        Console.WriteLine("Switching to active monitoring due to playback event.");
+                        LogVerbose("Switching to active monitoring due to playback event.");
                         BreakFromIdle();
                     }
                 }
                 else if (playState == PlayState.Paused)
                 {
-                    Console.WriteLine("Paused.");
+                    LogVerbose("   Playback Paused.");
                 }
                 else if (playState == PlayState.Stopped)
                 {
-                    Console.WriteLine("Stopped.");
+                    LogVerbose("   Playback Stopped.");
                 }
             }
             else
             {
-                WriteError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
+                LogError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
             }
         }
 
@@ -112,7 +107,7 @@ namespace RewindSubtitleDisplayerForPlex
             // Check if a monitor already exists for this session, if not create a new one
             if (_allMonitors.Any(m => m.PlaybackID == playbackID))
             {
-                Console.WriteLine($"Monitor for session {playbackID} already exists. Not creating a new one.");
+                LogDebug($"Monitor for session {playbackID} already exists. Not creating a new one.");
                 return;
             }
             else
@@ -126,7 +121,7 @@ namespace RewindSubtitleDisplayerForPlex
                     smallestResolution: smallestResolution
                     );
                 _allMonitors.Add(monitor);
-                WriteWarning($"Added new session for {activeSession.DeviceName}. Session Playback ID: {playbackID}");
+                LogInfo($"Added new session for {activeSession.DeviceName}. Session Playback ID: {playbackID}", Yellow);
             }
         }
 
@@ -149,7 +144,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
             else
             {
-                Console.WriteLine($"No monitor found for session {sessionID}. Nothing to remove.");
+                LogDebug($"No monitor found for session {sessionID}. Nothing to remove.");
             }
         }
 
@@ -177,13 +172,13 @@ namespace RewindSubtitleDisplayerForPlex
                 _allMonitors.Add(newMonitor);
 
                 newSession.HasInheritedMonitor = true;
-                Console.WriteLine($"Transferred {oldSession.DeviceName} monitoring state from {oldSession.PlaybackID} to {newSession.PlaybackID}");
+                LogVerbose($"Transferred {oldSession.DeviceName} monitoring state from {oldSession.PlaybackID} to {newSession.PlaybackID}");
 
                 return true;
             }
             else
             {
-                Console.WriteLine($"No monitor found for session {oldSession.PlaybackID}. Nothing to transfer.");
+                LogDebug($"No monitor found for session {oldSession.PlaybackID}. Nothing to transfer.");
                 return false;
             }
         }
@@ -219,9 +214,9 @@ namespace RewindSubtitleDisplayerForPlex
 
                 // Notify if the monitoring state has actually changed
                 if (_monitoringState != previousState && _monitoringState == MonitoringState.Idle)
-                    Console.WriteLine("Switched to idle mode.");
+                    LogVerbose("Switched to idle mode.");
                 else if (_monitoringState != previousState && _monitoringState == MonitoringState.Active)
-                    Console.WriteLine("Switched to active mode.");
+                    LogVerbose("Switched to active mode.");
 
                 // Sleep for a while based on the current mode, but use the cancellable sleep mechanism
                 int sleepTime;
@@ -238,7 +233,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _sleepResetEvent.WaitOne(sleepTime);
             }
 
-            Console.WriteLine("MonitorManager: Exiting polling refresh loop.");
+            LogDebug("MonitorManager: Exiting polling refresh loop.");
             _isRunning = false; // Ensure state is updated on exit
         }
 
@@ -249,26 +244,25 @@ namespace RewindSubtitleDisplayerForPlex
             // Signal the event to wake up any waiting thread
             _sleepResetEvent.Set();
 
-            if (Program.debugMode)
-                Console.WriteLine("Sleep canceled - switching to active monitoring immediately");
+            LogDebug("Sleep canceled - switching to active monitoring immediately");
         }
 
         public static void StartMonitoringLoop()
         {
             if (_isRunning)
             {
-                Console.WriteLine("MonitorManager: Refresh loop already running.");
+                LogDebug("MonitorManager: Refresh loop already running.");
                 return;
             }
             if (_allMonitors.Count == 0)
             {
-                WriteWarning("MonitorManager: No sessions to monitor. Loop not started.");
+                LogDebug("MonitorManager: No sessions to monitor. Loop not started.");
                 // Optionally, start anyway if you expect sessions to appear later
                 // return;
             }
 
             _isRunning = true;
-            Console.WriteLine("MonitorManager: Starting polling refresh loop...");
+            LogDebug("MonitorManager: Starting polling refresh loop...");
             // Run the loop in a background thread so it doesn't block
             Task.Run(() => PollingRefreshLoop());
         }
@@ -301,11 +295,9 @@ namespace RewindSubtitleDisplayerForPlex
                 return;
             }
 
-            WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
+            LogDebug("MonitorManager: Stopping monitoring loop but keeping monitors...");
             _isRunning = false; // Signal the loop to stop
             _sleepResetEvent.Set(); // Wake up the sleeping thread immediately
-
-            WriteWarning("MonitorManager: Monitoring loop stopped.");
         }
 
         // Ensure StopAllMonitoring sets _isRunning = false and cancels the sleep
@@ -317,7 +309,7 @@ namespace RewindSubtitleDisplayerForPlex
                 monitor.StopMonitoring(); // Stops them and disables subtitles if they were temporarily enabled
             }
 
-            WriteWarning("MonitorManager: Stopping all monitoring...");
+            LogDebug("MonitorManager: Stopping all monitoring...");
             _isRunning = false;
             _sleepResetEvent.Set(); // Wake up the sleeping thread
 
@@ -328,14 +320,14 @@ namespace RewindSubtitleDisplayerForPlex
             // Reset state
             _monitoringState = MonitoringState.Idle;
             _idleGracePeriodCount = 0;
-            WriteWarning("MonitorManager: Monitoring stopped and monitors cleared.");
+            LogDebug("MonitorManager: Monitoring stopped and monitors cleared.");
         }
 
         // Ensure StopAndKeepAllMonitors sets _isRunning = false and cancels the sleep
         // Separate from when using _isRunning because this acts on the monitors, not the outer loop
         public static void StopAndKeepAllMonitorsIndividually()
         {
-            WriteWarning("MonitorManager: Stopping monitoring loop but keeping monitors...");
+            LogDebug("MonitorManager: Stopping monitoring loop but keeping monitors...");
             _isRunning = false;
             _sleepResetEvent.Set(); // Wake up the sleeping thread
 
@@ -349,12 +341,12 @@ namespace RewindSubtitleDisplayerForPlex
             // Reset state
             _monitoringState = MonitoringState.Idle;
             _idleGracePeriodCount = 0;
-            WriteWarning("MonitorManager: Monitoring loop stopped.");
+            LogDebug("MonitorManager: Monitoring loop stopped.");
         }
 
         public static void RestartAllMonitors()
         {
-            WriteWarning("MonitorManager: Restarting all monitors...");
+            LogDebug("MonitorManager: Restarting all monitors...");
             lock (_allMonitors) // Ensure thread safety when iterating
             {
                 foreach (RewindMonitor monitor in _allMonitors)
@@ -362,7 +354,7 @@ namespace RewindSubtitleDisplayerForPlex
                     monitor.RestartMonitoring();
                 }
             }
-            WriteWarning("MonitorManager: All monitors restarted.");
+            LogDebug("MonitorManager: All monitors restarted.");
         }
     }
 }

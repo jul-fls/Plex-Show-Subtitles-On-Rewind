@@ -163,7 +163,7 @@
                 {
                     _subtitlesUserEnabled = true;
                     _latestWatchedPosition = positionSec;
-                    WriteWarning($"{_deviceName}: User appears to have enabled subtitles manually.");
+                    LogInfo($"{_deviceName}: User appears to have enabled subtitles manually.", Yellow);
                 }
                 // Only check for rewinds if the user hasn't manually enabled subtitles
                 else
@@ -174,7 +174,7 @@
                         // If the user fast forwards, stop showing subtitles
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
-                            WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded");
+                            LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded", Yellow);
 
                             _latestWatchedPosition = positionSec;
                             StopSubtitlesIfNotUserEnabled();
@@ -182,7 +182,7 @@
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
                         {
-                            WriteWarning($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far");
+                            LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far", Yellow);
 
                             _latestWatchedPosition = positionSec;
                             StopSubtitlesIfNotUserEnabled();
@@ -212,7 +212,7 @@
             }
             catch (Exception e)
             {
-                WriteError($"{_deviceName}: Error in monitor iteration: {e.Message}");
+                LogError($"{_deviceName}: Error in monitor iteration: {e.Message}");
                 // Add a small delay to avoid tight loop on errors
                 //Thread.Sleep(1000); // Moving the delay to more global loop
             }

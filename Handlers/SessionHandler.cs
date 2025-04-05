@@ -63,16 +63,16 @@ namespace RewindSubtitleDisplayerForPlex
 
             if (fetchedSessionsList == null)
             {
-                Console.WriteLine("Problem occurred when fetching sessions. fetchedSessionsList returned null. Using existing session list.");
+                LogWarning("Problem occurred when fetching sessions. fetchedSessionsList returned null. Using existing session list.");
                 return _activeSessionList;
             }
 
             if (fetchedSessionsList.Count == 0 && debugMode == true)
             {
                 if (_activeSessionList.Count > 0)
-                    Console.WriteLine($"Server API returned 0 active sessions. {_activeSessionList.Count} were previously tracked.");
+                    LogDebug($"Server API returned 0 active sessions. {_activeSessionList.Count} were previously tracked.");
                 else
-                    Console.WriteLine("Server API returned 0 active sessions.");
+                    LogDebug("Server API returned 0 active sessions.");
             }
 
             List<Task> tasks = [];
@@ -212,12 +212,12 @@ namespace RewindSubtitleDisplayerForPlex
                 // Get all subtitle streams from the media item
                 subtitles = mediaItem.GetSubtitleStreams();
 
-                Console.WriteLine($"Found {subtitles.Count} available subtitle tracks for {session.Title}");
+                LogDebug($"Found {subtitles.Count} available subtitle tracks for {session.Title}");
                 return subtitles;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting available subtitles: {ex.Message}");
+                LogError($"Error getting available subtitles: {ex.Message}");
                 return subtitles;
             }
         }

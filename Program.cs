@@ -13,6 +13,7 @@ namespace RewindSubtitleDisplayerForPlex
         public static Settings config = new();
 
         public static bool debugMode = false;
+        public static bool verboseMode = false;
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
 
         private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
@@ -25,6 +26,12 @@ namespace RewindSubtitleDisplayerForPlex
             #if DEBUG
                 debugMode = true;
             #endif
+
+            // Enable verbose mode if debug mode is enabled
+            if (debugMode == true)
+            {
+                verboseMode = true;
+            }
 
             // Event to signal application exit
             ManualResetEvent _exitEvent = new ManualResetEvent(false);
@@ -89,7 +96,7 @@ namespace RewindSubtitleDisplayerForPlex
                 // Set up Ctrl+C handler. This doesn't run now, it just gets registered.
                 Console.CancelKeyPress += (sender, eventArgs) =>
                 {
-                    Console.WriteLine("\nCtrl+C detected. Initiating shutdown...");
+                    WriteWarning("\nCtrl+C detected. Initiating shutdown...\n");
                     eventArgs.Cancel = true; // Prevent immediate process termination
                     _exitEvent.Set();        // Signal the main thread to exit
                 };
@@ -118,11 +125,11 @@ namespace RewindSubtitleDisplayerForPlex
             finally
             {
                 // --- Cleanup ---
-                WriteWarning("Performing final cleanup...");
+                LogDebug("Performing final cleanup...");
                 _connectionWatchdog?.Stop(); // Stop the watchdog first
                 _connectionWatchdog?.Dispose(); // Dispose the watchdog
-                MonitorManager.RemoveAllMonitors(); // Stop any active rewind monitors
-                Console.WriteLine("Application exited.");
+                //MonitorManager.RemoveAllMonitors(); // Not needed if we're just exiting the app, plus should be already handled
+                LogInfo("    Application exited.");
                 _exitEvent.Dispose();
             }
         }

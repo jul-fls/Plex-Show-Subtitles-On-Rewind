@@ -99,66 +99,7 @@ internal class Utils
         WriteColor(message: message, foreground: ConsoleColor.Red);
     }
 
-    public static void WriteErrorSuper(string message, bool noNewLine = false)
-    {
-        WriteWithBackground(message, ConsoleColor.White, ConsoleColor.DarkRed, noNewLine: noNewLine);
-    }
-
-    public static void WriteSuccessSuper(string message, bool noNewLine = false)
-    {
-        WriteWithBackground(message, ConsoleColor.White, ConsoleColor.DarkGreen, noNewLine: noNewLine);
-    }
-
-    public static void WriteWithBackground(string message, ConsoleColor foreground, ConsoleColor? background, bool noNewLine = false)
-    {
-        // If there are any newlines in the message, split it and write each line separately.
-        // If there are trailing or leading newlines, write them separately not colored.
-        // This is because the background color can be messed up by newline
-
-        string[] lines = Regex.Split(message, @"(\r\n|\r|\n)");
-
-        foreach (string line in lines) {
-            if (line.Length == 0)
-            {
-                continue;
-            }
-            else if (line.Trim('\n').Length > 0)
-            {
-                WriteColor(message: line, foreground: foreground, background: background, noNewline:true);
-            }
-            else
-            {
-                Console.Write(line);
-            }
-        }
-        
-        if (noNewLine == false)
-            Console.WriteLine(); // Write a newline at the end because we've been using noNewline:true
-    }
-
-    public static void WriteWarning(string message)
-    {
-        WriteColor(message: message, foreground: ConsoleColor.Yellow);
-    }
-
-    public static void WriteGreen(string message)
-    {
-        WriteColor(message: message, foreground: ConsoleColor.Green);
-    }
-
-    public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
-    {
-        Console.ForegroundColor = foreground;
-        if (background != null)
-            Console.BackgroundColor = background.Value;
-
-        if (noNewline)
-            Console.Write(message);
-        else
-            Console.WriteLine(message);
-
-        Console.ResetColor();
-    }
+    
 
 
 } // ---------- End of Utils Class -----------

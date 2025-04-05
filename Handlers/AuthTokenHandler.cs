@@ -142,13 +142,13 @@ public static class AuthTokenHandler
 
             if (string.IsNullOrWhiteSpace(token))
             {
-                Console.WriteLine($"Auth token is empty or not found. Update {AuthStrings.tokenFileName}.");
+                LogError($"Auth token is empty or not found. Update {AuthStrings.tokenFileName}.");
                 return null;
             }
             else if (token == AuthStrings.TokenPlaceholder || token == AuthStrings.UUIDPlaceholder)
             {
-                Console.WriteLine($"Update {AuthStrings.tokenFileName} to use your actual auth token for your plex server.\n" +
-                    "Or delete the config and run the app again to go through the token generation steps.");
+                LogError($"Update {AuthStrings.tokenFileName} to use your actual auth token for your plex server.\n" +
+                    "\t\tOr delete the config and run the app again to go through the token generation steps.");
                 return null;
             }
             else
@@ -172,7 +172,7 @@ public static class AuthTokenHandler
             authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: MyStrings.AppName);
 
             Console.WriteLine("\n----------------------------------------------------------------");
-            Utils.WriteColor($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}", ConsoleColor.Green);
+            WriteColor($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}", ConsoleColor.Green);
             Console.WriteLine("\n\nTip: After authorizing, you should see it show up in the 'devices' section at:" +
                 "\n     http://<Your Server IP>:<Port>/web/index.html#!/settings/devices/all");
 
