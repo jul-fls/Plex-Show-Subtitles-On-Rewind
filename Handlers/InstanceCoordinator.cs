@@ -25,6 +25,7 @@ namespace RewindSubtitleDisplayerForPlex
         private const string AnyoneElseEventName = $"Global\\{AppNameDashed}_{AppGuid}_AnyoneElse";
         private const string YesImHereEventName = $"Global\\{AppNameDashed}_{AppGuid}_YesImHere";
         private const string ShutdownEventName = $"Global\\{AppNameDashed}_{AppGuid}_Shutdown"; // For -stop
+        private static string NoMoreCheckinsEventName = $"Global\\{AppNameDashed}_{InstanceUniqueGUID}_NoMoreCheckins"; // Other instances to know when we are done checking in with them
         private const string PipeName = $"RewindSubtitleDisplayer_{AppGuid}_InstanceCheckPipe";
 
         // --- Event Handles (Need careful creation/opening) ---
@@ -53,7 +54,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _anyoneElseEvent = CreateOrOpenEvent(AnyoneElseEventName);
                 _yesImHereEvent = CreateOrOpenEvent(YesImHereEventName);
                 _shutdownEvent = CreateOrOpenEvent(ShutdownEventName); // For -stop command
-                _noMoreCheckins = CreateOrOpenEvent($"{AppNameDashed}_{AppGuid}_NoMoreCheckins"); // For checking in with other instances
+                _noMoreCheckins = CreateOrOpenEvent(NoMoreCheckinsEventName);
                 return true;
             }
             catch (Exception ex)
