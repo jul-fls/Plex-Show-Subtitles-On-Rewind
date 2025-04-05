@@ -15,8 +15,8 @@ namespace RewindSubtitleDisplayerForPlex
     public static class InstanceCoordinator
     {
         // --- Unique Identifiers (Ensure GUID is set) ---
-        private const string AppGuid = "{391AE04C-125D-11F0-8C20-2A0F2161BBC3}"; // Use your actual GUID
-        private static readonly string AppNameDashed = "RewindSubtitleDisplayerForPlex"; // Or get dynamically
+        private const string AppGuid = "{391AE04C-125D-11F0-8C20-2A0F2161BBC3}";
+        private static readonly string AppNameDashed = MyStrings.AppNameDashed;
         // Added version markers to ensure fresh handles/pipes if testing iterations
         private static string AnyoneHereEventName = $"Global\\{AppNameDashed}_{AppGuid}_AnyoneHere";
         private static string ShutdownEventName = $"Global\\{AppNameDashed}_{AppGuid}_Shutdown";
@@ -27,12 +27,10 @@ namespace RewindSubtitleDisplayerForPlex
         private static EventWaitHandle? _shutdownEvent;
 
         // --- Configuration ---
-        private static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(500); // Timeout for EI connecting to NI pipe
-        private static readonly TimeSpan ConnectionAttemptTimeout = TimeSpan.FromMilliseconds(1500); // How long NI waits for ANY connection after signaling AnyoneHere
-        private static readonly int ConsecutiveTimeoutThreshold = 2; // How many consecutive timeouts NI allows before assuming done
-        private static readonly TimeSpan OverallCheckTimeout = TimeSpan.FromSeconds(10); // Max time NI spends checking
+        private static readonly TimeSpan ConnectionAttemptTimeout = TimeSpan.FromMilliseconds(1500); // How long New Instance waits for ANY connection after signaling AnyoneHere
+        private static readonly TimeSpan OverallCheckTimeout = TimeSpan.FromSeconds(10); // Max time New Instance spends checking
 
-        // --- State for EIs ---
+        // --- State for Existing Instances ---
         private static CancellationTokenSource? _eiListenerCts;
 
         // --- Initialization and Global Handle Management ---
@@ -42,7 +40,7 @@ namespace RewindSubtitleDisplayerForPlex
             try
             {
                 // Use ManualReset for AnyoneHere (to signal all) and Shutdown
-                _anyoneHereEvent = CreateOrOpenEvent(AnyoneHereEventName, EventResetMode.ManualReset); // <-- CHANGE BACK
+                _anyoneHereEvent = CreateOrOpenEvent(AnyoneHereEventName, EventResetMode.ManualReset);
                 _shutdownEvent = CreateOrOpenEvent(ShutdownEventName, EventResetMode.ManualReset);
                 if (_anyoneHereEvent == null || _shutdownEvent == null)
                 {
@@ -52,7 +50,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
             catch (Exception ex)
             {
-                LogError($"FATAL: Error creating/opening coordination handles: {ex.Message}. Cannot proceed.");
+                LogError($"ERROR: Error creating/opening coordination handles: {ex.Message}.");
                 return false;
             }
         }
@@ -60,15 +58,13 @@ namespace RewindSubtitleDisplayerForPlex
         private static EventWaitHandle CreateOrOpenEvent(string name, EventResetMode mode)
         {
             EventWaitHandle? handle = null;
-            bool createdNew = false;
+            bool createdNew;
             try
             {
-                // Use the 'mode' parameter passed in
                 handle = new EventWaitHandle(false, mode, name, out createdNew);
                 LogDebug($"Handle '{name}': {(createdNew ? "Created new" : "Opened existing")} (Mode: {mode})"); // Log the mode
                 return handle;
             }
-            // ... (rest of catch blocks remain the same) ...
             catch (Exception exCreate)
             {
                 LogError($"Generic error creating/opening handle '{name}': {exCreate.Message}");
@@ -77,7 +73,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        // --- NI Logic: Check for Duplicate Servers ---
+        // --- New Instance Logic: Check for Duplicate Servers ---
         public static async Task<bool> CheckForDuplicateServersAsync(string myServerUrl, bool allowDuplicates = false)
         {
             if (_anyoneHereEvent == null) { LogError("Coordination handle not initialized."); return false; }
@@ -94,18 +90,18 @@ namespace RewindSubtitleDisplayerForPlex
                 _anyoneHereEvent.Reset();
                 LogDebug("Ensured AnyoneHere is Reset.");
 
-                // 2. Signal all waiting EIs
+                // 2. Signal all waiting Existing Instances
                 LogDebug("Signaling AnyoneHere? (Once, ManualReset)");
                 _anyoneHereEvent.Set();
 
-                // 3. Wait briefly to allow EIs to wake up
+                // 3. Wait briefly to allow Existing Instances to wake up
                 // Adjust delay if needed, 200-250ms is often sufficient
                 int wakeUpDelayMs = 250;
-                LogDebug($"Waiting {wakeUpDelayMs}ms for EIs to wake...");
+                LogDebug($"Waiting {wakeUpDelayMs}ms for Existing Instances to wake...");
                 await Task.Delay(wakeUpDelayMs);
 
                 // 4. Reset the event BEFORE starting pipe listener loop
-                // This prevents EIs from re-triggering on the same signal if they loop quickly
+                // This prevents Existing Instances from re-triggering on the same signal if they loop quickly
                 _anyoneHereEvent.Reset();
                 LogDebug("Reset AnyoneHere signal after delay.");
             }
@@ -125,7 +121,7 @@ namespace RewindSubtitleDisplayerForPlex
             // --- End Signaling Logic ---
 
 
-            LogDebug($"NI: Listening for connections for up to {OverallCheckTimeout.TotalSeconds} seconds...");
+            LogDebug($"New Instance: Listening for connections for up to {OverallCheckTimeout.TotalSeconds} seconds...");
             try
             {
                 // Loop, attempting to accept connections until timeout or duplicate found (if blocking duplicates)
@@ -140,13 +136,13 @@ namespace RewindSubtitleDisplayerForPlex
 
                     using var connectionTimeoutCts = new CancellationTokenSource(ConnectionAttemptTimeout);
 
-                    LogDebug($"NI: Waiting for next connection attempt (timeout: {ConnectionAttemptTimeout.TotalMilliseconds}ms)...");
+                    LogDebug($"New Instance: Waiting for next connection attempt (timeout: {ConnectionAttemptTimeout.TotalMilliseconds}ms)...");
                     (int clientPid, string? receivedUrl) = await RunPipeServerCycleAsync(PipeName, connectionTimeoutCts.Token);
 
-                    // Condition: WaitForConnectionAsync timed out - means no EIs (that woke up) are left waiting to connect
+                    // Condition: WaitForConnectionAsync timed out - means no Existing Instances (that woke up) are left waiting to connect
                     if (clientPid == -1 && connectionTimeoutCts.IsCancellationRequested)
                     {
-                        LogInfo($"No connection attempts within timeout ({ConnectionAttemptTimeout.TotalMilliseconds}ms). Assuming check complete.");
+                        LogDebug($"No connection attempts within timeout ({ConnectionAttemptTimeout.TotalMilliseconds}ms). Assuming check complete.");
                         break; // Exit the main listening loop
                     }
 
@@ -161,10 +157,10 @@ namespace RewindSubtitleDisplayerForPlex
                     // --- Process a successful connection ---
                     if (clientPid != -1 && receivedUrl != null)
                     {
-                        LogDebug($"NI received PID {clientPid} and URL '{receivedUrl}'");
+                        LogDebug($"New Instance received PID {clientPid} and URL '{receivedUrl}'");
                         if (respondedPidsThisCheckin.Add(clientPid)) // True if PID was new for this check cycle
                         {
-                            LogInfo($"Received response from new instance PID {clientPid}: {receivedUrl}");
+                            LogDebug($"Received response from new instance PID {clientPid}: {receivedUrl}");
                             if (string.Equals(myServerUrl, receivedUrl, StringComparison.OrdinalIgnoreCase))
                             {
                                 LogError($"Duplicate instance (PID {clientPid}) found monitoring the same server: {myServerUrl}");
@@ -203,7 +199,7 @@ namespace RewindSubtitleDisplayerForPlex
         }
 
 
-        // --- Pipe Server Logic for ONE Cycle (Run by NI) ---
+        // --- Pipe Server Logic for ONE Cycle (Run by New Instance) ---
         private static async Task<(int pid, string? url)> RunPipeServerCycleAsync(string pipeName, CancellationToken cancellationToken)
         {
             NamedPipeServerStream? pipeServer = null;
@@ -215,16 +211,16 @@ namespace RewindSubtitleDisplayerForPlex
                     pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly); // Added CurrentUserOnly
 
-                LogDebug($"NI: Pipe server created ('{pipeName}'). Waiting for connection...");
+                LogDebug($"New Instance: Pipe server created ('{pipeName}'). Waiting for connection...");
                 await pipeServer.WaitForConnectionAsync(cancellationToken);
 
                 // Check immediately after wait completes
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    LogDebug("NI: Cancellation requested immediately after connection wait.");
+                    LogDebug("New Instance: Cancellation requested immediately after connection wait.");
                     return (-1, null);
                 }
-                LogDebug("NI: Client connected.");
+                LogDebug("New Instance: Client connected.");
 
                 // Removed setting pipeServer.ReadTimeout
 
@@ -240,16 +236,16 @@ namespace RewindSubtitleDisplayerForPlex
                                                     // clientUrl = await sReader.ReadLineAsync(cancellationToken);
                     clientUrl = await sReader.ReadLineAsync(); // Simpler version
 
-                    LogDebug($"NI: Received PID '{clientPid}', URL '{clientUrl ?? "<null>"}'");
+                    LogDebug($"New Instance: Received PID '{clientPid}', URL '{clientUrl ?? "<null>"}'");
                 }
                 catch (EndOfStreamException)
                 { // Client disconnected before sending everything
-                    LogWarning("NI: Pipe closed by client before receiving expected data.");
+                    LogDebug("New Instance: Pipe closed by client before receiving expected data.");
                     clientPid = -1; clientUrl = null;
                 }
                 catch (IOException ioEx)
                 { // Other pipe errors during read
-                    LogWarning($"NI: Pipe IO error during read: {ioEx.Message}");
+                    LogWarning($"New Instance: Pipe IO error during read: {ioEx.Message}");
                     clientPid = -1; clientUrl = null;
                 }
                 // Let other exceptions propagate for now
@@ -258,33 +254,33 @@ namespace RewindSubtitleDisplayerForPlex
             }
             catch (OperationCanceledException)
             {
-                LogDebug("NI: Pipe connection wait was canceled.");
+                LogDebug("New Instance: Pipe connection wait was canceled.");
                 return (-1, null);
             }
             catch (IOException ioEx) when (ioEx.Message.Contains("All pipe instances are busy"))
             {
-                LogWarning($"NI: Pipe server IO error (Instances busy?): {ioEx.Message}"); // Should be less likely now
+                LogWarning($"New Instance: Pipe server IO error (Instances busy?): {ioEx.Message}"); // Should be less likely now
                 return (-1, null);
             }
             catch (IOException ioEx)
             {
-                LogWarning($"NI: Pipe server IO error: {ioEx.Message}");
+                LogWarning($"New Instance: Pipe server IO error: {ioEx.Message}");
                 return (-1, null);
             }
             catch (Exception ex)
             {
-                LogError($"NI: Pipe server unexpected error: {ex.Message}");
+                LogError($"New Instance: Pipe server unexpected error: {ex.Message}");
                 return (-1, null);
             }
             finally
             {
                 try { if (pipeServer?.IsConnected ?? false) pipeServer.Disconnect(); } catch { }
                 pipeServer?.Dispose();
-                LogDebug("NI: Pipe server cycle finished, stream disposed.");
+                LogDebug("New Instance: Pipe server cycle finished, stream disposed.");
             }
         }
 
-        // --- EI Logic: Listener Task ---
+        // --- Existing Instance Logic: Listener Task ---
         public static void StartExistingInstanceListener(string myServerUrl, CancellationToken appShutdownToken)
         {
             if (_anyoneHereEvent == null) return; // Handle not ready
@@ -294,30 +290,30 @@ namespace RewindSubtitleDisplayerForPlex
 
             Task.Run(async () =>
             {
-                LogInfo("EI: Starting listener for 'AnyoneHere?' signals...");
+                LogDebug("Existing Instance: Starting listener for 'AnyoneHere?' signals...");
                 var handles = new WaitHandle[] { token.WaitHandle, _anyoneHereEvent };
 
                 while (!token.IsCancellationRequested)
                 {
                     try
                     {
-                        LogDebug("EI: Waiting for AnyoneHere signal or shutdown...");
+                        LogDebug("Existing Instance: Waiting for AnyoneHere signal or shutdown...");
                         int signaledIndex = WaitHandle.WaitAny(handles); // Wait indefinitely
 
                         if (token.IsCancellationRequested || signaledIndex == 0) { break; }
 
                         if (signaledIndex == 1) // anyoneHereEvent was signaled
                         {
-                            LogDebug("EI: Received 'AnyoneHere' signal. Attempting response...");
+                            LogDebug("Existing Instance: Received 'AnyoneHere' signal. Attempting response...");
 
                             NamedPipeClientStream? pipeClient = null;
                             try
                             {
                                 pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.None);
-                                LogDebug("EI: Attempting to connect to NI pipe...");
-                                // Give slightly less time than NI waits for connection attempt to avoid race condition
+                                LogDebug("Existing Instance: Attempting to connect to New Instance pipe...");
+                                // Give slightly less time than New Instance waits for connection attempt to avoid race condition
                                 await pipeClient.ConnectAsync((int)(ConnectionAttemptTimeout.TotalMilliseconds * 0.9), token);
-                                LogDebug("EI: Connected to NI pipe.");
+                                LogDebug("Existing Instance: Connected to New Instance pipe.");
 
                                 using (var writer = new BinaryWriter(pipeClient, Encoding.UTF8, leaveOpen: true))
                                 {
@@ -327,26 +323,26 @@ namespace RewindSubtitleDisplayerForPlex
                                 {
                                     await sWriter.WriteLineAsync(myServerUrl); await sWriter.FlushAsync();
                                 }
-                                LogDebug($"EI: Sent PID {Process.GetCurrentProcess().Id} and URL. Closing pipe.");
+                                LogDebug($"Existing Instance: Sent PID {Process.GetCurrentProcess().Id} and URL. Closing pipe.");
                             }
-                            catch (OperationCanceledException) { LogWarning("EI: Connection attempt cancelled."); }
-                            catch (TimeoutException) { LogWarning($"EI: Timeout connecting to NI pipe (busy/finished/NI exited?)."); } // More likely NI finished
-                            catch (IOException ioEx) { LogError($"EI: Pipe IO error connecting/sending: {ioEx.Message}"); }
-                            catch (Exception ex) { LogError($"EI: Error connecting/sending to NI pipe: {ex.Message}"); }
+                            catch (OperationCanceledException) { LogWarning("Existing Instance: Connection attempt cancelled."); }
+                            catch (TimeoutException) { LogWarning($"Existing Instance: Timeout connecting to New Instance pipe (busy/finished/New Instance exited?)."); } // More likely New Instance finished
+                            catch (IOException ioEx) { LogError($"Existing Instance: Pipe IO error connecting/sending: {ioEx.Message}"); }
+                            catch (Exception ex) { LogError($"Existing Instance: Error connecting/sending to New Instance pipe: {ex.Message}"); }
                             finally
                             {
                                 pipeClient?.Dispose();
-                                LogDebug("EI: Pipe client disposed.");
+                                LogDebug("Existing Instance: Pipe client disposed.");
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        LogError($"EI Listener loop error: {ex.Message}");
+                        LogError($"Existing Instance Listener loop error: {ex.Message}");
                         try { await Task.Delay(1000, token); } catch { /* Ignore cancellation */ }
                     }
                 }
-                LogInfo("EI Listener task finished.");
+                LogDebug("Existing Instance Listener task finished.");
             }, token);
         }
 
@@ -362,11 +358,11 @@ namespace RewindSubtitleDisplayerForPlex
                 handle = new EventWaitHandle(false, EventResetMode.ManualReset, ShutdownEventName, out createdNew);
                 if (createdNew)
                 {
-                    LogInfo("No existing instance found to signal shutdown (created new handle)."); return true;
+                    LogDebug("No existing instance found to signal shutdown (created new handle)."); return true;
                 }
                 else
                 {
-                    LogInfo("Existing instance found. Signaling shutdown..."); handle.Set();
+                    LogDebug("Existing instance found. Signaling shutdown..."); handle.Set();
                     LogInfo("Shutdown signal sent successfully."); return true;
                 }
             }

@@ -680,9 +680,9 @@ public static class LaunchArgs
 
         // ------------------ Methods ------------------
         // Checks if the current argument matches any of the input arguments supplied in the parameter array
-        public bool CheckIfMatchesInputArgs(string[] inputArgs)
+        public bool Check(string[] allInputArgs)
         {
-            return inputArgs.Any(a => this.Variations.Contains(a));
+            return allInputArgs.Any(a => this.Variations.Contains(a));
         }
 
         // ------------------ Implicit conversions ------------------
@@ -694,17 +694,21 @@ public static class LaunchArgs
     private static readonly Argument _background =      new("background",    "Windows Only: The program runs in the background without showing a console.");
     private static readonly Argument _tokenTemplate =   new ("token-template", "Generate an example token config file.");
     private static readonly Argument _debug =           new("debug",         "Enables debug mode to show additional output.");
+    private static readonly Argument _verbose =         new("verbose",       "Enables verbose mode to show additional output.");
     private static readonly Argument _help =            new("help",          "Display help message with info including launch parameters.");
     private static readonly Argument _helpAlt =         new("?",             _help.Description);
     private static readonly Argument _stop =            new("stop",             "Stop other running instances of the app.");
+    private static readonly Argument _allowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.");
 
     // -------------------------------------------------
     public static Argument Background => _background;
     public static Argument TokenTemplate => _tokenTemplate;
     public static Argument Debug => _debug;
+    public static Argument Verbose => _verbose;
     public static Argument Help => _help;
     public static Argument HelpAlt => _helpAlt;
     public static Argument Stop => _stop;
+    public static Argument AllowDuplicateInstance => _allowDuplicateInstance;
 
     // --------------------------------------------------------
     // Get version starting with either hyphen or forward slash

@@ -15,7 +15,8 @@ namespace RewindSubtitleDisplayerForPlex
         public static bool debugMode = false;
         public static bool verboseMode = false;
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
-        private static bool allowDuplicateInstance = true; // Used to allow duplicate instances of the program
+        private static bool allowDuplicateInstance = false; // Used to allow duplicate instances of the program
+        private static bool instancesAreSetup = false; // Used to check if the instances are set up correctly
 
         private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
 
@@ -33,45 +34,56 @@ namespace RewindSubtitleDisplayerForPlex
                 debugMode = true;
             #endif
 
+            // ------------ Apply launch parameters ------------
+
+            bool runBackgroundArg = LaunchArgs.Background.Check(args);
+            OS_Handlers.HandleBackgroundArg(runBackgroundArg);
+
+            // Debug Mode and verbose mode
+            if (LaunchArgs.Debug.Check(args))
+            {
+                debugMode = true;
+            }
+
+            if (LaunchArgs.Verbose.Check(args))
+                verboseMode = true;
+
             // Enable verbose mode if debug mode is enabled
             if (debugMode == true)
             {
                 verboseMode = true;
             }
 
-            // ------------ Apply launch parameters ------------
+            // Allow duplicate instances
+            if (LaunchArgs.AllowDuplicateInstance.Check(args))
+            {
+                allowDuplicateInstance = true;
+            }
 
-            bool runBackgroundArg = LaunchArgs.Background.CheckIfMatchesInputArgs(args);
+            // ------------ Initialize Coordination Handles ------------
+            instancesAreSetup = InstanceCoordinator.InitializeHandles();
+            if (!instancesAreSetup)
+            {
+                WriteErrorSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
+            }
 
-            if (LaunchArgs.Stop.CheckIfMatchesInputArgs(args))
+            if (LaunchArgs.Stop.Check(args))
             {
                 InstanceCoordinator.SignalShutdown();
                 // Clean up handles for this short-lived instance
                 InstanceCoordinator.Cleanup();
                 return; // Exit after signaling
             }
+            // ----------------------------------------------------------
 
-            // ------------ Initialize Coordination Handles ------------
-            if (!InstanceCoordinator.InitializeHandles())
-            {
-                // Error already logged by InitializeHandles
-                if (!runBackgroundArg) { Console.WriteLine("Press Enter to exit..."); Console.ReadKey(); }
-                return; // Cannot proceed
-            }
-
-           
-            OS_Handlers.HandleBackgroundArg(runBackgroundArg);
-
-            if (LaunchArgs.Debug.CheckIfMatchesInputArgs(args))
-                debugMode = true;
-
-            if (LaunchArgs.TokenTemplate.CheckIfMatchesInputArgs(args))
+            // Token Template
+            if (LaunchArgs.TokenTemplate.Check(args))
             {
                 AuthTokenHandler.CreateTemplateTokenFile(force:true);
                 WriteGreen("\nToken template generated.");
             }
 
-            if (LaunchArgs.Help.CheckIfMatchesInputArgs(args) || LaunchArgs.HelpAlt.CheckIfMatchesInputArgs(args))
+            if (LaunchArgs.Help.Check(args) || LaunchArgs.HelpAlt.Check(args))
             {
                 Console.WriteLine(MyStrings.LaunchArgsInfo + "\n\n");
                 Console.WriteLine("Press Enter to exit.");
@@ -91,21 +103,24 @@ namespace RewindSubtitleDisplayerForPlex
 
             config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
 
-            // ------------ NI Logic: Check for Duplicates ------------
-            bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL, allowDuplicateInstance).Result;
-            if (duplicateFound)
+            // ------------ New Instance Logic: Check for Duplicates ------------
+            if (instancesAreSetup)
             {
-                if (allowDuplicateInstance)
+                bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL, allowDuplicateInstance).Result;
+                if (duplicateFound)
                 {
-                    LogWarning("Duplicate instance found but currently set to allow duplicates. Continuing...");
-                }
-                else
-                {
-                    // Error already logged by CheckForDuplicateServersAsync
-                    LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
-                    if (!runBackgroundArg) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
-                    InstanceCoordinator.Cleanup(); // Cleanup handles
-                    return; // Exit NI
+                    if (allowDuplicateInstance)
+                    {
+                        LogWarning("Duplicate instance found but currently set to allow duplicates. Continuing...");
+                    }
+                    else
+                    {
+                        // Error already logged by CheckForDuplicateServersAsync
+                        LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
+                        if (!runBackgroundArg) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
+                        InstanceCoordinator.Cleanup(); // Cleanup handles
+                        return; // Exit New Instance
+                    }
                 }
             }
 
@@ -147,20 +162,28 @@ namespace RewindSubtitleDisplayerForPlex
                 // Start the watchdog - it will handle connection and listener internally
                 _connectionWatchdog.Start();
 
-                // --- Start EI Listener Task (This instance now acts as an EI too) ---
-                InstanceCoordinator.StartExistingInstanceListener(config.ServerURL, _appShutdownCts.Token);
+                // --- Start Existing Instance Listener Task (This instance now acts as an Existing Instance too) ---
+                WaitHandle[] waitHandles;
+                if (instancesAreSetup)
+                {
+                    InstanceCoordinator.StartExistingInstanceListener(config.ServerURL, _appShutdownCts.Token);
+                    WaitHandle shutdownHandle = InstanceCoordinator.GetShutdownWaitHandle();
+                    waitHandles = [_ctrlCExitEvent, _appShutdownCts.Token.WaitHandle, shutdownHandle];
+                }
+                else
+                {
+                    waitHandles = [_ctrlCExitEvent, _appShutdownCts.Token.WaitHandle];
+                }
 
-                var shutdownHandle = InstanceCoordinator.GetShutdownWaitHandle();
-                WaitHandle[] waitHandles = [_ctrlCExitEvent, shutdownHandle, _appShutdownCts.Token.WaitHandle];
-
+                Console.WriteLine("Application running. Press Ctrl+C to exit.");
                 int signaledHandleIndex = WaitHandle.WaitAny(waitHandles);
 
                 // Determine reason for exit
                 string exitReason = signaledHandleIndex switch
                 {
                     0 => "Ctrl+C detected",
-                    1 => "External shutdown signal received",
-                    2 => "Application cancellation token triggered",
+                    1 => "Application cancellation token triggered",
+                    2 => "External shutdown signal received", // This is last because it might not always be set
                     _ => "WaitAny returned an unexpected index"
                 };
                 LogInfo($"Exit signal received ({exitReason}). Shutting down (this might take several seconds)...", ConsoleColor.Yellow);
@@ -170,13 +193,6 @@ namespace RewindSubtitleDisplayerForPlex
                 {
                     _appShutdownCts.Cancel();
                 }
-
-                Console.WriteLine("Application running. Press Ctrl+C to exit.");
-
-                // --- Wait for Exit Signal ---
-                _ctrlCExitEvent.WaitOne(); // Block main thread until Ctrl+C or other exit signal
-
-                LogInfo("Exit signal received. Shutting down (this might take several seconds)...", Yellow);
 
             }
             catch (Exception ex) // Catch errors during initial setup
