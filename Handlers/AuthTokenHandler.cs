@@ -59,7 +59,7 @@ public static class AuthTokenHandler
         if (!File.Exists(tokenFilePath))
         {
             // Prompt the user if they want to go through the auth flow to generate a token
-            WriteWarning($"Required \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
+            WriteYellow($"Required \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
             Console.WriteLine(AuthStrings.tokenNote);
             Console.Write("\nAuthorize App? (y/n): ");
             string? userInput = Console.ReadLine();
@@ -72,12 +72,12 @@ public static class AuthTokenHandler
                 }
                 else
                 {
-                    Utils.WriteError($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.\n");
+                    WriteRed($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.\n");
                 }
             }
             else
             {
-                WriteWarning("\nYou'll need to generate an auth token for the app to work.\n" +
+                WriteYellow("\nYou'll need to generate an auth token for the app to work.\n" +
                     $"   - Either restart the app and go through the token flow\n" +
                     $"   - Or if you know how, you can manually make the API REST requests and use {AuthStrings.tokenFileTemplateName} to store the token.\n");
                 CreateTemplateTokenFile();
@@ -158,6 +158,14 @@ public static class AuthTokenHandler
         }
     }
 
+    public static void ClearLastLine()
+    {
+        Console.SetCursorPosition(0, Console.CursorTop - 1);
+        Console.Write(new string(' ', Console.BufferWidth - 1));
+        Console.SetCursorPosition(0, Console.CursorTop - 1);
+        Console.WriteLine(); // This seems needed to prevent weird overlapping of text
+    }
+
     static bool FullAuthFlow()
     {
         bool successResult = false;
@@ -172,7 +180,7 @@ public static class AuthTokenHandler
             authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: MyStrings.AppName);
 
             Console.WriteLine("\n----------------------------------------------------------------");
-            WriteColor($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}", ConsoleColor.Green);
+            WriteGreen($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}");
             Console.WriteLine("\n\nTip: After authorizing, you should see it show up in the 'devices' section at:" +
                 "\n     http://<Your Server IP>:<Port>/web/index.html#!/settings/devices/all");
 
@@ -181,10 +189,13 @@ public static class AuthTokenHandler
             Console.ForegroundColor = ConsoleColor.Red;
             Console.Write("after you have authorized the app.");
             Console.ResetColor();
-            Console.WriteLine();
+            //Console.WriteLine(); // Don't add extra newline or else can't erase it
 
-            // Wait for user to press a key
+            // Wait for user to press Enter
             Console.ReadLine();
+
+            // Erase the past line
+            ClearLastLine();
         }
         else
         {
@@ -207,7 +218,7 @@ public static class AuthTokenHandler
             {
                 Console.WriteLine("----------------------------------------------------------------");
                 WriteErrorSuper("\nThe app does not appear authorized.", noNewLine:true);
-                WriteError("  Visit this URL and sign in if you haven't already: ");
+                WriteRed("  Visit this URL and sign in if you haven't already: ");
 
                 WriteGreen($"\n\t{authUrl}");
                 Console.WriteLine("\nThen press Enter to check again.");

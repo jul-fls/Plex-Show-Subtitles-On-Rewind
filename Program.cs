@@ -61,7 +61,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteGreen(MyStrings.HeadingTitle);
                 if (debugMode)
-                    WriteWarning("Debug mode enabled.\n");
+                    WriteYellow("Debug mode enabled.\n");
                 Console.WriteLine(MyStrings.LaunchArgsInfo);
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
@@ -96,7 +96,7 @@ namespace RewindSubtitleDisplayerForPlex
                 // Set up Ctrl+C handler. This doesn't run now, it just gets registered.
                 Console.CancelKeyPress += (sender, eventArgs) =>
                 {
-                    WriteWarning("\nCtrl+C detected. Initiating shutdown...\n");
+                    WriteYellow("\n***** Ctrl+C detected. Initiating shutdown... *****\n");
                     eventArgs.Cancel = true; // Prevent immediate process termination
                     _exitEvent.Set();        // Signal the main thread to exit
                 };
@@ -109,7 +109,7 @@ namespace RewindSubtitleDisplayerForPlex
                 // --- Wait for Exit Signal ---
                 _exitEvent.WaitOne(); // Block main thread until Ctrl+C or other exit signal
 
-                WriteWarning("Exit signal received. Shutting down (this might take several seconds)...");
+                LogInfo("Exit signal received. Shutting down (this might take several seconds)...", Yellow);
 
             }
             catch (Exception ex) // Catch errors during initial setup

@@ -256,7 +256,7 @@ public class PlexNotificationListener : IDisposable
                 }
                 catch (OperationCanceledException) { /* Expected if task was cancelled */ }
                 catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { /* Expected */ }
-                catch (Exception ex) { WriteError($"Error waiting for listener task during dispose: {ex.Message}"); }
+                catch (Exception ex) { LogError($"Error waiting for listener task during dispose: {ex.Message}"); }
 
 
                 _listenerCts.Dispose();

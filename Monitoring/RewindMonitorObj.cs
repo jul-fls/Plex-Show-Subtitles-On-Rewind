@@ -96,7 +96,7 @@
 
         private void RewindOccurred()
         {
-            WriteWarning($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}");
+            LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}");
             _activeSession.EnableSubtitles();
             _temporarilyDisplayingSubtitles = true;
         }
@@ -104,7 +104,7 @@
         // Disable subtitles but only if they were enabled by the monitor
         private void ReachedOriginalPosition()
         {
-            WriteWarning($"{_deviceName}: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}");
+            LogInfo($"{_deviceName}: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}");
             if (!_subtitlesUserEnabled)
             {
                 _activeSession.DisableSubtitles();

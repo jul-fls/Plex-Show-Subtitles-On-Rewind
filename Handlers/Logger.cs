@@ -151,7 +151,7 @@ internal static class Logger
             Console.WriteLine(); // Write a newline at the end because we've been using noNewline:true
     }
 
-    public static void WriteWarning(string message)
+    public static void WriteYellow(string message)
     {
         WriteColor(message: message, foreground: ConsoleColor.Yellow);
     }
@@ -161,7 +161,11 @@ internal static class Logger
         WriteColor(message: message, foreground: ConsoleColor.Green);
     }
 
-    //TODO: Make this private and replace usages of it outside the class. Console.writeline already supports color
+    public static void WriteRed(string message)
+    {
+        WriteColor(message: message, foreground: ConsoleColor.Red);
+    }
+
     public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
     {
         Console.ForegroundColor = foreground;

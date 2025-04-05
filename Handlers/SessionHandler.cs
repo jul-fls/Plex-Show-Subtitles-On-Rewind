@@ -145,15 +145,14 @@ namespace RewindSubtitleDisplayerForPlex
                         }
                         else 
                         {
-                            if (debugMode == true)
-                                Console.WriteLine($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
+                            LogDebug($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
                         }
                     }
                     // This is the first check it was no longer seen, so set the last seen time to now
                     else
                     {
                         deadSession.LastSeenTimeEpoch = currentTime;
-                        WriteWarning($"{deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) no longer found. Beginning grace period.");
+                        LogDebug($"{deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) no longer found. Beginning grace period.");
                     }
 
                     // Check if the dead session's playing media matches the current media on a newly added sessoin
@@ -193,7 +192,7 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static void RemoveSession(ActiveSession sessionToRemove)
         {
-            WriteWarning($"Removing leftover session from {sessionToRemove.DeviceName}. Playback ID: {sessionToRemove.SessionID}");
+            LogVerbose($"Removing leftover session from {sessionToRemove.DeviceName}. Playback ID: {sessionToRemove.SessionID}");
             _activeSessionList.Remove(sessionToRemove);
             MonitorManager.RemoveMonitorForSession(sessionToRemove.SessionID);
         }

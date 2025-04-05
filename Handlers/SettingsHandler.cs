@@ -33,33 +33,33 @@ public class Settings
         ServerURL.Value = ServerURL.Value.TrimEnd('/');
         if (string.IsNullOrEmpty(ServerURL))
         {
-            WriteError($"Error for setting {ServerURL.ConfigName}: Server URL is empty or null. Will use default value {def.ServerURL}");
+            LogError($"Error for setting {ServerURL.ConfigName}: Server URL is empty or null. Will use default value {def.ServerURL}");
             ServerURL = def.ServerURL;
         }
 
         // Active Monitor Frequency
         if (ActiveMonitorFrequency < 0)
         {
-            WriteError($"Error for setting {ActiveMonitorFrequency.ConfigName}: Active Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.ActiveMonitorFrequency}");
+            LogError($"Error for setting {ActiveMonitorFrequency.ConfigName}: Active Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.ActiveMonitorFrequency}");
             ActiveMonitorFrequency = def.ActiveMonitorFrequency;
         }
 
         // Idle Monitor Frequency
         if (IdleMonitorFrequency < 0)
         {
-            WriteError($"Error for setting {IdleMonitorFrequency.ConfigName}: Idle Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.IdleMonitorFrequency}");
+            LogError($"Error for setting {IdleMonitorFrequency.ConfigName}: Idle Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.IdleMonitorFrequency}");
             IdleMonitorFrequency = def.IdleMonitorFrequency;
         }
 
         // Short Timeout Limit
         if (ShortTimeoutLimit < 0)
         {
-            WriteError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be greater than or equal to 0.\nWill use default value {def.ShortTimeoutLimit}");
+            LogError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be greater than or equal to 0.\nWill use default value {def.ShortTimeoutLimit}");
             ShortTimeoutLimit = def.ShortTimeoutLimit;
         }
         if (ShortTimeoutLimit > ActiveMonitorFrequency * 1000)
         {
-            WriteError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be less than Active Monitor Frequency.\nWill use default value {def.ShortTimeoutLimit}");
+            LogError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be less than Active Monitor Frequency.\nWill use default value {def.ShortTimeoutLimit}");
             ShortTimeoutLimit = def.ShortTimeoutLimit;
         }
 

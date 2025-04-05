@@ -50,7 +50,7 @@ namespace RewindSubtitleDisplayerForPlex
                     string statusName = response.StatusCode.ToString();
                     string errorText = await response.Content.ReadAsStringAsync();
                     errorText = errorText.Replace("\n", " ");
-                    WriteError($"Error getting sessions: {statusCode} ({statusName}), Error: {errorText}");
+                    LogError($"Error getting sessions: {statusCode} ({statusName}), Error: {errorText}");
                     return null;
                 }
 
@@ -318,7 +318,7 @@ namespace RewindSubtitleDisplayerForPlex
                 else
                 {
                     // Handle error
-                    WriteError($"Error fetching timeline: {timelineResponse.ReasonPhrase}");
+                    LogError($"Error fetching timeline: {timelineResponse.ReasonPhrase}");
                     return null;
                 }
             }
@@ -327,18 +327,18 @@ namespace RewindSubtitleDisplayerForPlex
                 // Timeouts aren't a critical error so don't emphasize as error
                 if (ex.InnerException is TimeoutException)
                 {
-                    Console.WriteLine($"Timeout fetching timeline from {deviceName} (Player app may have closed or device shut down.)");
+                    LogDebug($"Timeout fetching timeline from {deviceName} (Player app may have closed or device shut down.)");
                 }
                 else
                 {
-                    WriteError($"Error fetching device timeline: {ex.Message}");
+                    LogError($"Error fetching device timeline: {ex.Message}");
                 }
                 return null;
             }
             // Display other exceptions as errors
             catch (Exception ex)
             {
-                WriteError($"Error fetching device timeline: {ex.Message}");
+                LogError($"Error fetching device timeline: {ex.Message}");
                 return null;
             }
         }

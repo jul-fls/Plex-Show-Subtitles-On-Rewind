@@ -31,7 +31,7 @@ internal static partial class OS_Handlers
         #else
             if (runInBackgroundArg)
             {
-                WriteError("Error: Can only use \"background\" mode (without console window) on Windows.");
+                LogError("Error: Can only use \"background\" mode (without console window) on Windows.");
             }
         #endif
     }

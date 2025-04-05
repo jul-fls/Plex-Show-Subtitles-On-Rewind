@@ -94,12 +94,4 @@ internal class Utils
         return request;
     }
 
-    public static void WriteError(string message)
-    {
-        WriteColor(message: message, foreground: ConsoleColor.Red);
-    }
-
-    
-
-
 } // ---------- End of Utils Class -----------
