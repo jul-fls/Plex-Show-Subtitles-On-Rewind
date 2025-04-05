@@ -15,6 +15,7 @@ namespace RewindSubtitleDisplayerForPlex
         public static bool debugMode = false;
         public static bool verboseMode = false;
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
+        private static bool allowDuplicateInstance = true; // Used to allow duplicate instances of the program
 
         private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
 
@@ -91,14 +92,21 @@ namespace RewindSubtitleDisplayerForPlex
             config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
 
             // ------------ NI Logic: Check for Duplicates ------------
-            bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL).Result;
+            bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL, allowDuplicateInstance).Result;
             if (duplicateFound)
             {
-                // Error already logged by CheckForDuplicateServersAsync
-                LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
-                if (!runBackgroundArg) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
-                InstanceCoordinator.Cleanup(); // Cleanup handles
-                return; // Exit NI
+                if (allowDuplicateInstance)
+                {
+                    LogWarning("Duplicate instance found but currently set to allow duplicates. Continuing...");
+                }
+                else
+                {
+                    // Error already logged by CheckForDuplicateServersAsync
+                    LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
+                    if (!runBackgroundArg) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
+                    InstanceCoordinator.Cleanup(); // Cleanup handles
+                    return; // Exit NI
+                }
             }
 
             // ------------------ Start Main ------------------

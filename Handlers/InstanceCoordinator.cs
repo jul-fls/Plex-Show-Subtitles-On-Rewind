@@ -1,328 +1,338 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Pipes;
-using System.Security.AccessControl;
-using System.Security.Principal;
-using System.Text;
+using System.Text; // Added for Encoding
 using System.Threading;
 using System.Threading.Tasks;
 
-#nullable enable
+// Add using static for your Logger if applicable
+// using static RewindSubtitleDisplayerForPlex.Logger;
 
 namespace RewindSubtitleDisplayerForPlex
 {
     public static class InstanceCoordinator
     {
-        // --- Unique Identifiers (REPLACE GUID) ---
-        private const string AppGuid = "391AE04C-125D-11F0-8C20-2A0F2161BBC3"; // GUID unique to the app but not to each instance
-        private static string InstanceUniqueGUID = Guid.NewGuid().ToString(); // Unique to each instance
-
-        private static Dictionary<string, bool> CheckedInWithInstances = new(); // Track which instances we have checked in with so we don't ask them again
-
-        private const string AnyoneElseEventName = $"Global\\{AppNameDashed}_{AppGuid}_AnyoneElse";
-        private const string YesImHereEventName = $"Global\\{AppNameDashed}_{AppGuid}_YesImHere";
-        private const string ShutdownEventName = $"Global\\{AppNameDashed}_{AppGuid}_Shutdown"; // For -stop
-        private static string NoMoreCheckinsEventName = $"Global\\{AppNameDashed}_{InstanceUniqueGUID}_NoMoreCheckins"; // Other instances to know when we are done checking in with them
+        // --- Unique Identifiers (Ensure GUID is set) ---
+        private const string AppGuid = "{391AE04C-125D-11F0-8C20-2A0F2161BBC3}"; // Use your actual GUID
+        private static readonly string AppNameDashed = "RewindSubtitleDisplayerForPlex"; // Or get dynamically
+        // Added version markers to ensure fresh handles/pipes if testing iterations
+        private static string AnyoneHereEventName = $"Global\\{AppNameDashed}_{AppGuid}_AnyoneHere";
+        private static string ShutdownEventName = $"Global\\{AppNameDashed}_{AppGuid}_Shutdown";
         private const string PipeName = $"RewindSubtitleDisplayer_{AppGuid}_InstanceCheckPipe";
 
-        // --- Event Handles (Need careful creation/opening) ---
-        private static EventWaitHandle? _anyoneElseEvent;
-        private static EventWaitHandle? _yesImHereEvent;
-        private static EventWaitHandle? _shutdownEvent; // For -stop
-        private static EventWaitHandle? _noMoreCheckins; // Know when new instance is done checking in so we can stop ignoring _anyoneElseEvent (in case new instance is created after we check in with the first one)
+        // --- Event Handles ---
+        private static EventWaitHandle? _anyoneHereEvent;
+        private static EventWaitHandle? _shutdownEvent;
 
         // --- Configuration ---
         private static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(500); // Timeout for EI connecting to NI pipe
-        private static readonly TimeSpan ResponseTimeout = TimeSpan.FromMilliseconds(1000); // Timeout for NI waiting for YesImHere signal
+        private static readonly TimeSpan ConnectionAttemptTimeout = TimeSpan.FromMilliseconds(1500); // How long NI waits for ANY connection after signaling AnyoneHere
+        private static readonly int ConsecutiveTimeoutThreshold = 2; // How many consecutive timeouts NI allows before assuming done
         private static readonly TimeSpan OverallCheckTimeout = TimeSpan.FromSeconds(10); // Max time NI spends checking
 
         // --- State for EIs ---
         private static CancellationTokenSource? _eiListenerCts;
 
-
         // --- Initialization and Global Handle Management ---
-
+        // In InitializeHandles: Change the EventResetMode for AnyoneHere BACK to ManualReset
         public static bool InitializeHandles()
         {
-            // Create/Open ALL handles needed by both NI and EI roles
-            // Use ManualResetEvent, initially non-signaled
             try
             {
-                _anyoneElseEvent = CreateOrOpenEvent(AnyoneElseEventName);
-                _yesImHereEvent = CreateOrOpenEvent(YesImHereEventName);
-                _shutdownEvent = CreateOrOpenEvent(ShutdownEventName); // For -stop command
-                _noMoreCheckins = CreateOrOpenEvent(NoMoreCheckinsEventName);
+                // Use ManualReset for AnyoneHere (to signal all) and Shutdown
+                _anyoneHereEvent = CreateOrOpenEvent(AnyoneHereEventName, EventResetMode.ManualReset); // <-- CHANGE BACK
+                _shutdownEvent = CreateOrOpenEvent(ShutdownEventName, EventResetMode.ManualReset);
+                if (_anyoneHereEvent == null || _shutdownEvent == null)
+                {
+                    throw new InvalidOperationException("Failed to create or open required coordination handles.");
+                }
                 return true;
             }
             catch (Exception ex)
             {
-                LogError($"Fatal error creating/opening coordination handles: {ex.Message}. Cannot proceed.");
+                LogError($"FATAL: Error creating/opening coordination handles: {ex.Message}. Cannot proceed.");
                 return false;
             }
         }
 
-        private static EventWaitHandle CreateOrOpenEvent(string name)
+        private static EventWaitHandle CreateOrOpenEvent(string name, EventResetMode mode)
         {
             EventWaitHandle? handle = null;
             bool createdNew = false;
             try
             {
-                // Use the cross-platform constructor. It implicitly opens if 'createdNew' is false.
-                handle = new EventWaitHandle(
-                    initialState: false,
-                    mode: EventResetMode.ManualReset,
-                    name: name,
-                    createdNew: out createdNew);
-
-                LogDebug($"Handle '{name}': {(createdNew ? "Created new" : "Opened existing")}");
+                // Use the 'mode' parameter passed in
+                handle = new EventWaitHandle(false, mode, name, out createdNew);
+                LogDebug($"Handle '{name}': {(createdNew ? "Created new" : "Opened existing")} (Mode: {mode})"); // Log the mode
                 return handle;
             }
-            // Catch specific exceptions that indicate a real problem, NOT just "opened existing".
-            catch (WaitHandleCannotBeOpenedException whEx) // Name invalid, or different type exists
-            {
-                LogError($"Handle '{name}' could not be created/opened. Name invalid, or different sync object type exists? Details: {whEx.Message}");
-                throw; // Re-throw - cannot proceed
-            }
-            catch (IOException ioEx) // Permissions/filesystem issues on Unix
-            {
-                LogError($"IO error creating/opening handle '{name}' (check permissions/name validity on Linux/macOS?): {ioEx.Message}");
-                handle?.Dispose();
-                throw;
-            }
-            catch (UnauthorizedAccessException authEx) // Permissions issues
-            {
-                LogError($"Unauthorized access creating/opening handle '{name}'. Check process permissions. Details: {authEx.Message}");
-                handle?.Dispose();
-                throw;
-            }
-            catch (Exception exCreate) // Catch other potential creation errors
+            // ... (rest of catch blocks remain the same) ...
+            catch (Exception exCreate)
             {
                 LogError($"Generic error creating/opening handle '{name}': {exCreate.Message}");
-                handle?.Dispose(); // Dispose if partially created
-                throw; // Re-throw
+                handle?.Dispose();
+                throw;
             }
-            // NOTE: Removed the fallback attempt to call the simple OpenExisting(name) here.
         }
 
         // --- NI Logic: Check for Duplicate Servers ---
-        public static async Task<bool> CheckForDuplicateServersAsync(string myServerUrl)
+        public static async Task<bool> CheckForDuplicateServersAsync(string myServerUrl, bool allowDuplicates = false)
         {
-            if (_anyoneElseEvent == null || _yesImHereEvent == null)
-            {
-                LogError("Coordination handles not initialized.");
-                return false; // Cannot proceed, allow startup
-            }
+            if (_anyoneHereEvent == null) { LogError("Coordination handle not initialized."); return false; }
 
             LogInfo("Checking for other instances monitoring the same server...");
-            var reportedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var respondedPidsThisCheckin = new HashSet<int>();
             var overallStopwatch = Stopwatch.StartNew();
             bool duplicateFound = false;
 
-            while (!duplicateFound && overallStopwatch.Elapsed < OverallCheckTimeout)
+            // --- Signaling Logic (ManualResetEvent) ---
+            try
             {
-                LogDebug($"Starting check cycle. Elapsed: {overallStopwatch.Elapsed}");
-                _yesImHereEvent.Reset(); // Ensure it's reset before we check
-                bool heardYes = false;
-                Task<string?> pipeTask; // Task to get URL from one EI
+                // 1. Ensure event is initially reset
+                _anyoneHereEvent.Reset();
+                LogDebug("Ensured AnyoneHere is Reset.");
 
-                try
+                // 2. Signal all waiting EIs
+                LogDebug("Signaling AnyoneHere? (Once, ManualReset)");
+                _anyoneHereEvent.Set();
+
+                // 3. Wait briefly to allow EIs to wake up
+                // Adjust delay if needed, 200-250ms is often sufficient
+                int wakeUpDelayMs = 250;
+                LogDebug($"Waiting {wakeUpDelayMs}ms for EIs to wake...");
+                await Task.Delay(wakeUpDelayMs);
+
+                // 4. Reset the event BEFORE starting pipe listener loop
+                // This prevents EIs from re-triggering on the same signal if they loop quickly
+                _anyoneHereEvent.Reset();
+                LogDebug("Reset AnyoneHere signal after delay.");
+            }
+            catch (ObjectDisposedException)
+            {
+                LogError("Error: AnyoneHere event was disposed during signaling phase.");
+                return false; // Cannot proceed if handle is bad
+            }
+            catch (Exception exSignal)
+            {
+                LogError($"Error during AnyoneHere signaling/reset phase: {exSignal.Message}");
+                // Optionally reset again in case of error during delay/reset
+                try { _anyoneHereEvent?.Reset(); } catch { }
+                // Decide if you can continue or should return false
+                // return false; // Safer to abort if signaling failed
+            }
+            // --- End Signaling Logic ---
+
+
+            LogDebug($"NI: Listening for connections for up to {OverallCheckTimeout.TotalSeconds} seconds...");
+            try
+            {
+                // Loop, attempting to accept connections until timeout or duplicate found (if blocking duplicates)
+                while (overallStopwatch.Elapsed < OverallCheckTimeout)
                 {
-                    // Start pipe server for this cycle
-                    pipeTask = RunPipeServerCycleAsync(PipeName);
-
-                    // Signal EIs to respond
-                    LogDebug("Signaling AnyoneElse?");
-                    _anyoneElseEvent.Set();
-
-                    // Wait briefly for *any* EI to signal it's pending
-                    LogDebug($"Waiting ({ResponseTimeout.TotalMilliseconds}ms) for YesImHere signal...");
-                    heardYes = _yesImHereEvent.WaitOne(ResponseTimeout);
-                    LogDebug($"HeardYes = {heardYes}");
-
-                    // Reset AnyoneElse signal for next cycle (or if we exit)
-                    _anyoneElseEvent.Reset();
-                    LogDebug("Reset AnyoneElse signal.");
-
-
-                    // Wait for the pipe server task to complete (it accepts one client or times out internally)
-                    string? receivedUrl = await pipeTask;
-
-                    if (!string.IsNullOrEmpty(receivedUrl))
+                    // Exit loop immediately if a duplicate is found and we don't allow them
+                    if (!allowDuplicates && duplicateFound)
                     {
-                        LogInfo($"Received Server URL from an existing instance: {receivedUrl}");
-                        if (string.Equals(myServerUrl, receivedUrl, StringComparison.OrdinalIgnoreCase))
+                        LogDebug("Duplicate found and not allowed, stopping listening.");
+                        break;
+                    }
+
+                    using var connectionTimeoutCts = new CancellationTokenSource(ConnectionAttemptTimeout);
+
+                    LogDebug($"NI: Waiting for next connection attempt (timeout: {ConnectionAttemptTimeout.TotalMilliseconds}ms)...");
+                    (int clientPid, string? receivedUrl) = await RunPipeServerCycleAsync(PipeName, connectionTimeoutCts.Token);
+
+                    // Condition: WaitForConnectionAsync timed out - means no EIs (that woke up) are left waiting to connect
+                    if (clientPid == -1 && connectionTimeoutCts.IsCancellationRequested)
+                    {
+                        LogInfo($"No connection attempts within timeout ({ConnectionAttemptTimeout.TotalMilliseconds}ms). Assuming check complete.");
+                        break; // Exit the main listening loop
+                    }
+
+                    // Condition: Something else cancelled the wait (e.g. overall timeout triggered cancellation source externally)
+                    if (connectionTimeoutCts.IsCancellationRequested && clientPid == -1)
+                    {
+                        LogWarning("CheckForDuplicateServersAsync cancelled while waiting for connection.");
+                        break; // Exit the main listening loop
+                    }
+
+
+                    // --- Process a successful connection ---
+                    if (clientPid != -1 && receivedUrl != null)
+                    {
+                        LogDebug($"NI received PID {clientPid} and URL '{receivedUrl}'");
+                        if (respondedPidsThisCheckin.Add(clientPid)) // True if PID was new for this check cycle
                         {
-                            LogError($"Duplicate instance found monitoring the same server: {myServerUrl}");
-                            duplicateFound = true;
-                            // No need to check further, exit loop
+                            LogInfo($"Received response from new instance PID {clientPid}: {receivedUrl}");
+                            if (string.Equals(myServerUrl, receivedUrl, StringComparison.OrdinalIgnoreCase))
+                            {
+                                LogError($"Duplicate instance (PID {clientPid}) found monitoring the same server: {myServerUrl}");
+                                duplicateFound = true;
+                                // Loop will break on next iteration if !allowDuplicates
+                            }
                         }
                         else
                         {
-                            // Optional: Keep track of URLs seen? Not strictly necessary for duplicate check.
+                            LogDebug($"Ignoring duplicate response from PID {clientPid} in this cycle.");
                         }
                     }
-                    else
+                    else // Handle case where RunPipeServerCycleAsync returned (-1, null) but NOT due to timeout
                     {
-                        LogDebug("Pipe server cycle completed without receiving data.");
+                        LogWarning($"Pipe server cycle completed without valid data (PID={clientPid}, URL={receivedUrl}). Client disconnect or internal error?");
+                        // Continue listening for other potential clients
                     }
-                }
-                catch (Exception ex)
-                {
-                    LogError($"Error during instance check cycle: {ex.Message}");
-                    // Decide how to handle errors - maybe break the loop?
-                    break;
-                }
-                finally
-                {
-                    // Ensure AnyoneElse is reset even if exceptions occur
-                    _anyoneElseEvent?.Reset();
-                }
-
-
-                if (!heardYes)
-                {
-                    LogInfo("No instances signaled readiness within the timeout. Assuming check is complete.");
-                    break; // Exit loop if no one signaled YesImHere
-                }
-
-                // If we heard "Yes" but didn't find a duplicate yet, loop again
-                LogDebug("Heard 'Yes', continuing check cycle.");
-                await Task.Delay(50); // Small delay before next cycle? Optional.
+                } // End while loop
             }
-
-            overallStopwatch.Stop();
-            if (!duplicateFound)
+            catch (Exception ex)
             {
-                LogInfo("Duplicate server check complete. No duplicates found.");
+                LogError($"Error during instance check pipe listening loop: {ex.Message}");
+                // Ensure event is reset in case of unexpected exit
+                try { _anyoneHereEvent?.Reset(); } catch { }
+            }
+            finally
+            {
+                // Event should already be reset from the signaling phase, no reset needed here.
+                overallStopwatch.Stop();
+                LogDebug($"Instance check loop finished. Duration: {overallStopwatch.Elapsed}");
             }
 
-            return duplicateFound; // True if duplicate was found, false otherwise
+            if (!duplicateFound) { LogInfo("Duplicate server check complete. No duplicates found."); }
+            // Return true if a duplicate was found, false otherwise
+            return duplicateFound;
         }
 
+
         // --- Pipe Server Logic for ONE Cycle (Run by NI) ---
-        private static async Task<string?> RunPipeServerCycleAsync(string pipeName)
+        private static async Task<(int pid, string? url)> RunPipeServerCycleAsync(string pipeName, CancellationToken cancellationToken)
         {
             NamedPipeServerStream? pipeServer = null;
+            int clientPid = -1;
+            string? clientUrl = null;
             try
             {
                 pipeServer = new NamedPipeServerStream(
-                    pipeName,
-                    PipeDirection.In,
-                    1, // Only allow one connection for this specific instance
-                    PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly); // Added CurrentUserOnly
 
                 LogDebug($"NI: Pipe server created ('{pipeName}'). Waiting for connection...");
+                await pipeServer.WaitForConnectionAsync(cancellationToken);
 
-                // Wait for a connection (with a timeout slightly longer than ResponseTimeout?)
-                await pipeServer.WaitForConnectionAsync(CancellationTokenSource.CreateLinkedTokenSource(new CancellationTokenSource(ResponseTimeout + TimeSpan.FromMilliseconds(500)).Token).Token); // Example timeout
+                // Check immediately after wait completes
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    LogDebug("NI: Cancellation requested immediately after connection wait.");
+                    return (-1, null);
+                }
+                LogDebug("NI: Client connected.");
 
-                LogDebug("NI: Client connected to pipe.");
+                // Removed setting pipeServer.ReadTimeout
 
-                using var reader = new StreamReader(pipeServer, Encoding.UTF8);
-                string? receivedUrl = await reader.ReadLineAsync(); // Read the URL sent by EI
-                LogDebug($"NI: Received from pipe: '{receivedUrl ?? "<null>"}'");
-                return receivedUrl;
+                // Use using declarations for guaranteed disposal
+                using BinaryReader reader = new BinaryReader(pipeServer, Encoding.UTF8, leaveOpen: true);
+                using StreamReader sReader = new StreamReader(pipeServer, Encoding.UTF8, leaveOpen: true);
+
+                try
+                {
+                    clientPid = reader.ReadInt32(); // Read PID first
+                                                    // Use ReadLineAsync without token if not available, relies on pipe break/close
+                                                    // For .NET versions supporting it, pass the token:
+                                                    // clientUrl = await sReader.ReadLineAsync(cancellationToken);
+                    clientUrl = await sReader.ReadLineAsync(); // Simpler version
+
+                    LogDebug($"NI: Received PID '{clientPid}', URL '{clientUrl ?? "<null>"}'");
+                }
+                catch (EndOfStreamException)
+                { // Client disconnected before sending everything
+                    LogWarning("NI: Pipe closed by client before receiving expected data.");
+                    clientPid = -1; clientUrl = null;
+                }
+                catch (IOException ioEx)
+                { // Other pipe errors during read
+                    LogWarning($"NI: Pipe IO error during read: {ioEx.Message}");
+                    clientPid = -1; clientUrl = null;
+                }
+                // Let other exceptions propagate for now
+
+                return (clientPid, clientUrl);
             }
             catch (OperationCanceledException)
             {
-                LogDebug("NI: Pipe connection wait timed out or canceled.");
-                return null; // Expected if no client connects in time
+                LogDebug("NI: Pipe connection wait was canceled.");
+                return (-1, null);
+            }
+            catch (IOException ioEx) when (ioEx.Message.Contains("All pipe instances are busy"))
+            {
+                LogWarning($"NI: Pipe server IO error (Instances busy?): {ioEx.Message}"); // Should be less likely now
+                return (-1, null);
             }
             catch (IOException ioEx)
             {
-                LogError($"NI: Pipe server IO error: {ioEx.Message}");
-                return null;
+                LogWarning($"NI: Pipe server IO error: {ioEx.Message}");
+                return (-1, null);
             }
             catch (Exception ex)
             {
                 LogError($"NI: Pipe server unexpected error: {ex.Message}");
-                return null;
+                return (-1, null);
             }
             finally
             {
-                // Ensure disconnection and disposal
-                try { pipeServer?.Disconnect(); } catch { } // Ignore errors on disconnect
+                try { if (pipeServer?.IsConnected ?? false) pipeServer.Disconnect(); } catch { }
                 pipeServer?.Dispose();
                 LogDebug("NI: Pipe server cycle finished, stream disposed.");
             }
         }
 
-
         // --- EI Logic: Listener Task ---
         public static void StartExistingInstanceListener(string myServerUrl, CancellationToken appShutdownToken)
         {
-            if (_anyoneElseEvent == null || _yesImHereEvent == null) return; // Handles not ready
+            if (_anyoneHereEvent == null) return; // Handle not ready
 
             _eiListenerCts = CancellationTokenSource.CreateLinkedTokenSource(appShutdownToken);
             var token = _eiListenerCts.Token;
 
             Task.Run(async () =>
             {
-                LogInfo("EI: Starting listener for 'AnyoneElse?' signals...");
-                var handles = new WaitHandle[] { token.WaitHandle, _anyoneElseEvent };
-                // Use RegisterWaitForSingleObject or just loop/WaitAny
+                LogInfo("EI: Starting listener for 'AnyoneHere?' signals...");
+                var handles = new WaitHandle[] { token.WaitHandle, _anyoneHereEvent };
+
                 while (!token.IsCancellationRequested)
                 {
                     try
                     {
-                        LogDebug("EI: Waiting for AnyoneElse signal or shutdown...");
+                        LogDebug("EI: Waiting for AnyoneHere signal or shutdown...");
                         int signaledIndex = WaitHandle.WaitAny(handles); // Wait indefinitely
 
-                        if (token.IsCancellationRequested || signaledIndex == 0)
+                        if (token.IsCancellationRequested || signaledIndex == 0) { break; }
+
+                        if (signaledIndex == 1) // anyoneHereEvent was signaled
                         {
-                            LogInfo("EI: Shutdown requested or token canceled. Exiting listener.");
-                            break;
-                        }
+                            LogDebug("EI: Received 'AnyoneHere' signal. Attempting response...");
 
-                        if (signaledIndex == 1) // anyoneElseEvent was signaled
-                        {
-                            LogDebug("EI: Received 'AnyoneElse?' signal.");
-
-                            // Signal we are here and will try to connect
-                            try
-                            {
-                                _yesImHereEvent.Set();
-                                LogDebug("EI: Signaled 'YesImHere'.");
-                            }
-                            catch (Exception sigEx)
-                            {
-                                LogError($"EI: Failed to signal YesImHere: {sigEx.Message}");
-                                continue; // Skip connection attempt if signaling failed
-                            }
-
-                            // Try connecting to NI's pipe
                             NamedPipeClientStream? pipeClient = null;
                             try
                             {
-                                pipeClient = new NamedPipeClientStream(
-                                    ".", // Local machine
-                                    PipeName,
-                                    PipeDirection.Out,
-                                    PipeOptions.None); // Or Asynchronous if needed
-
+                                pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.None);
                                 LogDebug("EI: Attempting to connect to NI pipe...");
-                                pipeClient.Connect((int)ConnectTimeout.TotalMilliseconds); // Use synchronous connect with timeout
+                                // Give slightly less time than NI waits for connection attempt to avoid race condition
+                                await pipeClient.ConnectAsync((int)(ConnectionAttemptTimeout.TotalMilliseconds * 0.9), token);
+                                LogDebug("EI: Connected to NI pipe.");
 
-                                LogDebug("EI: Connected to NI pipe. Sending URL.");
-                                using (var writer = new StreamWriter(pipeClient, Encoding.UTF8))
+                                using (var writer = new BinaryWriter(pipeClient, Encoding.UTF8, leaveOpen: true))
                                 {
-                                    await writer.WriteLineAsync(myServerUrl);
-                                    await writer.FlushAsync();
+                                    writer.Write(Process.GetCurrentProcess().Id); writer.Flush();
                                 }
-                                LogDebug("EI: URL sent, closing pipe.");
+                                using (var sWriter = new StreamWriter(pipeClient, Encoding.UTF8, leaveOpen: true))
+                                {
+                                    await sWriter.WriteLineAsync(myServerUrl); await sWriter.FlushAsync();
+                                }
+                                LogDebug($"EI: Sent PID {Process.GetCurrentProcess().Id} and URL. Closing pipe.");
                             }
-                            catch (TimeoutException)
-                            {
-                                LogWarning("EI: Timeout connecting to NI pipe (might be busy or finished check).");
-                            }
-                            catch (Exception ex)
-                            {
-                                LogError($"EI: Error connecting/sending to NI pipe: {ex.Message}");
-                            }
+                            catch (OperationCanceledException) { LogWarning("EI: Connection attempt cancelled."); }
+                            catch (TimeoutException) { LogWarning($"EI: Timeout connecting to NI pipe (busy/finished/NI exited?)."); } // More likely NI finished
+                            catch (IOException ioEx) { LogError($"EI: Pipe IO error connecting/sending: {ioEx.Message}"); }
+                            catch (Exception ex) { LogError($"EI: Error connecting/sending to NI pipe: {ex.Message}"); }
                             finally
                             {
                                 pipeClient?.Dispose();
@@ -333,83 +343,55 @@ namespace RewindSubtitleDisplayerForPlex
                     catch (Exception ex)
                     {
                         LogError($"EI Listener loop error: {ex.Message}");
-                        // Avoid tight loop on error
-                        await Task.Delay(1000, token);
+                        try { await Task.Delay(1000, token); } catch { /* Ignore cancellation */ }
                     }
                 }
                 LogInfo("EI Listener task finished.");
             }, token);
         }
 
-        public static void StopExistingInstanceListener()
-        {
-            _eiListenerCts?.Cancel();
-        }
+        public static void StopExistingInstanceListener() => _eiListenerCts?.Cancel();
 
-
-        // --- Shutdown Signal Logic ---
+        // --- Shutdown Signal Logic (Using Constructor) ---
         public static bool SignalShutdown()
         {
             EventWaitHandle? handle = null;
-            bool createdNew; // Variable to capture the constructor's output
-
+            bool createdNew;
             try
             {
-                // Use the cross-platform constructor. It will create the handle if it doesn't exist,
-                // or open the existing one if it does.
-                handle = new EventWaitHandle(
-                    initialState: false,          // Doesn't matter much here
-                    mode: EventResetMode.ManualReset, // Should match how EIs wait
-                    name: ShutdownEventName,      // The dedicated shutdown event name
-                    createdNew: out createdNew);  // Check if we created it or opened existing
-
+                handle = new EventWaitHandle(false, EventResetMode.ManualReset, ShutdownEventName, out createdNew);
                 if (createdNew)
                 {
-                    // We created it, meaning no other instance was running and had created it previously.
-                    LogInfo("No running instance found. Shutdown handle created but not signaled.");
-                    // No need to Set() as nobody is listening.
-                    // The desired end-state (no running instances) is true, so return success.
-                    return true;
+                    LogInfo("No existing instance found to signal shutdown (created new handle)."); return true;
                 }
                 else
                 {
-                    // We opened an existing handle created by a running instance.
-                    LogInfo("Running instance found. Signaling shutdown via existing handle...");
-                    handle.Set(); // Signal the running instance(s)
-                    LogInfo("Shutdown signal sent successfully.");
-                    return true;
+                    LogInfo("Existing instance found. Signaling shutdown..."); handle.Set();
+                    LogInfo("Shutdown signal sent successfully."); return true;
                 }
             }
-            catch (Exception ex)
-            {
-                // Log any errors during handle creation/opening or signaling
-                LogError($"Error during shutdown signaling process for handle '{ShutdownEventName}': {ex.Message}");
-                return false; // Indicate failure if an unexpected error occurred
-            }
-            finally
-            {
-                // IMPORTANT: The -stop instance MUST dispose of the handle it created or opened.
-                handle?.Dispose();
-            }
+            catch (Exception ex) { LogError($"Error during shutdown signaling process for handle '{ShutdownEventName}': {ex.Message}"); return false; }
+            finally { handle?.Dispose(); }
         }
 
-        public static WaitHandle GetShutdownWaitHandle()
-        {
-            if (_shutdownEvent == null) throw new InvalidOperationException("Shutdown handle not initialized.");
-            return _shutdownEvent;
-        }
+        public static WaitHandle GetShutdownWaitHandle() => _shutdownEvent ?? throw new InvalidOperationException("Shutdown handle not initialized.");
 
         // --- Cleanup ---
         public static void Cleanup()
         {
             LogDebug("Cleaning up coordination handles...");
-            _anyoneElseEvent?.Dispose();
-            _yesImHereEvent?.Dispose();
-            _shutdownEvent?.Dispose(); // Also dispose shutdown handle
-            _anyoneElseEvent = null;
-            _yesImHereEvent = null;
+            _anyoneHereEvent?.Dispose();
+            _shutdownEvent?.Dispose();
+            _anyoneHereEvent = null;
             _shutdownEvent = null;
             LogDebug("Coordination handles disposed.");
         }
+
+        // --- Logging Placeholders ---
+        // Ensure these methods exist and are accessible, e.g., public static in Program or own class
+        //private static void LogInfo(string message) => Console.WriteLine($"INFO: {message}");
+        //private static void LogDebug(string message) { if (Program.debugMode) Console.WriteLine($"DEBUG: {message}"); }
+        //private static void LogWarning(string message) => Console.WriteLine($"WARN: {message}");
+        //private static void LogError(string message) => Console.WriteLine($"ERROR: {message}");
     }
 }
