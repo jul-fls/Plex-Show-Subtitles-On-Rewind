@@ -25,6 +25,10 @@ Once playback reaches the point where you started the rewind, it will **automati
 * **Cross-Platform**: It's a simple console app that can be run on Windows, MacOS, and Linux.
 * **Run Purely in Background**: On Windows use the `-background` launch argument to run it without any console Window. It will sit idle until Plex notifies it that Media is playing.
 
+## Screenshot
+![Screenshot](https://github.com/user-attachments/assets/e01928bb-8131-47dc-b1c8-9479080a5d98)
+
+
 ## Requirements
 
 * You **MUST** enable the "Remote Control" / aka "Advertise As Player" option in each player app for this to work.
