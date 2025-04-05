@@ -44,6 +44,7 @@ namespace RewindSubtitleDisplayerForPlex
                 -{LaunchArgs.TokenTemplate}: {LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt}: {LaunchArgs.Help.Description}
             """;
+        public static readonly string RequirementEnableRemoteAccess = "Note: You **MUST** enable the \"Remote Control\" / aka \"Advertise As Player\" option in each player app for this to work.";
         public static string HeadingTitle => $"\n----------- {AppName} - Version {AssemblyFileVersion} -----------\n";
     }
 

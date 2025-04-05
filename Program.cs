@@ -63,6 +63,7 @@ namespace RewindSubtitleDisplayerForPlex
                 if (debugMode)
                     WriteYellow("Debug mode enabled.\n");
                 Console.WriteLine(MyStrings.LaunchArgsInfo);
+                WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
 
