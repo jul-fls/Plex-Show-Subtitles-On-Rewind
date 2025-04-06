@@ -37,12 +37,18 @@ namespace RewindSubtitleDisplayerForPlex
         public const string AppNameDashed = "Rewind-Subtitle-Displayer-For-Plex";
         public const string AppName = "Rewind Subtitle Displayer For Plex";
         public static readonly string AssemblyFileVersion = Utils.Version.GetVersion();
-        public static readonly string LaunchArgsInfo = $"""
-            Optional Launch parameters:
+        public static readonly string StandardLaunchArgsInfo = $"""
+            Optional Launch Parameters:
                 -{LaunchArgs.Background}: {LaunchArgs.Background.Description}
+                -{LaunchArgs.Stop}: {LaunchArgs.Stop.Description}
+                -{LaunchArgs.Verbose}: {LaunchArgs.Verbose.Description}
                 -{LaunchArgs.Debug}: {LaunchArgs.Debug.Description}
-                -{LaunchArgs.TokenTemplate}: {LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt}: {LaunchArgs.Help.Description}
+            """;
+        public static readonly string AdvancedLaunchArgsInfo = HeadingTitle + "\n" + StandardLaunchArgsInfo + "\n\n" + $"""
+            Advanced Optional Launch parameters:
+                -{LaunchArgs.TokenTemplate}: {LaunchArgs.TokenTemplate.Description}
+                -{LaunchArgs.AllowDuplicateInstance}: {LaunchArgs.AllowDuplicateInstance.Description}
             """;
         public static readonly string RequirementEnableRemoteAccess = "Note: You **MUST** enable the \"Remote Control\" / aka \"Advertise As Player\" option in each player app for this to work.";
         public static string HeadingTitle => $"\n----------- {AppName} - Version {AssemblyFileVersion} -----------\n";

@@ -34,69 +34,62 @@ namespace RewindSubtitleDisplayerForPlex
                 debugMode = true;
             #endif
 
-            // ------------ Apply launch parameters ------------
+            // =======================================================================
+            // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
+            // =======================================================================
 
+            // Background mode
             bool runBackgroundArg = LaunchArgs.Background.Check(args);
-            OS_Handlers.HandleBackgroundArg(runBackgroundArg);
+            OS_Handlers.HandleBackgroundArg(runBackgroundArg); // OS specific handling for background mode
 
             // Debug Mode and verbose mode
             if (LaunchArgs.Debug.Check(args))
-            {
                 debugMode = true;
-            }
-
             if (LaunchArgs.Verbose.Check(args))
                 verboseMode = true;
-
-            // Enable verbose mode if debug mode is enabled
             if (debugMode == true)
-            {
                 verboseMode = true;
-            }
 
-            // Allow duplicate instances
+            // Allow duplicate instances (Those that are set to connect to the same exact server. Mostly for testing.)
             if (LaunchArgs.AllowDuplicateInstance.Check(args))
-            {
                 allowDuplicateInstance = true;
-            }
 
-            // ------------ Initialize Coordination Handles ------------
-            instancesAreSetup = InstanceCoordinator.InitializeHandles();
-            if (!instancesAreSetup)
+            // Token Template Generation
+            if (LaunchArgs.TokenTemplate.Check(args))
             {
-                WriteErrorSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
+                AuthTokenHandler.CreateTemplateTokenFile(force: true);
+                WriteGreen("\nToken template generated.");
             }
 
+            // ------------ Instance Coordination ------------
+            instancesAreSetup = InstanceCoordinator.InitializeHandles(); // Setup event wait handles and listeners for instance coordination
+            if (!instancesAreSetup)
+                WriteErrorSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
+
+            // Stop other instances if requested
             if (LaunchArgs.Stop.Check(args))
             {
                 InstanceCoordinator.SignalShutdown();
                 // Clean up handles for this short-lived instance
                 InstanceCoordinator.Cleanup();
-                return; // Exit after signaling
+                return; // Exit this instance itself after signaling others to shutdown
             }
-            // ----------------------------------------------------------
+            // ---------- End Instance Coordination -----------
 
-            // Token Template
-            if (LaunchArgs.TokenTemplate.Check(args))
-            {
-                AuthTokenHandler.CreateTemplateTokenFile(force:true);
-                WriteGreen("\nToken template generated.");
-            }
-
+            // Display startup message or help message (right now they are basically the same)
             if (LaunchArgs.Help.Check(args) || LaunchArgs.HelpAlt.Check(args))
             {
-                Console.WriteLine(MyStrings.LaunchArgsInfo + "\n\n");
+                Console.WriteLine(MyStrings.AdvancedLaunchArgsInfo + "\n\n");
                 Console.WriteLine("Press Enter to exit.");
                 Console.ReadLine();
                 return;
             }
-            // The normal launch message (only if not running background)
-            else
+            else // The normal launch message (only if not running background)
             {
                 WriteGreen(MyStrings.HeadingTitle);
                 if (debugMode)
                     WriteYellow("Debug mode enabled.\n");
-                Console.WriteLine(MyStrings.LaunchArgsInfo);
+                Console.WriteLine(MyStrings.StandardLaunchArgsInfo);
                 WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
@@ -124,7 +117,9 @@ namespace RewindSubtitleDisplayerForPlex
                 }
             }
 
-            // ------------------ Start Main ------------------
+            // =====================================================================
+            // ======================== Start Main Logic ===========================
+            // =====================================================================
 
             try
             {

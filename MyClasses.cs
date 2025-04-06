@@ -672,10 +672,11 @@ public class CommandResult(bool success, string responseErrorMessage, XmlDocumen
 
 public static class LaunchArgs
 {
-    public class Argument(string arg, string description)
+    public class Argument(string arg, string description, bool advanced=false)
     {
         public string Arg { get; } = arg;
         public string Description { get; } = description;
+        public bool IsAdvanced { get; set; } = advanced; // Only show advanced arguments when specifically using -help or -? (helpAlt)
         public List<string> Variations { get; } = GetVariations(arg);
 
         // ------------------ Methods ------------------
@@ -691,14 +692,14 @@ public static class LaunchArgs
         public override string ToString() => Arg; // Ensure argument string is returned properly when used in string interpolation
     }
 
-    private static readonly Argument _background =      new("background",    "Windows Only: The program runs in the background without showing a console.");
-    private static readonly Argument _tokenTemplate =   new ("token-template", "Generate an example token config file.");
-    private static readonly Argument _debug =           new("debug",         "Enables debug mode to show additional output.");
-    private static readonly Argument _verbose =         new("verbose",       "Enables verbose mode to show additional output.");
-    private static readonly Argument _help =            new("help",          "Display help message with info including launch parameters.");
-    private static readonly Argument _helpAlt =         new("?",             _help.Description);
-    private static readonly Argument _stop =            new("stop",             "Stop other running instances of the app.");
-    private static readonly Argument _allowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.");
+    private static readonly Argument _background =      new("background",       "Windows Only: The program runs in the background without showing a console.");
+    private static readonly Argument _tokenTemplate =   new ("token-template",  "Generate an example token config file.", advanced:true);
+    private static readonly Argument _debug =           new("debug",            "Enables debug mode to show the highest detail of logging output.");
+    private static readonly Argument _verbose =         new("verbose",          "Enables verbose mode to show additional logging output.");
+    private static readonly Argument _help =            new("help",             "Display help message with info including launch parameters.");
+    private static readonly Argument _helpAlt =         new("?",                _help.Description);
+    private static readonly Argument _stop =            new("stop",             "Stop all currently running instances of the app.");
+    private static readonly Argument _allowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
 
     // -------------------------------------------------
     public static Argument Background => _background;
