@@ -23,7 +23,7 @@ namespace RewindSubtitleDisplayerForPlex
         public event EventHandler<PlexEventInfo>? PlayingNotificationReceived;
         private static readonly CancellationTokenSource _appShutdownCts = new CancellationTokenSource();
 
-
+        // Constructor
         public ConnectionWatchdog(string plexUrl, string plexToken, string appClientId)
         {
             _plexUrl = plexUrl;
@@ -75,8 +75,7 @@ namespace RewindSubtitleDisplayerForPlex
                 taskToWaitFor = _watchdogTask;
             }
 
-            // Now, wait for the watchdog task. It should exit much faster 
-            // because the listener it was potentially awaiting is now disposed.
+            // Now, wait for the watchdog task. It should exit much faster because the listener it was potentially awaiting is now disposed.
             if (taskToWaitFor != null)
             {
                 try
@@ -286,9 +285,9 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        // --- Connection Testing and Retry Logic (Moved from PlexServer) ---
+        // --- Connection Testing and Retry Logic ---
 
-        private async Task<PlexServer.ConnectionResult> TestAndRetryConnectionAsync(CancellationToken token)
+        private static async Task<PlexServer.ConnectionResult> TestAndRetryConnectionAsync(CancellationToken token)
         {
             PlexServer.ConnectionResult result = await PlexServer.TestConnectionAsync();
             if (result == PlexServer.ConnectionResult.Success)

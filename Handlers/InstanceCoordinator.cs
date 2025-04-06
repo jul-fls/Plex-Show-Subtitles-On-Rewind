@@ -3,28 +3,59 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Text; // Added for Encoding
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-// Add using static for your Logger if applicable
-// using static RewindSubtitleDisplayerForPlex.Logger;
-
 namespace RewindSubtitleDisplayerForPlex
 {
+    // This class creates OS Event Wait Handles and Named Pipes to coordinate between multiple instances of the app as they launch.
+    // It ensures that only one instance of the app per server URL is running at a time by checking for existing instances and signaling them to respond with their server URL.
+    // ----------------------------------------------------
+    //
+    // Functionality:
+    //
+    //   1. New Instance:       Checks for existing instances and signals them to respond with their server URL (via event wait handles with well-known names)
+    //   
+    //   2. Existing Instance:  Listens for signals from new instances and responds with its server URL (via named pipes of well-known names)
+    //                              - The existing instances all try to connect to the same named pipe, so the connections are queued and handled one at a time
+    //   
+    //   3. Shutdown:           Signals all instances to shut down gracefully. Useful because the app can be launched purely to the background with no GUI/Console
+    //                              - Therefore this allows the user to close the app without needing to kill it in Task Manager
+    //                              - Signalling is done via the Shutdown event wait handle, which all instances listen for
+    //   
+    //   4. Cleanup:            Disposes of handles and pipes when no longer needed
+    // ----------------------------------------------------
+    //
+    // Typical Flow:
+    //
+    //   1. New Instance starts up and triggers the AnyoneHere wait handle event to 'ask' if any existing instances are running
+    //   2. OS signals all instances waiting on the AnyoneHere event so they know to respond
+    //   3. Existing Instances attempt to connect to the well-known named pipe and send their server URL to the new instance
+    //   4. New Instance receives the server URL from the existing instance and checks if it matches its own, and by default closes itself if it does
+    //   5. If applicable (if it hasn't closed), new instance goes through the other queued pipe connections and receives their server URLs
+    // ----------------------------------------------------
+
     public static class InstanceCoordinator
     {
-        // --- Unique Identifiers (Ensure GUID is set) ---
-        private const string AppGuid = "{391AE04C-125D-11F0-8C20-2A0F2161BBC3}";
+        // --- Unique Identifiers ---
         private static readonly string AppNameDashed = MyStrings.AppNameDashed;
-        // Added version markers to ensure fresh handles/pipes if testing iterations
-        private static string AnyoneHereEventName = $"Global\\{AppNameDashed}_{AppGuid}_AnyoneHere";
-        private static string ShutdownEventName = $"Global\\{AppNameDashed}_{AppGuid}_Shutdown";
+        private const string AppGuid = "{391AE04C-125D-11F0-8C20-2A0F2161BBC3}";
+        // ----- Event And Pipe Well-Known Names ---
+        private static readonly string AnyoneHereEventName = $"Global\\{AppNameDashed}_{AppGuid}_AnyoneHere";
+        private static readonly string ShutdownEventName = $"Global\\{AppNameDashed}_{AppGuid}_Shutdown";
         private const string PipeName = $"RewindSubtitleDisplayer_{AppGuid}_InstanceCheckPipe";
 
         // --- Event Handles ---
+        // Event Wait Handles are registered with the OS and can be used for inter-process signaling
+        //      - They are basically 'flags' that can be set/reset and seen by other processes to know when a certain event has occurred, and can be handled appropriately
+        //      - They cannot be used to pass data, but Named Pipes can be used for that
         private static EventWaitHandle? _anyoneHereEvent;
         private static EventWaitHandle? _shutdownEvent;
+
+        // Named pipes are created elsewhere in the code and are used to pass data between processes
+        //      - They can only be used for one-to-one communication, but connections can be queued
+        //      - The event handles 
 
         // --- Configuration ---
         private static readonly TimeSpan ConnectionAttemptTimeout = TimeSpan.FromMilliseconds(1500); // How long New Instance waits for ANY connection after signaling AnyoneHere
