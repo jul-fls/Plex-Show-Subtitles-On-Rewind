@@ -402,46 +402,46 @@ public class ServerSentEvent
 public class PlayingEvent
 {
     [JsonPropertyName("sessionKey")] // Map "sessionKey" JSON field to sessionKey property
-    public string? sessionKey { get; set; }
+    public string? SessionKey { get; set; }
 
     [JsonPropertyName("clientIdentifier")]
-    public string? clientIdentifier { get; set; }
+    public string? ClientIdentifier { get; set; }
 
     [JsonPropertyName("guid")]
-    public string? guid { get; set; }
+    public string? Guid { get; set; }
 
     [JsonPropertyName("ratingKey")]
-    public string? ratingKey { get; set; }
+    public string? RatingKey { get; set; }
 
     [JsonPropertyName("url")]
-    public string? url { get; set; }
+    public string? Url { get; set; }
 
     [JsonPropertyName("key")]
-    public string? key { get; set; }
+    public string? Key { get; set; }
 
     [JsonPropertyName("viewOffset")]
-    public long? viewOffset { get; set; }
+    public long? ViewOffset { get; set; }
 
     [JsonPropertyName("playQueueID")]
-    public int? playQueueID { get; set; }
+    public int? PlayQueueID { get; set; }
 
     [JsonPropertyName("state")]
-    public string? state { get; set; }
+    public string? State { get; set; }
 
     [JsonPropertyName("transcodeSession")]
-    public string? transcodeSession { get; set; }
+    public string? TranscodeSession { get; set; }
 
     [JsonIgnore]
-    public PlayState? playState => GetState(state);
+    public PlexPlayState? PlayState => GetState(State);
 
-    private static PlayState? GetState(string? state)
+    private static PlexPlayState? GetState(string? state)
     {
         return state?.ToLowerInvariant() switch
         {
-            PlexEventStrings.States.Playing => (PlayState?)PlayState.Playing,
-            PlexEventStrings.States.Paused => (PlayState?)PlayState.Paused,
-            PlexEventStrings.States.Stopped => (PlayState?)PlayState.Stopped,
-            _ => (PlayState?)PlayState._Unknown,
+            PlexEventStrings.States.Playing => (PlexPlayState?)PlexPlayState.Playing,
+            PlexEventStrings.States.Paused => (PlexPlayState?)PlexPlayState.Paused,
+            PlexEventStrings.States.Stopped => (PlexPlayState?)PlexPlayState.Stopped,
+            _ => (PlexPlayState?)PlexPlayState._Unknown,
         };
     }
 }
@@ -455,14 +455,14 @@ public static class PlexEventStrings
         public const string Stopped = "stopped";
         public const string Unknown = "unknown"; // For any unrecognized state
 
-        public PlayState ToEnum()
+        public PlexPlayState ToEnum()
         {
             return this switch
             {
-                { } when Equals(Playing, StringComparison.OrdinalIgnoreCase) => PlayState.Playing,
-                { } when Equals(Paused, StringComparison.OrdinalIgnoreCase) => PlayState.Paused,
-                { } when Equals(Stopped, StringComparison.OrdinalIgnoreCase) => PlayState.Stopped,
-                _ => PlayState._Unknown
+                { } when Equals(Playing, StringComparison.OrdinalIgnoreCase) => PlexPlayState.Playing,
+                { } when Equals(Paused, StringComparison.OrdinalIgnoreCase) => PlexPlayState.Paused,
+                { } when Equals(Stopped, StringComparison.OrdinalIgnoreCase) => PlexPlayState.Stopped,
+                _ => PlexPlayState._Unknown
             };
         }
     }
@@ -532,7 +532,7 @@ public struct EventType
     }
 }
 
-public enum PlayState
+public enum PlexPlayState
 {
     Playing,
     Paused,
@@ -548,11 +548,11 @@ public enum PlayState
 /// </summary>
 public class Context
 {
-    public bool? accessible { get; set; }
-    public bool? analyzed { get; set; }
-    public bool? exists { get; set; }
-    public string? key { get; set; }
-    public bool? refreshed { get; set; }
+    public bool? Accessible { get; set; }
+    public bool? Analyzed { get; set; }
+    public bool? Exists { get; set; }
+    public string? Key { get; set; }
+    public bool? Refreshed { get; set; }
 }
 
 /// <summary>
@@ -561,13 +561,13 @@ public class Context
 /// </summary>
 public class Activity
 {
-    public string? uuid { get; set; }
-    public string? type { get; set; }
-    public bool? cancellable { get; set; }
-    public int? userID { get; set; }
-    public string? title { get; set; }
-    public string? subtitle { get; set; }
-    public int? progress { get; set; } // Progress percentage
+    public string? Uuid { get; set; }
+    public string? Type { get; set; }
+    public bool? Cancellable { get; set; }
+    public int? UserID { get; set; }
+    public string? Title { get; set; }
+    public string? Subtitle { get; set; }
+    public int? Progress { get; set; } // Progress percentage
     public Context? Context { get; set; }
 }
 
@@ -578,8 +578,8 @@ public class Activity
 /// </summary>
 public class ActivityNotification
 {
-    public string? @event { get; set; } // Using "@" because 'event' is a reserved keyword in C#
-    public string? uuid { get; set; }
+    public string? Event { get; set; } // Using "@" because 'event' is a reserved keyword in C#
+    public string? Uuid { get; set; }
     public Activity? Activity { get; set; }
 }
 
@@ -593,32 +593,32 @@ public class ActivityNotification
 /// </summary>
 public class TranscodeSession
 {
-    public string? key { get; set; }
-    public bool? throttled { get; set; }
-    public bool? complete { get; set; }
-    public double? progress { get; set; }
-    public long? size { get; set; } // Use long? as size could potentially be large
-    public double? speed { get; set; }
-    public bool? error { get; set; }
-    public long? duration { get; set; } // Use long? for duration
-    public int? remaining { get; set; } // Assuming integer units, could potentially be double?
-    public string? context { get; set; }
-    public string? sourceVideoCodec { get; set; }
-    public string? sourceAudioCodec { get; set; }
-    public string? videoDecision { get; set; }
-    public string? audioDecision { get; set; }
-    public string? protocol { get; set; }
-    public string? container { get; set; }
-    public string? videoCodec { get; set; }
-    public string? audioCodec { get; set; }
-    public int? audioChannels { get; set; }
-    public int? width { get; set; }
-    public int? height { get; set; }
-    public bool? transcodeHwRequested { get; set; } // Note: Doc listed this twice, included once.
-    public bool? transcodeHwFullPipeline { get; set; }
-    public double? timeStamp { get; set; } // Unix timestamp, potentially with fractions
-    public double? maxOffsetAvailable { get; set; }
-    public double? minOffsetAvailable { get; set; }
+    public string? Key { get; set; }
+    public bool? Throttled { get; set; }
+    public bool? Complete { get; set; }
+    public double? Progress { get; set; }
+    public long? Size { get; set; } // Use long? as size could potentially be large
+    public double? Speed { get; set; }
+    public bool? Error { get; set; }
+    public long? Duration { get; set; } // Use long? for duration
+    public int? Remaining { get; set; } // Assuming integer units, could potentially be double?
+    public string? Context { get; set; }
+    public string? SourceVideoCodec { get; set; }
+    public string? SourceAudioCodec { get; set; }
+    public string? VideoDecision { get; set; }
+    public string? AudioDecision { get; set; }
+    public string? Protocol { get; set; }
+    public string? Container { get; set; }
+    public string? VideoCodec { get; set; }
+    public string? AudioCodec { get; set; }
+    public int? AudioChannels { get; set; }
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public bool? TranscodeHwRequested { get; set; } // Note: Doc listed this twice, included once.
+    public bool? TranscodeHwFullPipeline { get; set; }
+    public double? TimeStamp { get; set; } // Unix timestamp, potentially with fractions
+    public double? MaxOffsetAvailable { get; set; }
+    public double? MinOffsetAvailable { get; set; }
 }
 
 // ------------- Ping Event -------------

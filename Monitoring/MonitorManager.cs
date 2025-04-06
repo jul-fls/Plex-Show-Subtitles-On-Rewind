@@ -27,12 +27,12 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
         {
-            if (e.EventObj is PlayingEvent playEvent && playEvent.playState is PlayState playState)
+            if (e.EventObj is PlayingEvent playEvent && playEvent.PlayState is PlexPlayState playState)
             {
-                LogDebug($"[Notification] Playback Update: Client={playEvent.clientIdentifier}, Key={playEvent.key}, State={playEvent.state}, Offset={playEvent.viewOffset}ms",
+                LogDebug($"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={playEvent.ViewOffset}ms",
                     ConsoleColor.Cyan);
 
-                if (playState == PlayState.Playing)
+                if (playState == PlexPlayState.Playing)
                 {
                     if (_monitoringState == MonitoringState.Idle)
                     {
@@ -40,11 +40,11 @@ namespace RewindSubtitleDisplayerForPlex
                         BreakFromIdle();
                     }
                 }
-                else if (playState == PlayState.Paused)
+                else if (playState == PlexPlayState.Paused)
                 {
                     LogVerbose("   Playback Paused.");
                 }
-                else if (playState == PlayState.Stopped)
+                else if (playState == PlexPlayState.Stopped)
                 {
                     LogVerbose("   Playback Stopped.");
                 }
