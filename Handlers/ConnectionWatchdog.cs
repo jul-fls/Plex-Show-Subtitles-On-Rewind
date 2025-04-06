@@ -15,7 +15,7 @@ namespace RewindSubtitleDisplayerForPlex
         private PlexNotificationListener? _currentListener;
         private bool _isDisposed;
         private bool _stopRequested = false;
-        private readonly object _lock = new object();
+        private readonly Lock _lock = new Lock();
 
         // Event to notify when the listener loses connection
         public event EventHandler? ListenerConnectionLost;
@@ -89,7 +89,7 @@ namespace RewindSubtitleDisplayerForPlex
                     }
                 }
                 catch (OperationCanceledException) { LogDebug("Task cancelled.", ConsoleColor.DarkGray); }
-                catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { Console.WriteLine("Tasks cancelled.", ConsoleColor.DarkGray); }
+                catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { LogDebug("Tasks cancelled."); }
                 catch (Exception ex)
                 {
                     LogError($"Exception waiting for watchdog task to stop: {ex.Message}");
@@ -112,8 +112,8 @@ namespace RewindSubtitleDisplayerForPlex
 
             while (!token.IsCancellationRequested && !_stopRequested)
             {
-                PlexServer.ConnectionResult connectionResult = PlexServer.ConnectionResult.Failure; // Start assuming failure
-                List<ActiveSession> initialSessions = []; // To hold sessions for MonitorManager
+                PlexServer.ConnectionResult connectionResult;
+                List<ActiveSession> initialSessions; // To hold sessions for MonitorManager
 
                 try
                 {

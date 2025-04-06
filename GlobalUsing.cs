@@ -12,9 +12,9 @@ namespace RewindSubtitleDisplayerForPlex
 {
     public static class GlobalDefinitions
     {
-        public static ConsoleColor Green = ConsoleColor.Green;
-        public static ConsoleColor Red = ConsoleColor.Red;
-        public static ConsoleColor Yellow = ConsoleColor.Yellow;
+        public const ConsoleColor Green = ConsoleColor.Green;
+        public const ConsoleColor Red = ConsoleColor.Red;
+        public const ConsoleColor Yellow = ConsoleColor.Yellow;
 
     }
 

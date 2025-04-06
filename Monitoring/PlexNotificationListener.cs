@@ -42,7 +42,7 @@ public class PlexNotificationListener : IDisposable
     public event EventHandler<PlexEventInfo>? PlayingNotificationReceived;
     // Event triggered when the connection is lost/errored
     public event EventHandler? ConnectionLost;
-    public PlexNotificationListener(string plexUrl, string plexToken, bool useHttps = false, string? notificationFilters = "playing")
+    public PlexNotificationListener(string plexUrl, string plexToken, string? notificationFilters = "playing")
     {
         _httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _plexToken = plexToken;
@@ -56,7 +56,7 @@ public class PlexNotificationListener : IDisposable
         CancellationToken token = _listenerCts.Token;
 
         string requestUri = string.IsNullOrWhiteSpace(_filters) ? _plexUrl : $"{_plexUrl}?{_filters}";
-        requestUri += (requestUri.Contains("?") ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}";
+        requestUri += (requestUri.Contains('?') ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}";
 
         LogDebug($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}");
 
@@ -137,7 +137,7 @@ public class PlexNotificationListener : IDisposable
         // Loop indefinitely until cancelled or the stream closes/errors
         while (!token.IsCancellationRequested)
         {
-            string? line = null;
+            string? line;
             try
             {
                 // *** Wrap only the I/O operation in the try-catch ***
@@ -334,7 +334,7 @@ public class PlexEventInfo : EventArgs
 
         // Get the default instance of the source-generated context
         PlexEventJsonContext context = PlexEventJsonContext.Default;
-        object? deserializedDictionary = null;
+        object? deserializedDictionary;
 
         try
         {
@@ -485,7 +485,7 @@ public struct EventType
     public const string Ping = "ping";
     public const string Unknown = "unknown";
 
-    private string _value;
+    private readonly string _value;
 
     private EventType(string value)
     {
@@ -497,12 +497,12 @@ public struct EventType
         return new EventType(v);
     }
 
-    public override string ToString()
+    public override readonly string ToString()
     {
         return _value;
     }
 
-    public override bool Equals(object? testObj)
+    public override readonly bool Equals(object? testObj)
     {
         if (testObj is EventType eventType)
         {
@@ -517,9 +517,18 @@ public struct EventType
         return false;
     }
 
-    public override int GetHashCode()
+    public override readonly int GetHashCode()
     {
         return _value.ToLowerInvariant().GetHashCode();
+    }
+    public static bool operator ==(EventType left, EventType right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(EventType left, EventType right)
+    {
+        return !(left == right);
     }
 }
 

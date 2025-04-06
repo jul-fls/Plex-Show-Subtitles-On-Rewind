@@ -5,7 +5,7 @@ namespace RewindSubtitleDisplayerForPlex
     {
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
-        private static bool debugMode = Program.debugMode;
+        private static readonly bool debugMode = Program.debugMode;
         private const int _deadSessionGracePeriod = 60; // Seconds
 
         // This not only fetches the sessions, but also gets both active and available subtitles

@@ -2,9 +2,6 @@
 using System.Xml.Serialization;
 using static RewindSubtitleDisplayerForPlex.Props;
 
-//#pragma warning disable IDE0074 // Use compound assignment
-#pragma warning disable IDE0290 // Use primary constructor
-
 namespace RewindSubtitleDisplayerForPlex;
 
 public class PlexMediaItem
@@ -294,7 +291,7 @@ public class PlexPlayer
 public class TimelineMediaContainer
 {
     [XmlElement(nameof(Timeline))]
-    public List<PlexTimeline> Timeline { get; set; } = new(); // Added to hold timeline information
+    public List<PlexTimeline> Timeline { get; set; } = [];
     [XmlAttribute(nameof(size))]
     public int Size { get; set; } = 0;
 }

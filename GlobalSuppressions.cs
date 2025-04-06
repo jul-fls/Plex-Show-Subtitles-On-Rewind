@@ -11,3 +11,6 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "<Pending>", Scope = "member", Target = "~M:RewindSubtitleDisplayerForPlex.PlexServer.CleanXmlString(System.String)~System.String")]
 //[assembly: SuppressMessage("Style", "IDE0074:Use compound assignment", Justification = "<Pending>", Scope = "namespace", Target = "~N:PlexShowSubtitlesOnRewind")]
 [assembly: SuppressMessage("Style", "IDE0074:Use compound assignment", Justification = "<Pending>")]
+[assembly: SuppressMessage("Style", "IDE0130:Namespace does not match folder structure", Justification = "I don't care", Scope = "namespace", Target = "~N:RewindSubtitleDisplayerForPlex")]
+[assembly: SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "I prefer .ToList()")]
+[assembly: SuppressMessage("Style", "IDE0290:Use primary constructor", Justification = "<Pending>")]

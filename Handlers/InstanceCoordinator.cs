@@ -234,8 +234,8 @@ namespace RewindSubtitleDisplayerForPlex
         private static async Task<(int pid, string? url)> RunPipeServerCycleAsync(string pipeName, CancellationToken cancellationToken)
         {
             NamedPipeServerStream? pipeServer = null;
-            int clientPid = -1;
-            string? clientUrl = null;
+            int clientPid;
+            string? clientUrl;
             try
             {
                 pipeServer = new NamedPipeServerStream(
@@ -265,7 +265,7 @@ namespace RewindSubtitleDisplayerForPlex
                                                     // Use ReadLineAsync without token if not available, relies on pipe break/close
                                                     // For .NET versions supporting it, pass the token:
                                                     // clientUrl = await sReader.ReadLineAsync(cancellationToken);
-                    clientUrl = await sReader.ReadLineAsync(); // Simpler version
+                    clientUrl = await sReader.ReadLineAsync(cancellationToken); // Simpler version
 
                     LogDebug($"New Instance: Received PID '{clientPid}', URL '{clientUrl ?? "<null>"}'");
                 }
@@ -348,13 +348,13 @@ namespace RewindSubtitleDisplayerForPlex
 
                                 using (var writer = new BinaryWriter(pipeClient, Encoding.UTF8, leaveOpen: true))
                                 {
-                                    writer.Write(Process.GetCurrentProcess().Id); writer.Flush();
+                                    writer.Write(Environment.ProcessId); writer.Flush();
                                 }
                                 using (var sWriter = new StreamWriter(pipeClient, Encoding.UTF8, leaveOpen: true))
                                 {
                                     await sWriter.WriteLineAsync(myServerUrl); await sWriter.FlushAsync();
                                 }
-                                LogDebug($"Existing Instance: Sent PID {Process.GetCurrentProcess().Id} and URL. Closing pipe.");
+                                LogDebug($"Existing Instance: Sent PID {Environment.ProcessId} and URL. Closing pipe.");
                             }
                             catch (OperationCanceledException) { LogWarning("Existing Instance: Connection attempt cancelled."); }
                             catch (TimeoutException) { LogWarning($"Existing Instance: Timeout connecting to New Instance pipe (busy/finished/New Instance exited?)."); } // More likely New Instance finished
