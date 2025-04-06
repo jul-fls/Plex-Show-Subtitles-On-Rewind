@@ -79,7 +79,7 @@ namespace RewindSubtitleDisplayerForPlex
             // Display startup message or help message (right now they are basically the same)
             if (LaunchArgs.Help.Check(args) || LaunchArgs.HelpAlt.Check(args))
             {
-                Console.WriteLine(MyStrings.AdvancedLaunchArgsInfo + "\n\n");
+                Console.WriteLine(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 Console.WriteLine("Press Enter to exit.");
                 Console.ReadLine();
                 return;
@@ -89,7 +89,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteGreen(MyStrings.HeadingTitle);
                 if (debugMode)
                     WriteYellow("Debug mode enabled.\n");
-                Console.WriteLine(MyStrings.StandardLaunchArgsInfo);
+                Console.WriteLine(LaunchArgs.StandardLaunchArgsInfo);
                 WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
