@@ -37,7 +37,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 if (_watchdogTask != null && !_watchdogTask.IsCompleted)
                 {
-                    Console.WriteLine("ConnectionWatchdog is already running.");
+                    Console.WriteLine("Connection Watcher is already running.");
                     return;
                 }
 
@@ -46,7 +46,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _watchdogCts = new CancellationTokenSource();
                 CancellationToken token = _watchdogCts.Token;
 
-                LogDebug("Starting Connection Watchdog...");
+                LogDebug("Starting Connection Watcher...");
                 _watchdogTask = Task.Run(() => RunWatchdogLoop(token), token);
             }
         }
@@ -60,7 +60,7 @@ namespace RewindSubtitleDisplayerForPlex
                     return; // Already stopping or stopped
                 }
                 _stopRequested = true;
-                LogDebug("Stopping Connection Watchdog...");
+                LogDebug("Stopping Connection Watcher...");
                 // Cancel the main watchdog loop token *first*.
                 _watchdogCts.Cancel();
             }
@@ -85,14 +85,14 @@ namespace RewindSubtitleDisplayerForPlex
                     bool completedGracefully = taskToWaitFor.Wait(TimeSpan.FromSeconds(5)); // Reduced timeout example
                     if (!completedGracefully)
                     {
-                        LogDebug("Watchdog main task did not finish quickly after listener disposal.");
+                        LogDebug("Connection watcher main task did not finish quickly after listener disposal.");
                     }
                 }
                 catch (OperationCanceledException) { LogDebug("Task cancelled.", ConsoleColor.DarkGray); }
                 catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { LogDebug("Tasks cancelled."); }
                 catch (Exception ex)
                 {
-                    LogError($"Exception waiting for watchdog task to stop: {ex.Message}");
+                    LogError($"Exception waiting for connection watcher task to stop: {ex.Message}");
                 }
             }
 
@@ -102,7 +102,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _watchdogTask = null; // Clear task reference
                 _watchdogCts?.Dispose();
                 _watchdogCts = null;
-                LogDebug("Connection Watchdog stopped.");
+                LogDebug("Connection watcher stopped.");
             }
         }
 
@@ -118,22 +118,22 @@ namespace RewindSubtitleDisplayerForPlex
                 try
                 {
                     // 1. Ensure Connection
-                    LogDebug("Watchdog: Testing connection...");
+                    LogDebug("Connection Watcher: Testing connection...");
                     connectionResult = await TestAndRetryConnectionAsync(token);
 
                     if (connectionResult != PlexServer.ConnectionResult.Success)
                     {
-                        LogError($"Watchdog: Failed to establish connection ({connectionResult}). Exiting watchdog loop.");
+                        LogError($"Connection Watcher: Failed to establish connection ({connectionResult}). Exiting connection watcher loop.");
                         break; // Exit loop if connection cannot be established
                     }
 
                     // --- START: Initialize Monitoring ---
-                    LogInfo("Watchdog: Connection successful. Initializing monitoring...");
+                    LogInfo("Connection Watcher: Connection successful. Initializing monitoring...");
                     try
                     {
                         // Load initial sessions
                         initialSessions = await SessionHandler.ClearAndLoadActiveSessionsAsync();
-                        LogInfo($"Watchdog: Found {initialSessions.Count} initial session(s).", ConsoleColor.Cyan);
+                        LogInfo($"Connection Watcher: Found {initialSessions.Count} initial session(s).", ConsoleColor.Cyan);
 
                         // Create monitors for these sessions
                         MonitorManager.CreateAllMonitoringAllSessions(initialSessions, printDebugAll: Program.debugMode);
@@ -144,7 +144,7 @@ namespace RewindSubtitleDisplayerForPlex
                     }
                     catch (Exception ex)
                     {
-                        LogError($"Watchdog: Error during monitoring initialization: {ex.Message}");
+                        LogError($"Connection Watcher: Error during monitoring initialization: {ex.Message}");
                         // Decide how to handle this - maybe retry the loop after a delay?
                         await Task.Delay(delayToAvoidTightLoop, token); // Delay before potentially retrying outer loop
                         continue; // Retry the main loop
@@ -153,36 +153,36 @@ namespace RewindSubtitleDisplayerForPlex
 
 
                     // 2. Start Listener
-                    LogDebug("Watchdog: Starting listener...");
+                    LogDebug("Connection Watcher: Starting listener...");
                     if (!StartNewListener(token))
                     {
-                        LogError("Watchdog: Failed to start listener even after successful connection test.");
+                        LogError("Connection Watcher: Failed to start listener even after successful connection test.");
                         await Task.Delay(delayToAvoidTightLoop, token);
                         continue; // Retry the main loop
                     }
 
-                    LogDebug("Watchdog: Listener started. Monitoring listener status...");
+                    LogDebug("Connection Watcher: Listener started. Monitoring listener status...");
 
                     // 3. Monitor Listener
                     if (_currentListener?.ListeningTask != null)
                     {
                         await _currentListener.ListeningTask; // Wait for the listener to complete
-                        LogDebug("Watchdog: Listener task completed or faulted.");
+                        LogDebug("Connection Watcher: Listener task completed or faulted.");
                         // ConnectionLost event should handle notification if it was an error
                     }
                     else
                     {
-                        LogError("Watchdog: Listener or its task became null unexpectedly.");
+                        LogError("Connection Watcher: Listener or its task became null unexpectedly.");
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    LogDebug("Watchdog loop cancellation requested.");
+                    LogDebug("Connection watcher loop cancellation requested.");
                     break; // Exit loop on cancellation
                 }
                 catch (Exception ex)
                 {
-                    LogError($"Watchdog: Unexpected error in main loop: {ex.Message}");
+                    LogError($"Connection Watcher: Unexpected error in main loop: {ex.Message}");
                     // Decide if to retry or break. For now, retry after delay.
                 }
                 finally
@@ -194,7 +194,7 @@ namespace RewindSubtitleDisplayerForPlex
                 // If the loop didn't break due to cancellation, add a delay before the next cycle
                 if (!token.IsCancellationRequested && !_stopRequested)
                 {
-                    LogDebug("Watchdog: Listener stopped or connection lost.");
+                    LogDebug("Connection Watcher: Listener stopped or connection lost.");
 
                     // Stop the monitor manager's loop if the connection is lost
                     MonitorManager.PauseMonitoringManager(); // Ensure monitors are fully stopped //TODO: Make sure the ismonitoring gets re-enabled on reconnection
@@ -205,12 +205,12 @@ namespace RewindSubtitleDisplayerForPlex
                     }
                     catch (OperationCanceledException)
                     {
-                        LogDebug("Watchdog: Delay cancelled.");
+                        LogDebug("Connection Watcher: Delay cancelled.");
                         break;
                     }
                 }
             }
-            LogDebug("Exiting Watchdog main loop.");
+            LogDebug("Exiting connection watcher main loop.");
 
             DisposeListener(); // Final cleanup
             MonitorManager.RemoveAllMonitors(); // Ensure monitors are fully stopped on final exit
@@ -251,7 +251,7 @@ namespace RewindSubtitleDisplayerForPlex
 
         private void HandleListenerConnectionLost(object? sender, EventArgs e)
         {
-            LogWarning("Watchdog: Listener connection lost. Will attempt reconnection.");
+            LogWarning("Connection Watcher: Listener connection lost. Will attempt reconnection.");
             // The main watchdog loop will detect the listener task completion and handle reconnection.
             // We might trigger an external event if needed.
             ListenerConnectionLost?.Invoke(this, EventArgs.Empty);
@@ -272,7 +272,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 if (_currentListener != null)
                 {
-                    LogDebug("Watchdog: Disposing current listener...", ConsoleColor.DarkGray);
+                    LogDebug("Connection Watcher: Disposing current listener...", ConsoleColor.DarkGray);
                     _currentListener.ConnectionLost -= HandleListenerConnectionLost;
                     _currentListener.PlayingNotificationReceived -= HandlePlayingNotificationReceived;
                     _currentListener.Dispose();
@@ -292,7 +292,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
 
             // If initial test failed, enter retry loop
-            LogWarning("Watchdog: Initial connection test failed. Entering retry loop...");
+            LogWarning("Connection Watcher: Initial connection test failed. Entering retry loop...");
             return await ServerConnectionTestLoop(token);
         }
 
@@ -322,12 +322,12 @@ namespace RewindSubtitleDisplayerForPlex
 
                     if (connectionSuccess == PlexServer.ConnectionResult.Success)
                     {
-                        LogDebug("Watchdog: Reconnection successful!");
+                        LogDebug("Connection Watcher: Reconnection successful!");
                         return PlexServer.ConnectionResult.Success;
                     }
                     else if (connectionSuccess == PlexServer.ConnectionResult.Maintenance)
                     {
-                        LogDebug("Watchdog: Forcing short retry delay due to maintenance mode.");
+                        LogDebug("Connection Watcher: Forcing short retry delay due to maintenance mode.");
                         forceShortDelay = true;
                     }
                     else
@@ -337,12 +337,12 @@ namespace RewindSubtitleDisplayerForPlex
                 }
                 catch (OperationCanceledException)
                 {
-                    LogDebug("Watchdog: Reconnection attempt cancelled by token during test.");
+                    LogDebug("Connection Watcher: Reconnection attempt cancelled by token during test.");
                     return PlexServer.ConnectionResult.Cancelled;
                 }
                 catch (Exception ex)
                 {
-                    LogError($"Watchdog: Unexpected error during reconnection test: {ex.Message}");
+                    LogError($"Connection Watcher: Unexpected error during reconnection test: {ex.Message}");
                     // Fall through to delay and retry
                 }
 
@@ -360,20 +360,20 @@ namespace RewindSubtitleDisplayerForPlex
                 }
 
 
-                LogDebug($"Watchdog: Reconnecting attempt #{retryCount + 1} in {delaySeconds} seconds...", ConsoleColor.Yellow);
+                LogDebug($"Connection Watcher: Reconnecting attempt #{retryCount + 1} in {delaySeconds} seconds...", ConsoleColor.Yellow);
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token);
                 }
                 catch (OperationCanceledException)
                 {
-                    LogDebug("Watchdog: Reconnection delay cancelled.");
+                    LogDebug("Connection Watcher: Reconnection delay cancelled.");
                     return PlexServer.ConnectionResult.Cancelled;
                 }
                 retryCount++;
             }
 
-            LogDebug("Watchdog: Reconnection loop cancelled before success.");
+            LogDebug("Connection Watcher: Reconnection loop cancelled before success.");
             return PlexServer.ConnectionResult.Cancelled;
         }
 
@@ -384,7 +384,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 if (disposing)
                 {
-                    LogDebug("Disposing ConnectionWatchdog...");
+                    LogDebug("Disposing Connection Watcher...");
                     // Signal stop and wait for the task to complete
                     Stop();
                     _watchdogCts?.Dispose();
