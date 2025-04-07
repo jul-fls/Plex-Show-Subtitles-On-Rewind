@@ -12,21 +12,23 @@ public static class LaunchArgs
     // ---------------- Argument Definitions ------------------------
     public static readonly Argument Background =      new("background",       "Windows Only: The program runs in the background without showing a console.");
     public static readonly Argument TokenTemplate =   new ("token-template",  "Generate an example token config file.", advanced:true);
-    public static readonly Argument Debug =           new("debug",            "Enables debug mode to show the highest detail of logging output.");
+    public static readonly Argument Debug =           new("debug",            "Enables debug mode to show the highest detail of logging output.", advanced:true);
     public static readonly Argument Verbose =         new("verbose",          "Enables verbose mode to show additional logging output.");
     public static readonly Argument Help =            new("help",             "Display help message with info including launch parameters.");
     public static readonly Argument HelpAlt =         new("?",                Help.Description);
     public static readonly Argument Stop =            new("stop",             "Stop all currently running instances of the app.");
     public static readonly Argument AllowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
+    public static readonly Argument ConfigTemplate =  new("settings-template",  "Generate a default settings config file.");
+    public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any.", advanced:true);
 
     // ------------------ Argument Info Display Strings ------------------
     public static readonly string StandardLaunchArgsInfo = $"""
             Optional Launch Parameters:
-                -{LaunchArgs.Background}: {t}{LaunchArgs.Background.Description}
-                -{LaunchArgs.Stop}: {tt}{LaunchArgs.Stop.Description}
-                -{LaunchArgs.Verbose}: {tt}{LaunchArgs.Verbose.Description}
-                -{LaunchArgs.Debug}: {tt}{LaunchArgs.Debug.Description}
-                -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt}: {t}{LaunchArgs.Help.Description}
+                -{LaunchArgs.Background} {t}{LaunchArgs.Background.Description}
+                -{LaunchArgs.Stop} {tt}{LaunchArgs.Stop.Description}
+                -{LaunchArgs.ConfigTemplate} {t}{LaunchArgs.ConfigTemplate.Description}
+                -{LaunchArgs.Verbose} {tt}{LaunchArgs.Verbose.Description}
+                -{LaunchArgs.Help} or -{LaunchArgs.HelpAlt} {t}{LaunchArgs.Help.Description}
             """;
 
     // Advanced launch args are only shown when using -help or -?. It appends to the standard args info string.
@@ -35,12 +37,15 @@ public static class LaunchArgs
         + StandardLaunchArgsInfo + "\n\n"
         + $"""
             Advanced Optional Launch parameters:
-                -{LaunchArgs.TokenTemplate}: {tt}{LaunchArgs.TokenTemplate.Description}
-                -{LaunchArgs.AllowDuplicateInstance}: {t}{LaunchArgs.AllowDuplicateInstance.Description}
+                -{LaunchArgs.Debug} {ttt}{LaunchArgs.Debug.Description}
+                -{LaunchArgs.TokenTemplate} {tt}{LaunchArgs.TokenTemplate.Description}
+                -{LaunchArgs.AllowDuplicateInstance} {t}{LaunchArgs.AllowDuplicateInstance.Description}
+                -{LaunchArgs.UpdateSettings} {t}{LaunchArgs.UpdateSettings.Description}
             """;
 
     const string t = "\t";
     const string tt = "\t\t";
+    const string ttt = "\t\t\t";
 
     // ------------------------- Methods ------------------------------
     // Get version starting with either hyphen or forward slash

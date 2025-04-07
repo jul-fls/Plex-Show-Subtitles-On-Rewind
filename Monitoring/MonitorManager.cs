@@ -21,7 +21,6 @@ namespace RewindSubtitleDisplayerForPlex
         private static bool _printDebugAll = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
         private static int _idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
-        private static PollingMode _idlePollingMode = PollingMode.Timer;
 
         private static ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
 
@@ -222,8 +221,8 @@ namespace RewindSubtitleDisplayerForPlex
                 int sleepTime;
                 if (_monitoringState == MonitoringState.Active)
                     sleepTime = _globalActiveFrequencyMs;
-                // If using event-based polling, use a long sleep time while idle
-                else if (_idlePollingMode == PollingMode.Event)
+                // If using event-based polling (waiting for plex server notifications to break loop), use a long sleep time while idle
+                else if (Program.config.UseEventPolling == true)
                     sleepTime = DefaultWaitOnEventIdleFrequency_seconds * 1000;
                 // Otherwise use the normal idle frequency
                 else

@@ -5,10 +5,14 @@
 // Settings class with default values. Will be updated with values from settings file if it exists
 public class Settings
 {
+    // This is the order they will be written to the settings file
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
+    public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
-    public SettingInfo<int> ShortTimeoutLimit = new(500, "Active_Timeout_Milliseconds");
+    public SettingInfo<int> ShortTimeoutLimit = new(750, "Active_Timeout_Milliseconds");
+    public SettingInfo<bool> DebugMode = new(false, "Debug_Mode");
+    public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
 
     // Constructor to set descriptions for each setting
     public Settings()
@@ -16,8 +20,13 @@ public class Settings
         // Set descriptions in the constructor
         ServerURL.Description = "The full URL of your local server, including http, IP, and port";
         ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
-        IdleMonitorFrequency.Description = "How often to check for playback status (in seconds) when no media is playing.  Must be a positive whole number.";
-        ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency.";
+        DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.";
+
+        // Advanced settings
+        ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency. Must be a positive whole number.";
+        AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging.";
+        UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection.";
+        IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing.  Must be a positive whole number.";
     }
 
     // ------------------------------------------------------
@@ -75,6 +84,7 @@ public static class SettingsHandler
     private static class SettingStrings
     {
         public const string SettingsFileName = "settings.ini";
+        public const string SettingsFileTemplate = "settings.ini.template";
     }
 
     // Load settings from settings file into a Settings object
@@ -183,21 +193,24 @@ public static class SettingsHandler
         settings.CleanAndValidate();
 
         return settings;
-    } 
+    }
 
-    // Automatically create settings file if it doesn't exist
-    public static void CreateSettingsFileIfNotExists()
+    private static bool CreateSettingsFile(string fileName, Settings? settingsIn = null)
     {
-        if (!File.Exists(SettingStrings.SettingsFileName))
-        {
-            Settings settings = new Settings();
-            Type settingsType = typeof(Settings); // No change here
+        Settings settings;
 
+        if (settingsIn != null)
+            settings = settingsIn;
+        else
+            settings = new Settings(); // Load default settings if no settings object is provided
+
+        try
+        {
             // Assuming SettingStrings.SettingsFileName is defined elsewhere
-            using StreamWriter sw = File.CreateText(SettingStrings.SettingsFileName);
+            using StreamWriter sw = File.CreateText(fileName);
 
             // Iterate through fields of the Settings instance
-            foreach (System.Reflection.FieldInfo field in settingsType.GetFields())
+            foreach (System.Reflection.FieldInfo field in typeof(Settings).GetFields())
             {
                 // Get the value of the field from the specific 'settings' instance
                 object? fieldValue = field.GetValue(settings);
@@ -243,11 +256,80 @@ public static class SettingsHandler
             }
 
             // sw is automatically disposed/flushed by the using statement
-
             sw.Close();
-            WriteGreen($"Created settings config file \"{SettingStrings.SettingsFileName}\"\n");
+            WriteGreen($"Created settings config file \"{fileName}\"\n");
+            return true; // Indicate success
+        }
+        catch (Exception ex)
+        {
+            // Handle exceptions (e.g., file access issues)
+            WriteRed($"Error creating settings file: {ex.Message}");
+            // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
+            return false; // Indicate failure
         }
     }
+
+    // Automatically create settings file if it doesn't exist
+    public static bool CreateSettingsFileIfNotExists()
+    {
+        if (!File.Exists(SettingStrings.SettingsFileName))
+        {
+            CreateSettingsFile(SettingStrings.SettingsFileName);
+            return true; // File was created
+        }
+        else
+        {
+            // File already exists, no action taken
+            return false; // File already exists
+        }
+    }
+
+    // Will re-write the settings file using the current settings. Useful if the user has a partial/old settings file.
+    // When their old settings file is loaded, it will apply whichever ones exist, but apply defaults for the rest
+    // Therefore we can just re-write the settings file with the current settings object which will include their values where they were valid
+    public static bool UpdateSettingsFile(Settings settings)
+    {
+        // Check if the settings file exists
+        if (File.Exists(SettingStrings.SettingsFileName))
+        {
+            // If it exists, create a backup
+            string backupFileName = SettingStrings.SettingsFileName + ".bak";
+            backupFileName = Utils.GetAvailableFileName(backupFileName, returnFullPath: false, mode: Utils.FileNameIterationLocation.Extension);
+            try
+            {
+                File.Copy(sourceFileName: SettingStrings.SettingsFileName, destFileName: backupFileName, overwrite: true);
+                WriteGreen($"Backup of settings file created as \"{SettingStrings.SettingsFileName}.bak\"\n");
+            }
+            catch (Exception ex)
+            {
+                // Handle exceptions (e.g., file access issues)
+                WriteRed($"Error - Cannot update settings file. Failed while creating backup settings file: {ex.Message}");
+                // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
+                return false; // Indicate failure
+            }
+        }
+        // Create a new settings file with the updated settings
+        bool result = CreateSettingsFile(fileName: SettingStrings.SettingsFileName, settingsIn: settings);
+
+        if (result)
+        {
+            WriteGreen($"Successfully updated settings file.");
+            return true; // Indicate success
+        }
+        else
+        {
+            WriteRed($"Error - Cannot update settings file. Failed to create new settings file.");
+            return false; // Indicate failure
+        }
+    }
+
+    // Generate a template settings file. Will overwrite the existing one if it exists
+    public static void GenerateTemplateSettingsFile()
+    {
+        CreateSettingsFile(fileName: SettingStrings.SettingsFileTemplate);
+    }
+
+
 } // --------- End of SettingsHandler ---------
 
 

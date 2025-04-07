@@ -15,7 +15,6 @@ namespace RewindSubtitleDisplayerForPlex
         public static bool debugMode = false;
         public static bool verboseMode = false;
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
-        private static bool allowDuplicateInstance = false; // Used to allow duplicate instances of the program
         private static bool instancesAreSetup = false; // Used to check if the instances are set up correctly
 
         private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
@@ -30,9 +29,23 @@ namespace RewindSubtitleDisplayerForPlex
 
         static void Main(string[] args)
         {
+            // Early processing of launch args for Debug Mode and verbose mode
+            if (LaunchArgs.Debug.Check(args))
+                debugMode = true;
+            if (LaunchArgs.Verbose.Check(args))
+                verboseMode = true;
+            if (debugMode == true)
+                verboseMode = true;
+
+            // Load Settings from file early on
+            config = SettingsHandler.LoadSettings(); // Load settings early on but after debug mode is set by launch args if necessary
+            if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
+            
+            // -------------------
             #if DEBUG
                 debugMode = true;
             #endif
+            // -------------------
 
             // =======================================================================
             // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
@@ -42,23 +55,38 @@ namespace RewindSubtitleDisplayerForPlex
             bool runBackgroundArg = LaunchArgs.Background.Check(args);
             OS_Handlers.HandleBackgroundArg(runBackgroundArg); // OS specific handling for background mode
 
-            // Debug Mode and verbose mode
-            if (LaunchArgs.Debug.Check(args))
-                debugMode = true;
-            if (LaunchArgs.Verbose.Check(args))
-                verboseMode = true;
-            if (debugMode == true)
-                verboseMode = true;
-
             // Allow duplicate instances (Those that are set to connect to the same exact server. Mostly for testing.)
             if (LaunchArgs.AllowDuplicateInstance.Check(args))
-                allowDuplicateInstance = true;
+                config.AllowDuplicateInstance.Value = true;
 
             // Token Template Generation
             if (LaunchArgs.TokenTemplate.Check(args))
             {
-                AuthTokenHandler.CreateTemplateTokenFile(force: true);
-                WriteGreen("\nToken template generated.");
+                bool tokenTemplateResult = AuthTokenHandler.CreateTemplateTokenFile(force: true);
+                if (tokenTemplateResult)
+                    WriteGreen("Token template file generated successfully.");
+                else
+                    WriteRed("Failed to generate token template file.");
+
+                Console.WriteLine("\nPress Enter to exit.");
+                Console.ReadLine();
+                return;
+            }
+
+            // Config Template Generation
+            if (LaunchArgs.ConfigTemplate.Check(args))
+            {
+                SettingsHandler.GenerateTemplateSettingsFile();
+                return;
+            }
+
+            // Update Settings File
+            if (LaunchArgs.UpdateSettings.Check(args))
+            {
+                SettingsHandler.UpdateSettingsFile(config);
+                Console.WriteLine("\nPress Enter to exit.");
+                Console.ReadLine();
+                return;
             }
 
             // ------------ Instance Coordination ------------
@@ -89,20 +117,21 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteGreen(MyStrings.HeadingTitle);
                 if (debugMode)
                     WriteYellow("Debug mode enabled.\n");
+                else if (verboseMode)
+                    WriteYellow("Verbose mode enabled.\n");
+
                 Console.WriteLine(LaunchArgs.StandardLaunchArgsInfo);
                 WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");
                 Console.WriteLine("------------------------------------------------------------------------\n");
             }
 
-            config = SettingsHandler.LoadSettings(); // Assign loaded settings to the static config variable
-
             // ------------ New Instance Logic: Check for Duplicates ------------
             if (instancesAreSetup)
             {
-                bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL, allowDuplicateInstance).Result;
+                bool duplicateFound = InstanceCoordinator.CheckForDuplicateServersAsync(config.ServerURL, config.AllowDuplicateInstance).Result;
                 if (duplicateFound)
                 {
-                    if (allowDuplicateInstance)
+                    if (config.AllowDuplicateInstance == true)
                     {
                         LogWarning("Duplicate instance found but currently set to allow duplicates. Continuing...");
                     }

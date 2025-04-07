@@ -25,13 +25,6 @@ namespace RewindSubtitleDisplayerForPlex
         Idle
     }
 
-    // Enum for whether to poll using a timer or wait for events while idle
-    public enum PollingMode
-    {
-        Timer,
-        Event
-    }
-
     public static class MyStrings
     {
         public const string AppNameDashed = "Rewind-Subtitle-Displayer-For-Plex";

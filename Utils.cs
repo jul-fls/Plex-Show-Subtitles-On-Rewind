@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 
 namespace RewindSubtitleDisplayerForPlex;
@@ -92,6 +93,51 @@ internal class Utils
             }
         }
         return request;
+    }
+
+    /// <summary>
+    /// Whether to add the integer to the end of the file name stem or the end of the extension
+    /// </summary>
+    public enum FileNameIterationLocation
+    {
+        Stem,
+        Extension
+    }
+
+    public static string GetAvailableFileName(string filePath, bool returnFullPath = true, FileNameIterationLocation mode = FileNameIterationLocation.Stem)
+    {
+        // Convert to absolute path if not already. Assumes the path is relative to the current working directory.
+        if (!Path.IsPathRooted(filePath))
+        {
+            filePath = Path.GetFullPath(filePath);
+        }
+
+        string fileName = Path.GetFileNameWithoutExtension(filePath);
+        string extension = Path.GetExtension(filePath);
+        string directory = Path.GetDirectoryName(filePath) ?? string.Empty;
+        int counter = 1;
+
+        while (File.Exists(filePath))
+        {
+            // If the mode is Stem, add the counter to the end of the file name stem (like file-1.txt, file-2.txt, etc)
+            if (mode == FileNameIterationLocation.Stem)
+                filePath = Path.Combine(directory, $"{fileName}-{counter}{extension}");
+            // If the mode is Extension, add the counter to the end of the extension (like .bak1, .bak2, etc)
+            else
+                filePath = Path.Combine(directory, $"{fileName}{extension}{counter}");
+
+            counter++;
+        }
+
+        // Return depending on parameter
+        if (returnFullPath == true)
+        {
+            return Path.GetFullPath(filePath); // Should already be a full path but just in case
+        }
+        else
+        {
+            return Path.GetFileName(filePath);
+        }
     }
 
 } // ---------- End of Utils Class -----------

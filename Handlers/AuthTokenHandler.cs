@@ -40,14 +40,29 @@ public static class AuthTokenHandler
         File.WriteAllText(tokenFilePath, $"AppToken={token}\nClientIdentifier={uuid}");
     }
 
-    public static void CreateTemplateTokenFile(bool force = false)
+    public static bool CreateTemplateTokenFile(bool force = false)
     {
-        // First check if the template file already exists
-        if (force == true || !File.Exists(AuthStrings.tokenFileTemplateName))
+        try
         {
-            string tokenFilePath = AuthStrings.tokenFileTemplateName;
-            File.WriteAllText(tokenFilePath, $"AppToken={AuthStrings.TokenPlaceholder}\nClientIdentifier={AuthStrings.UUIDPlaceholder}");
+            // First check if the template file already exists
+            if (force == true || !File.Exists(AuthStrings.tokenFileTemplateName))
+            {
+                string tokenFilePath = AuthStrings.tokenFileTemplateName;
+                File.WriteAllText(tokenFilePath, $"AppToken={AuthStrings.TokenPlaceholder}\nClientIdentifier={AuthStrings.UUIDPlaceholder}");
+                return true;
+            }
+            else
+            {
+                LogError($"Template file already exists: {AuthStrings.tokenFileTemplateName}.\n");
+                return false;
+            }
         }
+        catch (Exception ex)
+        {
+            LogError($"Error creating token template file: {ex.Message}");
+            return false;
+        }
+
     }
 
     public static (string, string)? LoadTokens()
