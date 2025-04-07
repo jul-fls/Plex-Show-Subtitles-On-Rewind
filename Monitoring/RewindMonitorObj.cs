@@ -14,10 +14,11 @@
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
 
         private bool _isMonitoring;
-        //private Thread _monitorThread;
         private bool _subtitlesUserEnabled;
         private double _latestWatchedPosition;
-        private double _previousPosition;
+        private double _previousPosition; // Use to detect fast forwards
+        private int _cooldownCyclesLeft = 0; // Used after rewinding too long, to prevent detecting rewinds again too quickly
+        private int _cooldownToUse = 0; // Used to store the current max cooldown so it can be reset
         private bool _temporarilyDisplayingSubtitles;
         private int _smallestResolution; // This might be updated depending on available data during refreshes
 
@@ -96,20 +97,25 @@
 
         private void RewindOccurred()
         {
-            LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
-            _activeSession.EnableSubtitles();
-            _temporarilyDisplayingSubtitles = true;
+            if (_cooldownCyclesLeft > 0)
+            {
+                // If a rewind occurs on the cooldown, we'll reset the cooldown because the user is likely still rewinding, so we don't want this cycle to count
+                _cooldownCyclesLeft = _cooldownToUse;
+                LogInfo($"{_deviceName}: Rewind ignored due to cooldown. Restting cooldown. Cooldown cycles left: {_cooldownCyclesLeft}", Yellow);
+            }
+            else
+            {
+                LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
+                _activeSession.EnableSubtitles();
+                _temporarilyDisplayingSubtitles = true;
+            }
         }
 
         // Disable subtitles but only if they were enabled by the monitor
         private void ReachedOriginalPosition()
         {
             LogInfo($"{_deviceName}: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}", Yellow);
-            if (!_subtitlesUserEnabled)
-            {
-                _activeSession.DisableSubtitles();
-            }
-            _temporarilyDisplayingSubtitles = false;
+            StopSubtitlesIfNotUserEnabled();
         }
 
         public void StopSubtitlesIfNotUserEnabled()
@@ -158,14 +164,15 @@
                         _subtitlesUserEnabled = false;
                     }
                 }
-                // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them
+                // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them.
+                // In this case again we don't want to stop them, so this is an else-if to prevent it falling through to the else
                 else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
                 {
                     _subtitlesUserEnabled = true;
                     _latestWatchedPosition = positionSec;
                     LogInfo($"{_deviceName}: User appears to have enabled subtitles manually.", Yellow);
                 }
-                // Only check for rewinds if the user hasn't manually enabled subtitles
+                // Only further process & check for rewinds if the user hasn't manually enabled subtitles
                 else
                 {
                     // These all stop subtitles, so only bother if they are currently showing
@@ -182,10 +189,27 @@
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
                         {
-                            LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far", Yellow);
+                            LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
 
                             _latestWatchedPosition = positionSec;
                             StopSubtitlesIfNotUserEnabled();
+
+                            // Initiate a cooldown, because if the user is rewinding in steps with a remote with brief pauses,
+                            //      further rewinds may be interpreted as rewinds to show subtitles again
+                            // If in accurate mode, cooldown for 2 cycles (2 seconds), otherwise 1 cycle since that's about 5 seconds.
+
+                            // Note: Add 1 to the actual number of cooldowns you want because we decrement it immediately after at the end of the loop
+                            if (_activeSession.AccurateTime != null)
+                            {
+                                _cooldownCyclesLeft = 3;
+                                _cooldownToUse = 3;
+                            }
+                            else
+                            {
+                                _cooldownCyclesLeft = 2;
+                                _cooldownToUse = 2;
+                            }
+
                         }
                         // Check if the position has gone back by the rewind amount. Don't update latest watched position here.
                         // Add smallest resolution to avoid stopping subtitles too early
@@ -194,9 +218,8 @@
                             ReachedOriginalPosition();
                         }
                     }
-                    // Check if the position has gone back by 2 seconds. Using 2 seconds just for safety to be sure.
-                    // This also will be valid if the user rewinds multiple times
-                    // But don't count it if the rewind amount is beyond the max
+                    // Check if the position has gone back by 2 seconds or more. Using 2 seconds just for safety to be sure.
+                    // But don't count it if the rewind amount goes beyond the max.
                     else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmount))
                     {
                         RewindOccurred();
@@ -209,6 +232,11 @@
                 }
 
                 _previousPosition = positionSec;
+                if (_cooldownCyclesLeft > 0)
+                {
+                    _cooldownCyclesLeft--;
+                    LogDebug($"{_deviceName}: Cooldown cycles left: {_cooldownCyclesLeft}");
+                }
             }
             catch (Exception e)
             {
