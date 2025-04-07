@@ -7,16 +7,14 @@ namespace RewindSubtitleDisplayerForPlex
     public static class MonitorManager
     {
         // Shared values / constants
-        public const int DefaultMaxRewindAmount = 60;
-        public const int DefaultActiveFrequency = 1;
-        public const int DefaultIdleFrequency = 30;
+        public static readonly int DefaultMaxRewindAmount =  Settings.Default().MaxRewind;
         public const int DefaultWaitOnEventIdleFrequency_seconds = 3600; // Used when preferring event-based polling when idle, so this will be very long
         public const int DefaultSmallestResolution = 5; // If using the viewOffset, it's usually 5 seconds but apparently can be as high as 10s
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
         private static readonly List<RewindMonitor> _allMonitors = [];
-        private static int _globalActiveFrequencyMs = DefaultActiveFrequency;
-        private static int _globalIdleFrequencyMs = DefaultIdleFrequency;
+        private static int _globalActiveFrequencyMs = Settings.Default().ActiveMonitorFrequency;
+        private static int _globalIdleFrequencyMs = Settings.Default().IdleMonitorFrequency;
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
@@ -54,15 +52,12 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        public static void CreateAllMonitoringAllSessions(
-            List<ActiveSession> activeSessionList,
-            int activeFrequency = DefaultActiveFrequency,
-            int idleFrequency = DefaultIdleFrequency,
-            int maxRewindAmount = DefaultMaxRewindAmount,
-            bool printDebugAll = false,
-            string? debugDeviceName = null
-            )
+        public static void CreateAllMonitoringAllSessions(List<ActiveSession> activeSessionList, bool printDebugAll = false, string? debugDeviceName = null)
         {
+            int maxRewindAmount = Program.config.MaxRewind;
+            int activeFrequency = Program.config.ActiveMonitorFrequency;
+            int idleFrequency = Program.config.IdleMonitorFrequency;
+
             _globalActiveFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
             _globalIdleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
 
@@ -89,9 +84,9 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static void CreateMonitorForSession(
             ActiveSession activeSession,
-            int activeFrequency = DefaultActiveFrequency,
-            int idleFrequency = DefaultIdleFrequency,
-            int maxRewindAmount = DefaultMaxRewindAmount,
+            int maxRewindAmount,
+            int activeFrequency,
+            int idleFrequency,
             bool printDebug = false,
             int smallestResolution = DefaultSmallestResolution
             )
@@ -190,7 +185,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 _sleepResetEvent.Reset();
 
-                List<ActiveSession> updatedSessions = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState).Result;
+                _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
 
                 MonitoringState previousState = _monitoringState;
                 MonitoringState pendingNewState = RunMonitors_OneIteration(_allMonitors);

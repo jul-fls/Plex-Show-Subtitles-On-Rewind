@@ -52,6 +52,7 @@ namespace RewindSubtitleDisplayerForPlex
             return _activeSessionList;
         }
 
+        // Returns a list of updated active sessions
         public static async Task<List<ActiveSession>> RefreshExistingActiveSessionsAsync(MonitoringState currentState)
         {
             bool useShortTimeout = (currentState == MonitoringState.Idle);
@@ -110,6 +111,7 @@ namespace RewindSubtitleDisplayerForPlex
                         // Create a new monitor for the newly found session. The method will automatically check for duplicates
                         MonitorManager.CreateMonitorForSession(
                             activeSession: newSession,
+                            maxRewindAmount: Program.config.MaxRewind,
                             activeFrequency: Program.config.ActiveMonitorFrequency,
                             idleFrequency: Program.config.IdleMonitorFrequency,
                             smallestResolution: newSession.SmallestResolutionExpected);

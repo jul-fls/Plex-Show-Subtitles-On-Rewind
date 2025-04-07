@@ -1,18 +1,27 @@
-﻿namespace RewindSubtitleDisplayerForPlex;
+﻿using System.ComponentModel;
+using static RewindSubtitleDisplayerForPlex.Settings;
+
+namespace RewindSubtitleDisplayerForPlex;
 
 
 
 // Settings class with default values. Will be updated with values from settings file if it exists
 public class Settings
 {
-    // This is the order they will be written to the settings file
+    public class SectionDivider { } // Placeholder class for section headers
+
+    // This is also the order they will be written to the settings file
+    public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
+    public SettingInfo<int> MaxRewind = new(60, "Max_Rewind_Seconds");
+    public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
     public SettingInfo<int> ShortTimeoutLimit = new(750, "Active_Timeout_Milliseconds");
     public SettingInfo<bool> DebugMode = new(false, "Debug_Mode");
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
+    
 
     // Constructor to set descriptions for each setting
     public Settings()
@@ -21,13 +30,20 @@ public class Settings
         ServerURL.Description = "The full URL of your local server, including http, IP, and port";
         ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
         DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.";
+        MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles. Must be a positive whole number.";
 
         // Advanced settings
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency. Must be a positive whole number.";
         AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging.";
         UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection.";
         IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing.  Must be a positive whole number.";
+
+        // Set default values for section dividers
+        StandardSettings.Description =      "----------------------- Standard Settings -----------------------";
+        StartAdvancedSettings.Description = "----------------------- Advanced Settings -----------------------";
     }
+
+    public static Settings Default() { return new Settings(); }
 
     // ------------------------------------------------------
     public Settings CleanAndValidate()
@@ -217,12 +233,19 @@ public static class SettingsHandler
 
                 // Check if the field's value is actually an ISettingInfo instance
                 // This replaces the need to check field.FieldType separately AND casts it.
-                if (fieldValue is ISettingInfo settingInfo) // <<<< KEY CHANGE: Cast to interface
+                if (fieldValue is ISettingInfo settingInfo) //
                 {
                     // Access properties directly via the interface - NO REFLECTION NEEDED
                     string description = settingInfo.Description;
                     string configName = settingInfo.ConfigName;
                     object? defaultValue = settingInfo.GetValueAsObject();
+
+                    // Special case for SectionDivider. Only print the description
+                    if (settingInfo.ValueType == typeof(SectionDivider))
+                    {
+                        sw.WriteLine($"# {description}\n");
+                        continue; // Skip to next field
+                    }
 
                     // For each line in a description, add comment character, a tab, and the description
                     // (Check against string.Empty since interface Description is non-null string)
