@@ -13,7 +13,7 @@ namespace RewindSubtitleDisplayerForPlex
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
         private static readonly List<RewindMonitor> _allMonitors = [];
-        private static int _globalActiveFrequencyMs = Settings.Default().ActiveMonitorFrequency;
+        private static int _globalActiveFrequencyMs = Settings.Default().ActiveMonitorFrequency; // Initial value but will be updated as needed on the fly
         private static int _globalIdleFrequencyMs = Settings.Default().IdleMonitorFrequency;
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
@@ -22,6 +22,7 @@ namespace RewindSubtitleDisplayerForPlex
 
         private static ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
 
+        // This occurs when the server sends a real-time notification about playback state, so we can use this to get instant updates out of phase with the polling
         public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
         {
             if (e.EventObj is PlayingEvent playEvent && playEvent.PlayState is PlexPlayState playState)
@@ -29,12 +30,29 @@ namespace RewindSubtitleDisplayerForPlex
                 LogDebug($"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={playEvent.ViewOffset}ms",
                     ConsoleColor.Cyan);
 
+                // Currently we just use it to wake up from idle since the active polling is frequent enough, but we could use it to update the monitors too
                 if (playState == PlexPlayState.Playing)
                 {
                     if (_monitoringState == MonitoringState.Idle)
                     {
                         LogVerbose("Switching to active monitoring due to playback event.");
                         BreakFromIdle();
+                    }
+                    else
+                    {
+                        // Only proceed if we have info we can use in the first place
+                        if (playEvent.ViewOffset is long newViewOffset && newViewOffset != 0)
+                        {
+                            if (GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
+                            {
+                                monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
+                                monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass
+                            }
+                            else
+                            {
+                                LogDebug($"No monitor found for machine {playEvent.ClientIdentifier}. Cannot update view offset.");
+                            }
+                        }
                     }
                 }
                 else if (playState == PlexPlayState.Paused)
@@ -49,6 +67,27 @@ namespace RewindSubtitleDisplayerForPlex
             else
             {
                 LogError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
+            }
+        }
+
+        public static RewindMonitor? GetMonitorForMachineID(string? machineID)
+        {
+            if (string.IsNullOrEmpty(machineID))
+            {
+                LogDebug("Machine ID is null or empty. Cannot find monitor.");
+                return null;
+            }
+
+            // Find the monitor for the given machine name
+            RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.MachineID == machineID);
+            if (monitor != null)
+            {
+                return monitor;
+            }
+            else
+            {
+                LogDebug($"No monitor found for machine {machineID}.");
+                return null;
             }
         }
 
@@ -78,8 +117,6 @@ namespace RewindSubtitleDisplayerForPlex
                     printDebug: printDebug
                 );
             }
-
-            //StartRefreshLoop(); // Will be called externally
         }
 
         public static void CreateMonitorForSession(

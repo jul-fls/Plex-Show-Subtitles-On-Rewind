@@ -184,11 +184,19 @@ namespace RewindSubtitleDisplayerForPlex
             return _activeSessionList;
         }
 
-        public static List<ActiveSession> Get()
+        public static List<ActiveSession> GetSessionList()
         {
             lock (_lockObject)
             {
                 return _activeSessionList;
+            }
+        }
+
+        public static ActiveSession? GetSessionByMachineID(string machineID)
+        {
+            lock (_lockObject)
+            {
+                return _activeSessionList.FirstOrDefault(s => s.MachineID == machineID);
             }
         }
 

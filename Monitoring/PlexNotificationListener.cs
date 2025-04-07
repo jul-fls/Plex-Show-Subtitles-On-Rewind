@@ -401,7 +401,7 @@ public class ServerSentEvent
 
 public class PlayingEvent
 {
-    [JsonPropertyName("sessionKey")] // Map "sessionKey" JSON field to sessionKey property
+    [JsonPropertyName("sessionKey")]
     public string? SessionKey { get; set; }
 
     [JsonPropertyName("clientIdentifier")]

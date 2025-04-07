@@ -509,8 +509,9 @@ public class ActiveSession
     // If we are sure subtitles are showing or not, it's true or false, otherwise null
     public bool? KnownIsShowingSubtitles {get; private set;} = null;
     // Whether we have the more accurate subtitle and view offset data. Can be used to determine minimum expected resolution of view offset
-    public int? AccurateTime = null;
-    public int SmallestResolutionExpected => AccurateTime != null ? MonitorManager.AccurateTimelineResolution : MonitorManager.DefaultSmallestResolution;
+    public int? AccurateTimeMs = null;
+    // If we have an accurate time at all, then we know we are using the accurate timeline data, so use the accurate resolution setting
+    public int SmallestResolutionExpected => AccurateTimeMs != null ? MonitorManager.AccurateTimelineResolution : MonitorManager.DefaultSmallestResolution;
     //-------------------------------------------------------------------------------
 
     public ActiveSession(PlexSession session, List<SubtitleStream> availableSubtitles, List<SubtitleStream> activeSubtitles)
@@ -570,8 +571,8 @@ public class ActiveSession
     {
         int positionMilliseconds;
 
-        if (AccurateTime != null)
-            positionMilliseconds = AccurateTime.Value;
+        if (AccurateTimeMs != null)
+            positionMilliseconds = AccurateTimeMs.Value;
         else
             positionMilliseconds = Session.ViewOffset;
 
@@ -588,7 +589,7 @@ public class ActiveSession
         if (timelineContainer == null)
         {
             this.KnownIsShowingSubtitles = null;
-            this.AccurateTime = null;
+            this.AccurateTimeMs = null;
             return;
         }
 
@@ -605,8 +606,8 @@ public class ActiveSession
         {
             if (timeline.Time != null && timeline.Time != "")
             {
-                AccurateTime = int.Parse(timeline.Time);
-                this.Session.ViewOffset = AccurateTime.Value; // Update the view offset with the latest time from the timeline
+                AccurateTimeMs = int.Parse(timeline.Time);
+                this.Session.ViewOffset = AccurateTimeMs.Value; // Update the view offset with the latest time from the timeline
             }
 
             // If we have the timeline info, we can know for sure if subtitles are showing
@@ -622,7 +623,7 @@ public class ActiveSession
         else
         {
             this.KnownIsShowingSubtitles = null;
-            this.AccurateTime = null;
+            this.AccurateTimeMs = null;
         }
     }
 
@@ -636,6 +637,39 @@ public class ActiveSession
         GetAndApplyTimelineData(); // Update the view offset and known subtitle state
 
         return this;
+    }
+
+    //public static ActiveSession? FindAndUpdateViewOffset_UsingNotification(PlayingEvent playEvent, string? machineID)
+    //{
+    //    if (machineID == null || machineID == string.Empty)
+    //    {
+    //        LogDebug("Machine ID is null or empty. Cannot update view offset.");
+    //        return null; // No machine ID provided
+    //    }
+
+    //    ActiveSession? session = SessionHandler.GetSessionByMachineID(machineID);
+    //    if (session != null && playEvent.ViewOffset is long newViewOffset)
+    //    {
+    //        session.AccurateTimeMs = (int)newViewOffset; // Update the accurate time using the notification
+    //        return session;
+    //    }
+    //    else
+    //    {
+    //        LogDebug($"No active session found for machine ID: {machineID}");
+    //        return null; // No session found for the given machine ID
+    //    }
+    //}
+
+    public void UpdateAccurateViewOffsetFromNotification(long? newViewOffset)
+    {
+        if (newViewOffset != null)
+        {
+            Session.ViewOffset = (int)newViewOffset; // Update the view offset with the latest time from the timeline
+        }
+        else
+        {
+            LogWarning("New view offset from Playing notification is null. Cannot update.");
+        }
     }
 
     public async void EnableSubtitles()

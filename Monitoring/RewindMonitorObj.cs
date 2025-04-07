@@ -13,6 +13,8 @@
 
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
 
+        private const int DefaultCooldownCount = 5; //TODO make this a setting
+
         private bool _isMonitoring;
         private bool _subtitlesUserEnabled;
         private double _latestWatchedPosition;
@@ -24,6 +26,9 @@
 
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
+        public ActiveSession AttachedSession => _activeSession;
+
+        public string MachineID { get => _activeSession.MachineID; }
 
         public RewindMonitor(
             ActiveSession session,
@@ -97,18 +102,9 @@
 
         private void RewindOccurred()
         {
-            if (_cooldownCyclesLeft > 0)
-            {
-                // If a rewind occurs on the cooldown, we'll reset the cooldown because the user is likely still rewinding, so we don't want this cycle to count
-                _cooldownCyclesLeft = _cooldownToUse;
-                LogInfo($"{_deviceName}: Rewind ignored due to cooldown. Restting cooldown. Cooldown cycles left: {_cooldownCyclesLeft}", Yellow);
-            }
-            else
-            {
-                LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
-                _activeSession.EnableSubtitles();
-                _temporarilyDisplayingSubtitles = true;
-            }
+            LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
+            _activeSession.EnableSubtitles();
+            _temporarilyDisplayingSubtitles = true;
         }
 
         // Disable subtitles but only if they were enabled by the monitor
@@ -134,7 +130,19 @@
             _temporarilyDisplayingSubtitles = false;
         }
 
-        public void MakeMonitoringPass()
+        private void UpdateLatestWatchedPosition(double newTime)
+        {
+            // If we're in a cooldown, that means the user might still be rewinding further,
+            // so we don't want to update the latest watched position until the cooldown is over,
+            // otherwise when they finish rewinding beyond the max it might result in showing subtitles again
+            if (_cooldownCyclesLeft == 0)
+                _latestWatchedPosition = newTime;
+        }
+
+        // This is a point-in-time function that will stop subtitles based on last known position and collected data
+        // It might be called from a polling loop at a regular interval, or can be updated 'out-of-phase' from a plex server notification
+        //      Doing so should not interrupt the loop intervals but will allow for more instant reactions to user input
+        public void MakeMonitoringPass(bool isFromNotification = false)
         {
             try
             {
@@ -157,7 +165,7 @@
                 // If the user had manually enabled subtitles, check if they disabled them
                 if (_subtitlesUserEnabled)
                 {
-                    _latestWatchedPosition = positionSec;
+                    UpdateLatestWatchedPosition(positionSec);
                     // If the active subtitles are empty, the user must have disabled them
                     if (_activeSession.HasActiveSubtitles() == false)
                     {
@@ -169,7 +177,7 @@
                 else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
                 {
                     _subtitlesUserEnabled = true;
-                    _latestWatchedPosition = positionSec;
+                    UpdateLatestWatchedPosition(positionSec);
                     LogInfo($"{_deviceName}: User appears to have enabled subtitles manually.", Yellow);
                 }
                 // Only further process & check for rewinds if the user hasn't manually enabled subtitles
@@ -183,7 +191,7 @@
                         {
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded", Yellow);
 
-                            _latestWatchedPosition = positionSec;
+                            UpdateLatestWatchedPosition(positionSec);
                             StopSubtitlesIfNotUserEnabled();
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
@@ -191,7 +199,7 @@
                         {
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
 
-                            _latestWatchedPosition = positionSec;
+                            UpdateLatestWatchedPosition(positionSec);
                             StopSubtitlesIfNotUserEnabled();
 
                             // Initiate a cooldown, because if the user is rewinding in steps with a remote with brief pauses,
@@ -199,10 +207,10 @@
                             // If in accurate mode, cooldown for 2 cycles (2 seconds), otherwise 1 cycle since that's about 5 seconds.
 
                             // Note: Add 1 to the actual number of cooldowns you want because we decrement it immediately after at the end of the loop
-                            if (_activeSession.AccurateTime != null)
+                            if (_activeSession.AccurateTimeMs != null)
                             {
-                                _cooldownCyclesLeft = 3;
-                                _cooldownToUse = 3;
+                                _cooldownCyclesLeft = DefaultCooldownCount;
+                                _cooldownToUse = DefaultCooldownCount;
                             }
                             else
                             {
@@ -218,8 +226,33 @@
                             ReachedOriginalPosition();
                         }
                     }
+                    // Special handling during cooldown
+                    else if (_cooldownCyclesLeft > 0)
+                    {
+                        // If they have fast forwarded
+                        if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
+                        {
+                            LogInfo($"{_deviceName}: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
+                            UpdateLatestWatchedPosition(positionSec);
+                            _cooldownCyclesLeft = 0; // Reset cooldown
+                        }
+                        else if (!isFromNotification)
+                        {
+                            _cooldownCyclesLeft--;
+
+                            // If the user rewinded again while in cooldown, we want to reset the cooldown
+                            if (positionSec < _previousPosition - 2)
+                            {
+                                _cooldownCyclesLeft = _cooldownToUse;
+                            }
+
+                            LogDebug($"{_deviceName}: Cooldown cycles left: {_cooldownCyclesLeft}");
+                        }
+                    }
                     // Check if the position has gone back by 2 seconds or more. Using 2 seconds just for safety to be sure.
                     // But don't count it if the rewind amount goes beyond the max.
+                    // Since at this point it isn't displaying subtitles we can technically use either _previousPosition or _latestWatchedPosition to check for rewinds.
+                    // Only _previousPosition works with the cooldown but that doesn't matter because we handle that in the other else if
                     else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmount))
                     {
                         RewindOccurred();
@@ -227,16 +260,12 @@
                     // Otherwise update the latest watched position
                     else
                     {
-                        _latestWatchedPosition = positionSec;
+                        UpdateLatestWatchedPosition(positionSec);
                     }
                 }
 
                 _previousPosition = positionSec;
-                if (_cooldownCyclesLeft > 0)
-                {
-                    _cooldownCyclesLeft--;
-                    LogDebug($"{_deviceName}: Cooldown cycles left: {_cooldownCyclesLeft}");
-                }
+
             }
             catch (Exception e)
             {

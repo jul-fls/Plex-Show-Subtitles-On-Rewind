@@ -20,7 +20,7 @@ namespace RewindSubtitleDisplayerForPlex
         // Event to notify when the listener loses connection
         public event EventHandler? ListenerConnectionLost;
         // Event to notify when a 'playing' event is received from the listener
-        public event EventHandler<PlexEventInfo>? PlayingNotificationReceived;
+        public event EventHandler<PlexEventInfo>? ForwardPlayingNotificationReceived;
         private static readonly CancellationTokenSource _appShutdownCts = new CancellationTokenSource();
 
         // Constructor
@@ -229,7 +229,7 @@ namespace RewindSubtitleDisplayerForPlex
                 {
                     _currentListener = new PlexNotificationListener(_plexUrl, _plexToken, notificationFilters: "playing");
                     _currentListener.ConnectionLost += HandleListenerConnectionLost; // Subscribe internal handler
-                    _currentListener.PlayingNotificationReceived += HandlePlayingNotificationReceived; // Forward event
+                    _currentListener.PlayingNotificationReceived += HandleForwardPlayingNotificationReceived; // Forward event
 
                     // Listener constructor now starts listening immediately. Check ListeningTask.
                     if (_currentListener.ListeningTask == null || _currentListener.ListeningTask.IsFaulted)
@@ -260,10 +260,12 @@ namespace RewindSubtitleDisplayerForPlex
             // DisposeListener(); // Be careful with thread safety if DisposeListener is called elsewhere
         }
 
-        private void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
+        // Since the the plex listener is not static, and the connection watchdog handles the instance,
+        //      we can have other classes subscribe to it here and forward the event to them.
+        private void HandleForwardPlayingNotificationReceived(object? sender, PlexEventInfo e)
         {
             // Forward the event to external subscribers
-            PlayingNotificationReceived?.Invoke(this, e);
+            ForwardPlayingNotificationReceived?.Invoke(this, e);
         }
 
         private void DisposeListener()
@@ -274,7 +276,7 @@ namespace RewindSubtitleDisplayerForPlex
                 {
                     LogDebug("Connection Watcher: Disposing current listener...", ConsoleColor.DarkGray);
                     _currentListener.ConnectionLost -= HandleListenerConnectionLost;
-                    _currentListener.PlayingNotificationReceived -= HandlePlayingNotificationReceived;
+                    _currentListener.PlayingNotificationReceived -= HandleForwardPlayingNotificationReceived;
                     _currentListener.Dispose();
                     _currentListener = null;
                 }
