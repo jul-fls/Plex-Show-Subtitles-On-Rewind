@@ -15,6 +15,7 @@ public class Settings
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
     public SettingInfo<int> MaxRewind = new(60, "Max_Rewind_Seconds");
+    public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
@@ -31,6 +32,9 @@ public class Settings
         ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
         DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.";
         MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles. Must be a positive whole number.";
+        CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored.\n" +
+            $"This is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
+            $"Must be a whole number greater than or equal to zero.";
 
         // Advanced settings
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency. Must be a positive whole number.";
@@ -43,12 +47,14 @@ public class Settings
         StartAdvancedSettings.Description = "----------------------- Advanced Settings -----------------------";
     }
 
+    public List<ISettingInfo> SettingsThatFailedToLoad = [];
+
     public static Settings Default() { return new Settings(); }
 
     // ------------------------------------------------------
     public Settings CleanAndValidate()
     {
-        Settings def = new Settings();
+        Settings def = new Settings(); // Default settings object to get default values if needed to replace invalid ones
 
         // ===================================================
         // Validate each setting as much as reasonable
@@ -59,6 +65,7 @@ public class Settings
         if (string.IsNullOrEmpty(ServerURL))
         {
             LogError($"Error for setting {ServerURL.ConfigName}: Server URL is empty or null. Will use default value {def.ServerURL}");
+            this.SettingsThatFailedToLoad.Add(ServerURL);
             ServerURL = def.ServerURL;
         }
 
@@ -66,6 +73,7 @@ public class Settings
         if (ActiveMonitorFrequency < 0)
         {
             LogError($"Error for setting {ActiveMonitorFrequency.ConfigName}: Active Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.ActiveMonitorFrequency}");
+            this.SettingsThatFailedToLoad.Add(ActiveMonitorFrequency);
             ActiveMonitorFrequency = def.ActiveMonitorFrequency;
         }
 
@@ -73,6 +81,7 @@ public class Settings
         if (IdleMonitorFrequency < 0)
         {
             LogError($"Error for setting {IdleMonitorFrequency.ConfigName}: Idle Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.IdleMonitorFrequency}");
+            this.SettingsThatFailedToLoad.Add(IdleMonitorFrequency);
             IdleMonitorFrequency = def.IdleMonitorFrequency;
         }
 
@@ -80,12 +89,30 @@ public class Settings
         if (ShortTimeoutLimit < 0)
         {
             LogError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be greater than or equal to 0.\nWill use default value {def.ShortTimeoutLimit}");
+            this.SettingsThatFailedToLoad.Add(ShortTimeoutLimit);
             ShortTimeoutLimit = def.ShortTimeoutLimit;
         }
-        if (ShortTimeoutLimit > ActiveMonitorFrequency * 1000)
+        else if (ShortTimeoutLimit > ActiveMonitorFrequency * 1000)
         {
             LogError($"Error for fetting {ShortTimeoutLimit.ConfigName}: Active Monitor Timeout Limit must be less than Active Monitor Frequency.\nWill use default value {def.ShortTimeoutLimit}");
+            this.SettingsThatFailedToLoad.Add(ShortTimeoutLimit);
             ShortTimeoutLimit = def.ShortTimeoutLimit;
+        }
+
+        // Max Rewind
+        if (MaxRewind < 0)
+        {
+            LogError($"Error for setting {MaxRewind.ConfigName}: Max Rewind must be greater than or equal to 0.\nWill use default value {def.MaxRewind}");
+            this.SettingsThatFailedToLoad.Add(MaxRewind);
+            MaxRewind = def.MaxRewind;
+        }
+
+        // Cool Down Count
+        if (CoolDownCount < 0)
+        {
+            LogError($"Error for setting {CoolDownCount.ConfigName}: Cool Down Count must be greater than or equal to 0.\nWill use default value {def.CoolDownCount}");
+            this.SettingsThatFailedToLoad.Add(CoolDownCount);
+            CoolDownCount = def.CoolDownCount;
         }
 
         // If no issues found, return true
@@ -111,7 +138,7 @@ public static class SettingsHandler
         Type settingsType = typeof(Settings); // Or typeof(Settings) - either works
 
         // Create a lookup dictionary for field name to config name for easier matching
-        var fieldToConfigName = new Dictionary<string, string>();
+        Dictionary<string, string> fieldToConfigName = [];
 
         // Iterate through fields of the Settings instance
         foreach (System.Reflection.FieldInfo field in settingsType.GetFields())
@@ -119,8 +146,8 @@ public static class SettingsHandler
             // Get the value of the field from the specific 'settings' instance
             object? settingValue = field.GetValue(settings);
 
-            // Check if the field's value implements ISettingInfo and cast it
-            if (settingValue is ISettingInfo settingInfo) // <<<< KEY CHANGE: Cast to interface
+            // Check if the field's value implements ISettingInfo and cast it. But ignore Section Dividers which are not an actual setting
+            if (settingValue is ISettingInfo settingInfo && settingInfo.ValueType != typeof(SectionDivider))
             {
                 // Get the ConfigName directly from the interface - NO REFLECTION
                 string configName = settingInfo.ConfigName;
@@ -135,7 +162,7 @@ public static class SettingsHandler
                 else
                 {
                     // Optional: Warn if a setting is found without a usable ConfigName
-                    Console.WriteLine($"Warning: Field '{field.Name}' (Type: {settingInfo.GetType().Name}) has a null or empty ConfigName.");
+                    LogError($"Warning: Field '{field.Name}' (Type: {settingInfo.GetType().Name}) has a null or empty ConfigName.");
                 }
             }
         }
@@ -173,31 +200,31 @@ public static class SettingsHandler
                             // Get the actual SettingInfo object instance from the 'settings' object
                             object? settingObj = field.GetValue(settings);
 
-                            // Check if it's an ISettingInfo and cast it
-                            if (settingObj is ISettingInfo settingInfo) // <<<< Use the interface
+                            // Check if it's an ISettingInfo and cast it, but ignore SectionDivider which is not an actual setting
+                            if (settingObj is ISettingInfo settingInfo && settingInfo.ValueType != typeof(SectionDivider))
                             {
                                 try
                                 {
                                     // Use the interface method to set the value - NO REFLECTION HERE
-                                    settingInfo.SetValueFromString(settingValue); // <<<< KEY CHANGE
+                                    settingInfo.SetValueFromString(settingValue); //
                                 }
                                 catch (FormatException ex)
                                 {
                                     // Handle errors during conversion/setting reported by SetValueFromString
-                                    Console.WriteLine($"Error applying setting '{configName}': {ex.Message}");
-                                    // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
+                                    LogError($"Error applying setting '{configName}' in {SettingStrings.SettingsFileName}- Likely invalid value: {ex.Message}\nInner Exception (If Any): {ex.InnerException?.Message}");
+                                    settings.SettingsThatFailedToLoad.Add(settingInfo);
                                 }
                             }
                             else
                             {
                                 // Handle case where the field value isn't an ISettingInfo (shouldn't happen if fieldToConfigName is built correctly)
-                                Console.WriteLine($"Warning: Field '{kvp.Key}' associated with config '{configName}' did not contain an ISettingInfo object.");
+                                LogWarning($"Warning: Field '{kvp.Key}' associated with config '{configName}' did not contain an ISettingInfo object.");
                             }
                         }
                         else
                         {
                             // Handle case where field name from dictionary doesn't exist in Settings class
-                            Console.WriteLine($"Warning: Field name '{kvp.Key}' (for config '{configName}') not found in Settings class.");
+                            LogError($"Warning: Field name '{kvp.Key}' (for config '{configName}') not found in Settings class.");
                         }
                         break; // Found the setting, exit the inner loop
                     }
@@ -207,6 +234,15 @@ public static class SettingsHandler
 
         // Validate and clean settings. Will restore default values for each setting if invalid
         settings.CleanAndValidate();
+
+        // Display super-error warning if any settings failed to load
+        if (settings.SettingsThatFailedToLoad.Count > 0)
+        {
+            string failedSettings = string.Join(", ", settings.SettingsThatFailedToLoad.Select(s => s.ConfigName));
+            WriteErrorSuper($"\nWarning: The following settings failed to load. See errors above and check them in your settings file:");
+            WriteRed($"\t\t{failedSettings}\n");
+            
+        }
 
         return settings;
     }

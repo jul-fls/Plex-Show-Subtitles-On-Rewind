@@ -13,7 +13,7 @@
 
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
 
-        private const int DefaultCooldownCount = 5; //TODO make this a setting
+        private static int DefaultCooldownCount = Program.config.CoolDownCount;
 
         private bool _isMonitoring;
         private bool _subtitlesUserEnabled;
