@@ -16,6 +16,7 @@ public class Settings
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
     public SettingInfo<int> MaxRewind = new(60, "Max_Rewind_Seconds");
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
+    public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
@@ -35,6 +36,11 @@ public class Settings
         CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored.\n" +
             $"This is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
             $"Must be a whole number greater than or equal to zero.";
+        SubtitlePreferencePatterns.Description = "This allows you to define a filter for which subtitle track will be chosen. If left empty it will always choose the first subtitle track.\n" +
+            "It should be a comma separated list of words or phrases, where it will try to look for any subtitle tracks that have a name that matches ALL the listed phrases.\n" +
+            "You can also start a word/phrase with a hyphen (-) to require it NOT match that. So you can exclude 'SDH' subtitles by putting '-SDH' (without quotes).\n" +
+            "Note: Not case sensitive, and any quotes and/or leading/trailing spaces for each item will be trimmed off. It uses the subtitle track displayed in Plex.\n" +
+            $"Example to prefer English non-SDH subtitles:   {SubtitlePreferencePatterns.ConfigName}=english,-sdh";
 
         // Advanced settings
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency. Must be a positive whole number.";
@@ -113,6 +119,39 @@ public class Settings
             LogError($"Error for setting {CoolDownCount.ConfigName}: Cool Down Count must be greater than or equal to 0.\nWill use default value {def.CoolDownCount}");
             this.SettingsThatFailedToLoad.Add(CoolDownCount);
             CoolDownCount = def.CoolDownCount;
+        }
+
+        // Subtitle preference
+        if (SubtitlePreferencePatterns.Value != null)
+        {
+            // Check if the list is empty
+            if (SubtitlePreferencePatterns.Value.Count == 0)
+            {
+                // It's ok if there are no entries in the list
+            }
+            else
+            {
+                // Check for invalid entries in the list
+                foreach (string pattern in SubtitlePreferencePatterns.Value)
+                {
+                    // Trim whitespace and quotes from the pattern. Trim again to remove any leading/trailing whitespace for each char
+                    string trimmedPattern = pattern.Trim().Trim('"').Trim().Trim('\'').Trim();
+
+                    // Check if the pattern is empty or whitespace and warn the user with a message slightly specific to the issue
+                    // For simple extra whitespace after the equals sign in the settings, the original parser should have caught and ignored it, but just in case
+                    if (string.IsNullOrWhiteSpace(pattern))
+                    {
+                        LogWarning($"Warning for setting {SubtitlePreferencePatterns.ConfigName}: Subtitle Preference Pattern list contains empty item which will be ignored.");
+                        // Remove the empty item from the list
+                        SubtitlePreferencePatterns.Value.Remove(pattern);
+                    }
+                    else if (string.IsNullOrWhiteSpace(trimmedPattern))
+                    {
+                        LogWarning($"Warning for setting {SubtitlePreferencePatterns.ConfigName}: Subtitle Preference Pattern list contains item that was empty after trimming whitespace and quotes and will be ignored.");
+                        SubtitlePreferencePatterns.Value.Remove(pattern);
+                    }
+                }
+            }
         }
 
         // If no issues found, return true
@@ -301,13 +340,27 @@ public static class SettingsHandler
                     {
                         // Consider potential formatting for defaultValue depending on its type
                         // .ToString() might not always be the desired file format (e.g., for booleans, dates)
-                        sw.WriteLine($"{configName}={defaultValue}");
-                        sw.WriteLine(); // Add blank line
+                        string valueAsString;
+
+                        // Currently just need a special case for lists
+                        if (defaultValue is List<string> list)
+                        {
+                            // Join list items with commas
+                            valueAsString = string.Join(",", list);
+                        }
+                        else
+                        {
+                            // Default case for other types. This seems to work for most types
+                            valueAsString = $"{defaultValue}";
+                        }
+
+                        sw.WriteLine($"{configName}={valueAsString}");
+                        sw.WriteLine();
                     }
                     else
                     {
                         // Optional: Log or handle cases where essential info is missing
-                        Console.WriteLine($"Warning: Skipping field '{field.Name}'. ConfigName or DefaultValue is missing/null.");
+                        LogWarning($"Warning: Skipping field '{field.Name}'. ConfigName or DefaultValue is missing/null.");
                         if (string.IsNullOrEmpty(configName)) Console.WriteLine($" - ConfigName is missing.");
                         if (defaultValue == null) Console.WriteLine($" - DefaultValue is null.");
                     }
@@ -448,9 +501,22 @@ public class SettingInfo<T> : ISettingInfo
     {
         try
         {
-            // Perform the conversion from the input string to Type T internally
-            // This uses the known type T of this specific SettingInfo instance
-            this.Value = (T)Convert.ChangeType(stringValue, typeof(T));
+            // Special handling for List<string>
+            if (typeof(T) == typeof(List<string>))
+            {
+                // Split the string by commas and trim whitespace
+                string[] items = stringValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                List<string> listValue = new(items.Select(item => item.Trim()).ToList());
+                this.Value = (T)(object)listValue; // Cast to object first to avoid invalid cast exception
+                return;
+            }
+            else
+            {
+                // Perform the conversion from the input string to Type T internally
+                // This uses the known type T of this specific SettingInfo instance
+                this.Value = (T)Convert.ChangeType(stringValue, typeof(T));
+                return;
+            }
         }
         catch (Exception ex)
         {

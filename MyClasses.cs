@@ -432,7 +432,7 @@ public class MediaPart
             Format = s.Format,
             Title = s.Title,
             Location = s.Location,
-            IsExternal = s.Location == "external"
+            IsExternal = CheckIsExternal(s.Location, s.ExtendedDisplayTitle)
         })
         .ToList();
 
@@ -465,6 +465,22 @@ public class MediaPart
 
         [XmlAttribute(nameof(location))]
         public string Location { get; set; } = string.Empty;
+    }
+
+    private static bool CheckIsExternal(string location, string extendedDisplayName)
+    {
+        if (location == "external")
+        {
+            return true;
+        }
+        else if (string.IsNullOrEmpty(location) && extendedDisplayName.Contains("external", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 }
 
@@ -500,6 +516,7 @@ public class ActiveSession
     public string MediaTitle { get; } // MediaTitle is derived from GrandparentTitle or Title, whichever is available (not an empty string)
     public string SessionID { get; }
     public string RawXml { get; }
+    public SubtitleStream? PreferredSubtitle { get; private set; }
 
     // Settable properties
     public long? LastSeenTimeEpoch { get; set; } = null; // Used to decide when to remove from the active sessions list based on a grace period
@@ -526,6 +543,7 @@ public class ActiveSession
         : !string.IsNullOrEmpty(session.Title) ? session.Title : string.Empty;
         SessionID = session.PlaybackID;
         RawXml = session.RawXml;
+        PreferredSubtitle = GetPreferredSubtitle_BasedOnSettings(availableSubtitles);
 
         GetAndApplyTimelineData(); // Initialize the known subtitle state and view offset if possible
     }
@@ -639,27 +657,6 @@ public class ActiveSession
         return this;
     }
 
-    //public static ActiveSession? FindAndUpdateViewOffset_UsingNotification(PlayingEvent playEvent, string? machineID)
-    //{
-    //    if (machineID == null || machineID == string.Empty)
-    //    {
-    //        LogDebug("Machine ID is null or empty. Cannot update view offset.");
-    //        return null; // No machine ID provided
-    //    }
-
-    //    ActiveSession? session = SessionHandler.GetSessionByMachineID(machineID);
-    //    if (session != null && playEvent.ViewOffset is long newViewOffset)
-    //    {
-    //        session.AccurateTimeMs = (int)newViewOffset; // Update the accurate time using the notification
-    //        return session;
-    //    }
-    //    else
-    //    {
-    //        LogDebug($"No active session found for machine ID: {machineID}");
-    //        return null; // No session found for the given machine ID
-    //    }
-    //}
-
     public void UpdateAccurateViewOffsetFromNotification(long? newViewOffset)
     {
         if (newViewOffset != null)
@@ -676,9 +673,19 @@ public class ActiveSession
     {
         if (AvailableSubtitles.Count > 0)
         {
-            // Just use the first available subtitle stream for now
-            SubtitleStream firstSubtitle = AvailableSubtitles[0];
-            int subtitleID = firstSubtitle.Id;
+            int subtitleID;
+
+            if (PreferredSubtitle != null)
+            {
+                // If we have a preferred subtitle, use that
+                subtitleID = PreferredSubtitle.Id;
+            }
+            else
+            {
+                // Otherwise, just use the first available subtitle stream
+                subtitleID = AvailableSubtitles[0].Id;
+            }
+
             await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID, activeSession:this);
         }
     }
@@ -691,6 +698,45 @@ public class ActiveSession
         {
             KnownIsShowingSubtitles = false; // If the command was successful, we know subtitles are not showing
         }
+    }
+
+    public static SubtitleStream? GetPreferredSubtitle_BasedOnSettings(List<SubtitleStream> availableSubtitles)
+    {
+        // Check if the user has a preferred subtitle stream
+        SubtitleStream? preferredSubtitle = null;
+        List<string> preferredLanguages = Program.config.SubtitlePreferencePatterns.Value;
+        List<string> positivePatterns = [];
+        List<string> negativePatterns = [];
+
+        if (preferredLanguages.Count > 0 && availableSubtitles.Count > 0)
+        {
+            foreach (string pattern in preferredLanguages)
+            {
+                if (pattern.StartsWith("-"))
+                    negativePatterns.Add(pattern.Substring(1));
+                else
+                    positivePatterns.Add(pattern);
+            }
+
+            // Now we can check the available subtitles against the positive and negative patterns. ALL patterns must be satisfied
+            foreach (SubtitleStream subtitle in availableSubtitles)
+            {
+                // Check if the subtitle matches any of the positive patterns
+                bool matchesAllPositives = positivePatterns.All(pattern => subtitle.ExtendedDisplayTitle.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                // Check to name sure none of the negative patterns match
+                bool matchesAnyNegatives = negativePatterns.Any(pattern => subtitle.ExtendedDisplayTitle.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+
+                // If it matches all positive patterns and none of the negative patterns, we have a match
+                if (matchesAllPositives && !matchesAnyNegatives)
+                {
+                    preferredSubtitle = subtitle;
+                    break; // We found a preferred subtitle, no need to check further
+                }
+            }
+        }
+
+        // This will be null if none were found
+        return preferredSubtitle;
     }
 }
 
