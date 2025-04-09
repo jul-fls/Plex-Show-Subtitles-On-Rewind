@@ -7,14 +7,14 @@ namespace RewindSubtitleDisplayerForPlex
     public static class MonitorManager
     {
         // Shared values / constants
-        public static readonly int DefaultMaxRewindAmount =  Settings.Default().MaxRewind;
+        public static readonly double DefaultMaxRewindAmount =  Settings.Default().MaxRewind;
         public const int DefaultWaitOnEventIdleFrequency_seconds = 3600; // Used when preferring event-based polling when idle, so this will be very long
         public const int DefaultSmallestResolution = 5; // If using the viewOffset, it's usually 5 seconds but apparently can be as high as 10s
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
         private static readonly List<RewindMonitor> _allMonitors = [];
-        private static int _globalActiveFrequencyMs = Settings.Default().ActiveMonitorFrequency; // Initial value but will be updated as needed on the fly
-        private static int _globalIdleFrequencyMs = Settings.Default().IdleMonitorFrequency;
+        private static int _globalActiveFrequencyMs = (int)Math.Round(Settings.Default().ActiveMonitorFrequency * 1000); // Initial value but will be updated as needed on the fly
+        private static int _globalIdleFrequencyMs = (int)Math.Round(Settings.Default().IdleMonitorFrequency * 1000);
         private static bool _isRunning = false;
         private static bool _printDebugAll = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
@@ -93,12 +93,12 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static void CreateAllMonitoringAllSessions(List<ActiveSession> activeSessionList, bool printDebugAll = false, string? debugDeviceName = null)
         {
-            int maxRewindAmount = Program.config.MaxRewind;
-            int activeFrequency = Program.config.ActiveMonitorFrequency;
-            int idleFrequency = Program.config.IdleMonitorFrequency;
+            double maxRewindAmountSec = Program.config.MaxRewind;
+            double activeFrequencySec = Program.config.ActiveMonitorFrequency;
+            double idleFrequencySec = Program.config.IdleMonitorFrequency;
 
-            _globalActiveFrequencyMs = activeFrequency * 1000; // Convert to milliseconds
-            _globalIdleFrequencyMs = idleFrequency * 1000;     // Convert to milliseconds
+            _globalActiveFrequencyMs = (int)Math.Round((activeFrequencySec * 1000)); // Convert to milliseconds
+            _globalIdleFrequencyMs = (int)Math.Round((idleFrequencySec * 1000));     // Convert to milliseconds
 
             if (printDebugAll)
                 _printDebugAll = true; // Set global debug flag so that future monitors can use it
@@ -110,10 +110,10 @@ namespace RewindSubtitleDisplayerForPlex
 
                 CreateMonitorForSession(
                     activeSession: activeSession,
-                    activeFrequency: activeFrequency,
-                    idleFrequency: idleFrequency,
-                    maxRewindAmount: maxRewindAmount,
-                    smallestResolution: activeSession.SmallestResolutionExpected,
+                    activeFrequencySec: activeFrequencySec,
+                    idleFrequencySec: idleFrequencySec,
+                    maxRewindAmountSec: maxRewindAmountSec,
+                    smallestResolutionSec: activeSession.SmallestResolutionExpected,
                     printDebug: printDebug
                 );
             }
@@ -121,11 +121,11 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static void CreateMonitorForSession(
             ActiveSession activeSession,
-            int maxRewindAmount,
-            int activeFrequency,
-            int idleFrequency,
+            double maxRewindAmountSec,
+            double activeFrequencySec,
+            double idleFrequencySec,
             bool printDebug = false,
-            int smallestResolution = DefaultSmallestResolution
+            int smallestResolutionSec = DefaultSmallestResolution
             )
         {
             string playbackID = activeSession.Session.PlaybackID;
@@ -145,11 +145,11 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 RewindMonitor monitor = new RewindMonitor(
                     activeSession,
-                    activeFrequency: activeFrequency,
-                    idleFrequency: idleFrequency,
-                    maxRewindAmount: maxRewindAmount,
+                    activeFrequencySec: activeFrequencySec,
+                    idleFrequencySec: idleFrequencySec,
+                    maxRewindAmountSec: maxRewindAmountSec,
                     printDebug: printDebug,
-                    smallestResolution: smallestResolution
+                    smallestResolution: smallestResolutionSec
                     );
                 _allMonitors.Add(monitor);
                 LogInfo($"Added new session for {activeSession.DeviceName}. Session Playback ID: {playbackID}", Yellow);
@@ -252,16 +252,16 @@ namespace RewindSubtitleDisplayerForPlex
                 // Sleep for a while based on the current mode, but use the cancellable sleep mechanism
                 int sleepTime;
                 if (_monitoringState == MonitoringState.Active)
-                    sleepTime = _globalActiveFrequencyMs;
+                    sleepTime = (int)_globalActiveFrequencyMs;
                 // If using event-based polling (waiting for plex server notifications to break loop), use a long sleep time while idle
                 else if (Program.config.UseEventPolling == true)
                     sleepTime = DefaultWaitOnEventIdleFrequency_seconds * 1000;
                 // Otherwise use the normal idle frequency
                 else
-                    sleepTime = _globalIdleFrequencyMs;
+                    sleepTime = (int)_globalIdleFrequencyMs;
 
                 // Wait on the event with a timeout, allowing for cancellation
-                _sleepResetEvent.WaitOne(sleepTime);
+                _sleepResetEvent.WaitOne(millisecondsTimeout: sleepTime);
             }
 
             LogDebug("MonitorManager: Exiting polling refresh loop.");

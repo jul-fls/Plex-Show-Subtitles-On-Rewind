@@ -15,14 +15,14 @@ public class Settings
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
     public SettingInfo<bool> BackgroundMode = new(false, "Background_Mode");
-    public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
-    public SettingInfo<int> MaxRewind = new(60, "Max_Rewind_Seconds");
+    public SettingInfo<double> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
+    public SettingInfo<double> MaxRewind = new(60, "Max_Rewind_Seconds");
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
-    public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
+    public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
     public SettingInfo<int> ShortTimeoutLimit = new(750, "Active_Timeout_Milliseconds");
     public SettingInfo<bool> DebugMode = new(false, "Debug_Mode");
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
@@ -37,9 +37,9 @@ public class Settings
             "You can leave this empty or set to whatever you want, but you shouldn't change it or it could potentially mess up the authorization.";
         BackgroundMode.Description = "(True/False) Windows Only: Run in background mode. This will not show the the console Window at all, but will still run in the background and monitor playback.\n" +
             $"You can stop all running isntances by running the app through command line again but with \"-{LaunchArgs.Stop}\" parameter.";
-        ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
+        ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive number.";
         DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.";
-        MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles. Must be a positive whole number.";
+        MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles. Must be a positive number.";
         CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored.\n" +
             $"This is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
             $"Must be a whole number greater than or equal to zero.";
@@ -56,7 +56,7 @@ public class Settings
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency. Must be a positive whole number.";
         AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging.";
         UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection.";
-        IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing.  Must be a positive whole number.";
+        IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing.  Must be a positive number.";
 
         // Set default values for section dividers
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";

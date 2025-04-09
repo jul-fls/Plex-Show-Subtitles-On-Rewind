@@ -5,9 +5,9 @@
     {
         private readonly ActiveSession _activeSession;
         //private readonly PlexClient _client;
-        private readonly int _activeFrequency;
-        private readonly int _idleFrequency;
-        private readonly int _maxRewindAmount;
+        private readonly double _activeFrequencySec;
+        private readonly double _idleFrequencySec;
+        private readonly double _maxRewindAmountSec;
         private readonly bool _printDebug;
         private readonly string _deviceName;
 
@@ -22,7 +22,7 @@
         private int _cooldownCyclesLeft = 0; // Used after rewinding too long, to prevent detecting rewinds again too quickly
         private int _cooldownToUse = 0; // Used to store the current max cooldown so it can be reset
         private bool _temporarilyDisplayingSubtitles;
-        private int _smallestResolution; // This might be updated depending on available data during refreshes
+        private double _smallestResolutionSec; // This might be updated depending on available data during refreshes
 
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
@@ -32,26 +32,26 @@
 
         public RewindMonitor(
             ActiveSession session,
-            int activeFrequency,
-            int idleFrequency,
-            int maxRewindAmount,
+            double activeFrequencySec,
+            double idleFrequencySec,
+            double maxRewindAmountSec,
             bool printDebug = false,
             int smallestResolution = MonitorManager.DefaultSmallestResolution
             )
         {
             _activeSession = session;
-            _activeFrequency = activeFrequency;
-            _idleFrequency = idleFrequency;
-            _maxRewindAmount = maxRewindAmount;
+            _activeFrequencySec = activeFrequencySec;
+            _idleFrequencySec = idleFrequencySec;
+            _maxRewindAmountSec = maxRewindAmountSec;
             _printDebug = printDebug;
             _deviceName = _activeSession.DeviceName;
-            _idleFrequency = idleFrequency;
+            _idleFrequencySec = idleFrequencySec;
             _isMonitoring = false;
             _subtitlesUserEnabled = false;
             _latestWatchedPosition = 0;
             _previousPosition = 0;
             _temporarilyDisplayingSubtitles = false;
-            _smallestResolution = Math.Max(_activeFrequency, smallestResolution);
+            _smallestResolutionSec = Math.Max(_activeFrequencySec, smallestResolution);
 
             SetupMonitoringInitialConditions();
         }
@@ -65,16 +65,16 @@
 
             // Values that will be re-used
             _latestWatchedPosition = otherMonitor._latestWatchedPosition; // Ensures subtitle stopping point is the same for new session
-            _activeFrequency = otherMonitor._activeFrequency;
-            _idleFrequency = otherMonitor._idleFrequency;
-            _maxRewindAmount = otherMonitor._maxRewindAmount;
+            _activeFrequencySec = otherMonitor._activeFrequencySec;
+            _idleFrequencySec = otherMonitor._idleFrequencySec;
+            _maxRewindAmountSec = otherMonitor._maxRewindAmountSec;
             _printDebug = otherMonitor._printDebug;
-            _idleFrequency = otherMonitor._idleFrequency;
+            _idleFrequencySec = otherMonitor._idleFrequencySec;
             _isMonitoring = otherMonitor._isMonitoring;
             _subtitlesUserEnabled = otherMonitor._subtitlesUserEnabled;
             _previousPosition = otherMonitor._previousPosition;
             _temporarilyDisplayingSubtitles = otherMonitor._temporarilyDisplayingSubtitles;
-            _smallestResolution = otherMonitor._smallestResolution;
+            _smallestResolutionSec = otherMonitor._smallestResolutionSec;
         }
 
         private string GetTimeString(double seconds)
@@ -147,7 +147,7 @@
             try
             {
                 double positionSec = _activeSession.GetPlayPositionSeconds();
-                int _smallestResolution = Math.Max(_activeFrequency, _activeSession.SmallestResolutionExpected);
+                double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
                 if (_printDebug)
                 {
                     Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  -- UserEnabledSubs: ");
@@ -195,7 +195,7 @@
                             StopSubtitlesIfNotUserEnabled();
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
-                        else if (positionSec < _latestWatchedPosition - _maxRewindAmount)
+                        else if (positionSec < _latestWatchedPosition - _maxRewindAmountSec)
                         {
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
 
@@ -253,7 +253,7 @@
                     // But don't count it if the rewind amount goes beyond the max.
                     // Since at this point it isn't displaying subtitles we can technically use either _previousPosition or _latestWatchedPosition to check for rewinds.
                     // Only _previousPosition works with the cooldown but that doesn't matter because we handle that in the other else if
-                    else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmount))
+                    else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmountSec))
                     {
                         RewindOccurred();
                     }
