@@ -29,6 +29,7 @@ namespace RewindSubtitleDisplayerForPlex
     {
         public const string AppNameDashed = "Rewind-Subtitle-Displayer-For-Plex";
         public const string AppName = "Rewind Subtitle Displayer For Plex";
+        public const string AppNameShort = "Rewind Subtitle Displayer";
         public static readonly string AssemblyFileVersion = Utils.Version.GetVersion();
         
         public static readonly string RequirementEnableRemoteAccess = "Note: You **MUST** enable the \"Remote Control\" / aka \"Advertise As Player\" option in each player app for this to work.";

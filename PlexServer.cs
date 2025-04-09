@@ -148,12 +148,21 @@ namespace RewindSubtitleDisplayerForPlex
                 }
 
                 // Fall through to general error handling
-                Console.WriteLine($"Server Connection Error: {hEx.Message}\n");
+                Console.WriteLine($"Server Connection Error: {hEx.Message}");
+                // If inner exception show it
+                if (hEx.InnerException != null)
+                {
+                    Console.WriteLine($"Inner Exception: {hEx.InnerException.Message}\n");
+                }
                 return ConnectionResult.Failure;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Server Connection Error: {ex.Message}\n");
+                Console.WriteLine($"Server Connection Error: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}\n");
+                }
                 return ConnectionResult.Failure;
             }
         }

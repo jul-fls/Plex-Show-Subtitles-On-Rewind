@@ -183,16 +183,26 @@ public static class AuthTokenHandler
 
     static bool FullAuthFlow()
     {
+        string appNameIncludingConfig;
+        if (!string.IsNullOrWhiteSpace(Program.config.CurrentDeviceLabel.Value.Trim()))
+        {
+            appNameIncludingConfig = MyStrings.AppNameShort + $" ({Program.config.CurrentDeviceLabel.Value.Trim()})";
+        }
+        else
+        {
+            appNameIncludingConfig = MyStrings.AppNameShort;
+        }
+
         bool successResult = false;
         // Generate the token request
-        TokenGenResult genResult = GenerateAppTokenRequest(appName: MyStrings.AppName, url: AuthStrings.PlexPinUrl);
+        TokenGenResult genResult = GenerateAppTokenRequest(appName: appNameIncludingConfig, url: AuthStrings.PlexPinUrl);
 
         string authUrl;
         // The code and ID should never be null for a success, but check anyway
         if (genResult.Success && genResult.Code != null && genResult.PinID != null && genResult.ClientIdentifier != null)
         {
             // Generate the auth URL and tell the user to visit it
-            authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: MyStrings.AppName);
+            authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: appNameIncludingConfig);
 
             Console.WriteLine("\n----------------------------------------------------------------");
             WriteGreen($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}");
@@ -223,7 +233,7 @@ public static class AuthTokenHandler
         bool authSuccess = false;
         while (authSuccess == false)
         {
-            string? authToken = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: MyStrings.AppName, clientIdentifier: genResult.ClientIdentifier);
+            string? authToken = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingConfig, clientIdentifier: genResult.ClientIdentifier);
             if (authToken != null)
             {
                 authSuccess = true;

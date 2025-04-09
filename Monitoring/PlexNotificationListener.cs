@@ -56,9 +56,28 @@ public class PlexNotificationListener : IDisposable
         CancellationToken token = _listenerCts.Token;
 
         string requestUri = string.IsNullOrWhiteSpace(_filters) ? _plexUrl : $"{_plexUrl}?{_filters}";
-        requestUri += (requestUri.Contains('?') ? "&" : "?") + $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}";
+        string requestUriNoToken = requestUri; // Store the URI without the token for logging
 
-        LogDebug($"Starting Plex notification listener for:\n\t{requestUri.Replace(_plexToken, "[TOKEN]")}");
+        // Add the token to the URI if there is one
+        if (!string.IsNullOrWhiteSpace(_plexToken))
+        {
+            // Prepare the parameter part (key=encoded_value)
+            string plexParameter = $"X-Plex-Token={Uri.EscapeDataString(_plexToken)}";
+
+            // Check if the URI already has query parameters
+            if (requestUri.Contains('?'))
+            {
+                // If yes, append with an ampersand (&)
+                requestUri += "&" + plexParameter;
+            }
+            else
+            {
+                // If no, start the query string with a question mark (?)
+                requestUri += "?" + plexParameter;
+            }
+        }
+
+        LogDebug($"Starting Plex notification listener for:\n\t{requestUriNoToken}");
 
         // Start listening immediately in the constructor
         ListeningTask = Task.Run(async () => await ListenForEvents(requestUri, token), token);

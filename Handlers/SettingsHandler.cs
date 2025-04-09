@@ -13,12 +13,14 @@ public class Settings
     // This is also the order they will be written to the settings file
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
+    public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
     public SettingInfo<bool> BackgroundMode = new(false, "Background_Mode");
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
     public SettingInfo<int> MaxRewind = new(60, "Max_Rewind_Seconds");
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
+    public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<int> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
     public SettingInfo<int> ShortTimeoutLimit = new(750, "Active_Timeout_Milliseconds");
@@ -30,7 +32,9 @@ public class Settings
     public Settings()
     {
         // Set descriptions in the constructor
-        ServerURL.Description = "The full URL of your local server, including http, IP, and port";
+        ServerURL.Description = "The full URL of your local server, including http, IP, and port.\nIf https:// doesn't work, you can use http:// but only do that if it's on a local network.";
+        CurrentDeviceLabel.Description = "The label you want to appear next to this app's name in your Plex account's authorized devices list.\n" +
+            "You can leave this empty or set to whatever you want, but you shouldn't change it or it could potentially mess up the authorization.";
         BackgroundMode.Description = "(True/False) Windows Only: Run in background mode. This will not show the the console Window at all, but will still run in the background and monitor playback.\n" +
             $"You can stop all running isntances by running the app through command line again but with \"-{LaunchArgs.Stop}\" parameter.";
         ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
@@ -46,6 +50,9 @@ public class Settings
             $"Example to prefer English non-SDH subtitles:   {SubtitlePreferencePatterns.ConfigName}=english,-sdh";
 
         // Advanced settings
+        SkipAuth.Description = "(True/False) Skip the authorization step. (Not Recommended to enable, and not supported if functionality doesn't work right)\n" +
+            "This will only work if you have configured the server to allow connections from specific devices without authorization.\n" +
+            "Note: Event based polling might not work if this is true. If it doesn't work after going idle, try setting Use_Event_Polling to false.";
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks. Should be shorter than the active frequency. Must be a positive whole number.";
         AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging.";
         UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection.";

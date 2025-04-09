@@ -44,7 +44,7 @@ namespace RewindSubtitleDisplayerForPlex
             // -------------------
             #if DEBUG
                 debugMode = true;
-#endif
+            #endif
             // -------------------
 
             // =======================================================================
@@ -106,7 +106,7 @@ namespace RewindSubtitleDisplayerForPlex
             // ---------- End Instance Coordination -----------
 
             // Display startup message or help message (right now they are basically the same)
-            if (LaunchArgs.Help.Check(args) || LaunchArgs.HelpAlt1.Check(args) || LaunchArgs.HelpAlt2.Check(args))
+            if (LaunchArgs.Help.Check(args))
             {
                 Console.WriteLine(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 Console.WriteLine("Press Enter to exit.");
@@ -153,16 +153,24 @@ namespace RewindSubtitleDisplayerForPlex
 
             try
             {
-                (string, string)? resultTuple = AuthTokenHandler.LoadTokens();
-                if (resultTuple == null)
-                {
-                    Console.WriteLine("\nFailed to load tokens. Exiting.");
-                    if (!runBackgroundMode) { Console.ReadLine(); }
-                    return;
-                }
+                if (config.SkipAuth.Value == false) {
+                    (string, string)? resultTuple = AuthTokenHandler.LoadTokens();
+                    if (resultTuple == null)
+                    {
+                        Console.WriteLine("\nFailed to load tokens. Exiting.");
+                        if (!runBackgroundMode) { Console.ReadLine(); }
+                        return;
+                    }
 
-                PLEX_APP_TOKEN = resultTuple.Value.Item1;
-                PLEX_APP_IDENTIFIER = resultTuple.Value.Item2;
+                    PLEX_APP_TOKEN = resultTuple.Value.Item1;
+                    PLEX_APP_IDENTIFIER = resultTuple.Value.Item2;
+                }
+                else
+                {
+                    LogWarning("Skipping authentication because of config file setting.");
+                    PLEX_APP_TOKEN = "";
+                    PLEX_APP_IDENTIFIER = "";
+                }
 
                 Console.WriteLine($"Using Plex server at {config.ServerURL}");
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
