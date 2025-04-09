@@ -38,22 +38,25 @@ namespace RewindSubtitleDisplayerForPlex
                         LogVerbose("Switching to active monitoring due to playback event.");
                         BreakFromIdle();
                     }
-                    else
-                    {
-                        // Only proceed if we have info we can use in the first place
-                        if (playEvent.ViewOffset is long newViewOffset && newViewOffset != 0)
-                        {
-                            if (GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
-                            {
-                                monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
-                                monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass
-                            }
-                            else
-                            {
-                                LogDebug($"No monitor found for machine {playEvent.ClientIdentifier}. Cannot update view offset.");
-                            }
-                        }
-                    }
+                    // Not enabling forced monitoring since polling is frequent enough and this causes it to erroneously think subtitles were enabled for a pass for some reason
+                    // Also the playback device seems to just report the same time when it's fetched near the same time as a polling pass
+
+                    //else
+                    //{
+                    //    // Only proceed if we have info we can use in the first place
+                    //    if (playEvent.ViewOffset is long newViewOffset && newViewOffset != 0)
+                    //    {
+                    //        if (GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
+                    //        {
+                    //            monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
+                    //            monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass
+                    //        }
+                    //        else
+                    //        {
+                    //            LogDebug($"No monitor found for machine {playEvent.ClientIdentifier}. Cannot update view offset.");
+                    //        }
+                    //    }
+                    //}
                 }
                 else if (playState == PlexPlayState.Paused)
                 {

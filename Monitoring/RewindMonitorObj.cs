@@ -150,7 +150,7 @@
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
                 if (_printDebug)
                 {
-                    Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  -- UserEnabledSubs: ");
+                    Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  Actually/Expected Showing Subs: {_activeSession.KnownIsShowingSubtitles}/{_temporarilyDisplayingSubtitles} | FromNotification: {isFromNotification} | UserEnabledSubs: ");
                     // Print last part about user subs with color if enabled so it's more obvious
                     if (_subtitlesUserEnabled)
                     {
@@ -219,11 +219,12 @@
                             }
 
                         }
-                        // Check if the position has gone back by the rewind amount. Don't update latest watched position here.
+                        // Check if the position has gone back by the rewind amount.
                         // Add smallest resolution to avoid stopping subtitles too early
                         else if (positionSec > _latestWatchedPosition + _smallestResolution)
                         {
                             ReachedOriginalPosition();
+                            UpdateLatestWatchedPosition(positionSec);
                         }
                     }
                     // Special handling during cooldown
