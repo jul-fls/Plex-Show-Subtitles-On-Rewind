@@ -140,7 +140,8 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         // Error already logged by CheckForDuplicateServersAsync
                         LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
-                        if (!runBackgroundMode) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
+                        if (!runBackgroundMode) { Utils.TimedWaitForEnterKey(5, "exit"); }
+
                         InstanceCoordinator.Cleanup(); // Cleanup handles
                         return; // Exit New Instance
                     }

@@ -96,6 +96,42 @@ internal class Utils
     }
 
     /// <summary>
+    /// Waits for the user to press Enter or for a specified timeout.
+    /// </summary>
+    /// <param name="seconds">The maximum time to wait in seconds.</param>
+    /// <returns>True if Enter was pressed within the time limit, false otherwise.</returns>
+    public static bool TimedWaitForEnterKey(int seconds, string verb)
+    {
+        WriteYellow($"\nPress Enter to {verb} now. Will {verb} automatically in {seconds} seconds...");
+
+        bool enterWasPressed = false;
+
+        using var cts = new CancellationTokenSource();
+        // Automatically request cancellation after the timeout period.
+        cts.CancelAfter(seconds * 1000);
+
+        // Task to wait for Console.ReadLine()
+        Task inputTask = Task.Run(() =>
+        {
+            Console.ReadLine(); // Blocks this background thread until Enter is pressed.
+            enterWasPressed = true; // If ReadLine completes, set the flag to true.
+        });
+
+        try
+        {
+            // Wait for either the input task or the timeout.
+            Task.WaitAny(inputTask, Task.Delay(Timeout.Infinite, cts.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected exception when the token is canceled.
+            // No additional action needed here.
+        }
+
+        return enterWasPressed;
+    }
+
+    /// <summary>
     /// Whether to add the integer to the end of the file name stem or the end of the extension
     /// </summary>
     public enum FileNameIterationLocation
