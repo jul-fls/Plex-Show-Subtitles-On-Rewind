@@ -13,6 +13,7 @@ public class Settings
     // This is also the order they will be written to the settings file
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
+    public SettingInfo<bool> BackgroundMode = new(false, "Background_Mode");
     public SettingInfo<int> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency");
     public SettingInfo<int> MaxRewind = new(60, "Max_Rewind_Seconds");
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
@@ -30,6 +31,8 @@ public class Settings
     {
         // Set descriptions in the constructor
         ServerURL.Description = "The full URL of your local server, including http, IP, and port";
+        BackgroundMode.Description = "(True/False) Windows Only: Run in background mode. This will not show the the console Window at all, but will still run in the background and monitor playback.\n" +
+            $"You can stop all running isntances by running the app through command line again but with \"-{LaunchArgs.Stop}\" parameter.";
         ActiveMonitorFrequency.Description = "How often to check for playback status (in seconds) when actively monitoring. Must be a positive whole number.";
         DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.";
         MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles. Must be a positive whole number.";

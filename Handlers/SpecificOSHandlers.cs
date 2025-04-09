@@ -17,12 +17,13 @@ internal static partial class OS_Handlers
         public static partial bool AllocConsole();
     }
 
-    public static void HandleBackgroundArg(bool runInBackgroundArg)
+    public static void HandleBackgroundMode(bool runInBackgroundArg)
     {
         //DEBUG - Get os and current target framework
         //OperatingSystem os = Environment.OSVersion;
         //string? targetFramework = System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>()?.FrameworkName;
 
+        // Note: The #if Windows check might only work after publishing, not during development.
         #if WINDOWS
             if (runInBackgroundArg == false)
             {

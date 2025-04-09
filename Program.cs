@@ -44,16 +44,17 @@ namespace RewindSubtitleDisplayerForPlex
             // -------------------
             #if DEBUG
                 debugMode = true;
-            #endif
+#endif
             // -------------------
 
             // =======================================================================
             // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
             // =======================================================================
 
-            // Background mode
-            bool runBackgroundArg = LaunchArgs.Background.Check(args);
-            OS_Handlers.HandleBackgroundArg(runBackgroundArg); // OS specific handling for background mode
+            // Background mode - Config or Command Line
+            bool runBackgroundMode = LaunchArgs.Background.Check(args)
+                || (config.BackgroundMode.Value && !LaunchArgs.Stop.Check(args)); // Ignore background mode config setting if -stop is used
+            OS_Handlers.HandleBackgroundMode(runBackgroundMode); // OS specific handling for background mode
 
             // Allow duplicate instances (Those that are set to connect to the same exact server. Mostly for testing.)
             if (LaunchArgs.AllowDuplicateInstance.Check(args))
@@ -105,7 +106,7 @@ namespace RewindSubtitleDisplayerForPlex
             // ---------- End Instance Coordination -----------
 
             // Display startup message or help message (right now they are basically the same)
-            if (LaunchArgs.Help.Check(args) || LaunchArgs.HelpAlt.Check(args))
+            if (LaunchArgs.Help.Check(args) || LaunchArgs.HelpAlt1.Check(args) || LaunchArgs.HelpAlt2.Check(args))
             {
                 Console.WriteLine(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 Console.WriteLine("Press Enter to exit.");
@@ -139,7 +140,7 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         // Error already logged by CheckForDuplicateServersAsync
                         LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
-                        if (!runBackgroundArg) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
+                        if (!runBackgroundMode) { Console.WriteLine("\nPress Enter to exit..."); Console.ReadKey(); }
                         InstanceCoordinator.Cleanup(); // Cleanup handles
                         return; // Exit New Instance
                     }
@@ -156,7 +157,7 @@ namespace RewindSubtitleDisplayerForPlex
                 if (resultTuple == null)
                 {
                     Console.WriteLine("\nFailed to load tokens. Exiting.");
-                    if (!runBackgroundArg) { Console.ReadLine(); }
+                    if (!runBackgroundMode) { Console.ReadLine(); }
                     return;
                 }
 
@@ -223,7 +224,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteErrorSuper($"Fatal error during startup: {ex.Message}\n");
                 Console.WriteLine(ex.StackTrace);
-                if (!runBackgroundArg)
+                if (!runBackgroundMode)
                 {
                     Console.WriteLine("\nPress Enter to exit...");
                     Console.ReadKey();
