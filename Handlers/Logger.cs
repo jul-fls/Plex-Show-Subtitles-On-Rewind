@@ -151,19 +151,24 @@ internal static class Logger
             Console.WriteLine(); // Write a newline at the end because we've been using noNewline:true
     }
 
-    public static void WriteYellow(string message)
+    public static void WriteYellow(string message, bool noNewline = false)
     {
-        WriteColor(message: message, foreground: ConsoleColor.Yellow);
+        WriteColor(message: message, foreground: ConsoleColor.Yellow, noNewline: noNewline);
     }
 
-    public static void WriteGreen(string message)
+    public static void WriteGreen(string message, bool noNewline = false)
     {
-        WriteColor(message: message, foreground: ConsoleColor.Green);
+        WriteColor(message: message, foreground: ConsoleColor.Green, noNewline: noNewline);
     }
 
-    public static void WriteRed(string message)
+    public static void WriteRed(string message, bool noNewline = false)
     {
-        WriteColor(message: message, foreground: ConsoleColor.Red);
+        WriteColor(message: message, foreground: ConsoleColor.Red, noNewline: noNewline);
+    }
+
+    public static void WriteRedSuper(string message, bool noNewline=false)
+    {
+        WriteWithBackground(message: message, foreground: ConsoleColor.White, background: ConsoleColor.DarkRed, noNewLine: noNewline);
     }
 
     public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)

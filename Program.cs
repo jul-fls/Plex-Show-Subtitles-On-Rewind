@@ -29,6 +29,10 @@ namespace RewindSubtitleDisplayerForPlex
 
         static void Main(string[] args)
         {
+            // =======================================================================
+            // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
+            // =======================================================================
+
             // Early processing of launch args for Debug Mode and verbose mode
             if (LaunchArgs.Debug.Check(args))
                 debugMode = true;
@@ -38,6 +42,14 @@ namespace RewindSubtitleDisplayerForPlex
                 verboseMode = true;
 
             // Load Settings from file early on
+            if (LaunchArgs.TestSettings.Check(args))
+            {
+                Console.WriteLine();
+                SettingsHandler.LoadSettings(printResult: SettingsHandler.PrintResultType.ResultingConfig);
+                return;
+            }
+
+            // Load settings file and set default values if not present
             config = SettingsHandler.LoadSettings(); // Load settings early on but after debug mode is set by launch args if necessary
             if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
             
@@ -46,10 +58,6 @@ namespace RewindSubtitleDisplayerForPlex
                 debugMode = true;
             #endif
             // -------------------
-
-            // =======================================================================
-            // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
-            // =======================================================================
 
             // Background mode - Config or Command Line
             bool runBackgroundMode = LaunchArgs.Background.Check(args)
@@ -85,8 +93,6 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.UpdateSettings.Check(args))
             {
                 SettingsHandler.UpdateSettingsFile(config);
-                Console.WriteLine("\nPress Enter to exit.");
-                Console.ReadLine();
                 return;
             }
 

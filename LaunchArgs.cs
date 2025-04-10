@@ -18,7 +18,8 @@ public static class LaunchArgs
     public static readonly Argument Stop =            new("stop",             "Stop all currently running instances of the app.");
     public static readonly Argument AllowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
     public static readonly Argument ConfigTemplate =  new("settings-template",  "Generate a default settings config file.");
-    public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any.", advanced:true);
+    public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
+    public static readonly Argument TestSettings =    new("test-settings",   "Load the settings file and show which values are valid and which are not and will be set to default.", advanced:true);
 
     // ------------------ Argument Info Display Strings ------------------
     public static readonly string StandardLaunchArgsInfo = $"""
@@ -40,6 +41,7 @@ public static class LaunchArgs
                 -{LaunchArgs.TokenTemplate} {tt}{LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.AllowDuplicateInstance} {t}{LaunchArgs.AllowDuplicateInstance.Description}
                 -{LaunchArgs.UpdateSettings} {t}{LaunchArgs.UpdateSettings.Description}
+                -{LaunchArgs.TestSettings} {tt}{LaunchArgs.TestSettings.Description}
             """;
 
     const string t = "\t";
@@ -55,6 +57,7 @@ public static class LaunchArgs
         Help.Alts = ["h", "?"];
         Stop.Alts = ["s"];
         UpdateSettings.Alts = ["u"];
+        TestSettings.Alts = ["t"];
     }
 
     // ------------------------- Methods ------------------------------

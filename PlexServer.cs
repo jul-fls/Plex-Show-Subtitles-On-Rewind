@@ -29,7 +29,9 @@ namespace RewindSubtitleDisplayerForPlex
 
             _httpClient = Utils.AddHttpClientHeaders(_httpClient, defaultHeadersDict);
             _httpClientShortTimeout = Utils.AddHttpClientHeaders(_httpClientShortTimeout, defaultHeadersDict);
-            _httpClientShortTimeout.Timeout = TimeSpan.FromMilliseconds(Program.config.ShortTimeoutLimit); // Will be used between loop iterations which only last a second
+
+            int shortTimeout = Program.config.ShortTimeoutLimit;
+            _httpClientShortTimeout.Timeout = TimeSpan.FromMilliseconds(shortTimeout); // Will be used between loop iterations which only last a second
         }
 
         // Using XmlSerializer to get sessions
