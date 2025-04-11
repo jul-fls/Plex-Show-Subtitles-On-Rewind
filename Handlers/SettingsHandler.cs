@@ -21,11 +21,11 @@ public class Settings
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
+    public SettingInfo<bool> DebugMode = new(false, "Debug_Output");
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
     public IntOrAuto ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds", isAutoDefault:true); // Identifiable placeholder to know if user setting failed to set when not auto
-    public SettingInfo<bool> DebugMode = new(false, "Debug_Mode");
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
 
     // Constructor to set descriptions for each setting
@@ -41,7 +41,8 @@ public class Settings
         ActiveMonitorFrequency.Description = "How often (in seconds) to check for rewinds during active playback." +
             "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
             "\nDefault Value: 1  |  Possible Values: Any positive number (decimals allowed).";
-        DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.";
+        DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.\n" +
+            "This doesn't change the program's behavior but will simply display more information in the console.";
         MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
             "\nDefault Value: 60  |  Possible Values: Any positive number (decimals allowed)";
         CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored." +
@@ -69,7 +70,7 @@ public class Settings
 
         // Set default values for section dividers
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";
-        StartAdvancedSettings.Description = "----------------------- Advanced Settings -----------------------";
+        StartAdvancedSettings.Description = "----------------------- Advanced Settings - (Most people shouldn't need these) -----------------------";
     }
 
     public Dictionary<ISettingInfo, string> SettingsThatFailedToLoad = [];
