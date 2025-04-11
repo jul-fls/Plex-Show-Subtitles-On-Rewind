@@ -46,8 +46,21 @@ Once playback reaches the point where you started the rewind, it will **automati
 
 ## Usage
 
-1.  Run the executable (e.g., `RewindSubtitleDisplayerForPlex.exe` on Windows).
-2.  Leave it running in the background. It will automatically monitor sessions.
-3.  Optional arguments:
-    * `-background`: Run hidden (Windows only).
-    * `-debug`: Show detailed logs.
+1.  Run the executable (e.g., `RewindSubtitleDisplayerForPlex.exe` on Windows)
+    - If running for the first time: Configure your settings, including server address by editing the automatically created `settings.ini` file, then running the app again.
+    - Also if prompted, go through the authorization flow to allow the app to communicate with your server.
+3.  Leave it running in the background. It will automatically monitor sessions and go idle to minimize resources when there aren't any active playback sessions.
+
+ 
+### Optional Command-Line Arguments: 
+
+- Use the `-help` launch argument to list all other available launch arguments, including:
+     - `-stop`: Stops all other running instances of the app. Useful if you launched another instance in background mode, so you don't have to end it via task manager.
+     - `-background`: Windows Only: The program runs in the background without showing a console. Alternatively, background mode can be enabled in the settings.ini file.
+     - `-debug` and `-verbose`: See more detailed logging output to the console. Debug contains the highest detail.
+     - `-allow-duplicate-instance`: New app instance will not close if it detects another is already connected to the same server.
+     - `-token-template`: Generate an example token config file
+     - `-settings-template`: Generate a default settings config file template
+     - `-update-settings-file`: Update your old settings file version, to include missing settings (if any) and update any settings descriptions. A backup will be created.
+     - `-test-settings`: Load your settings file and show which values are valid, and which are not and therefore will be set to default.
+   
