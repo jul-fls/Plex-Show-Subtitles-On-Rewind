@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using static RewindSubtitleDisplayerForPlex.Settings;
 
 namespace RewindSubtitleDisplayerForPlex;
@@ -542,16 +543,16 @@ public static class SettingsHandler
                         }
                     }
 
-                    // Check against null/empty for configName and null for defaultValue
+                    // Check against null/empty for configName and null for defaultValuePlaceholder
                     // (configName is non-null string from interface, but check for empty might still be desired)
                     if (!string.IsNullOrEmpty(configName) && defaultValue != null)
                     {
-                        // Consider potential formatting for defaultValue depending on its type
+                        // Consider potential formatting for defaultValuePlaceholder depending on its type
                         // .ToString() might not always be the desired file format (e.g., for booleans, dates)
                         string valueAsString;
 
                         // Handle special cases first like lists and 'auto' default values
-                        if (settingInfo is IAutoSettingInfo autoSettingInfo && autoSettingInfo.IsAutoDefault == true)
+                        if (settingInfo.IsAutoDefault == true)
                         {
                             valueAsString = "auto";
                         }
@@ -665,14 +666,8 @@ public interface ISettingInfo
     Type ValueType { get; }     // Property to get the underlying type T
     string RawValue { get; } // Original unprocessed value (or minimally processed, like after trimming)
     void SetValueFromString(string stringValue);
-    bool SettingSupportsAuto { get; }
-}
-
-// A more general 'auto' Interface that inherits from ISettingInfo and contains required properties specific to Auto types.
-public interface IAutoSettingInfo : ISettingInfo
-{
-    bool IsAutoDefault { get; }
-    bool IsSetToAuto { get; }
+    static bool SettingSupportsAuto { get; }
+    bool IsAutoDefault { get; } // Could vary depending on individual setting, so not static
 }
 
 // Modify SettingInfo<T> to implement it
@@ -692,7 +687,9 @@ public class SettingInfo<T> : ISettingInfo
     public string Description { get; set; } = string.Empty;
     public string RawValue { get; private set; } = string.Empty;
 
+    // Unchanging auto-related properties, since this is not an auto class
     public bool SettingSupportsAuto { get; } = false ; // This type never supports auto, there are specific types for that
+    public bool IsAutoDefault { get; } = false; // This type never supports auto, there are specific types for that
 
     // Constructor
     public SettingInfo(T defaultValue, string configName)
@@ -770,51 +767,85 @@ public class SettingInfo<T> : ISettingInfo
     }
 }
 
-// Integer setting but also allows 'auto' string that will do some kind of calculation to get the value
-public class IntOrAuto : IAutoSettingInfo
+// Generic base class for auto settings. Takes a type parameter T
+//TODO: Can probably consolidate this into the SettingInfo<T> class and remove the need for this class
+public abstract class AutoSettingBase<T>
 {
-    private int _value;
-    private bool _isSetToAuto = true; 
-
+    // ------------ Matching Properties required by ISettingInfo ---------------
     public string ConfigName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public Type ValueType => typeof(int);
-    public string RawValue { get; private set;  } = string.Empty;
-    public bool SettingSupportsAuto { get; } = true;
-    /// <summary>
-    /// Indicates if 'auto' is the default setting for the configuration. Defaults to true, determining how the settings
-    /// file is formatted. Otherwise the setting file will have the literal default 'Value' property (e.g., 0, -1, etc.) which may be a placeholder.
-    /// </summary>
-    public bool IsAutoDefault { get; private set; } // To know whether the settings file should contain 'auto' or the literal default placeholder value
+    public string RawValue { get; protected set; } = string.Empty;
 
-    public int Value
+    protected T _value;
+    public virtual T Value
     {
         get => _value;
         set
         {
             _value = value;
-            _isSetToAuto = false; // If Value is set directly through public field, it's not 'auto' anymore because auto is a virtual value of sorts,
-                                  // not the actual value which must be an int
+            _isSetToAuto = false;
         }
     }
 
-    // To set the value without tripping the auto flag as false. To use within Settings class constructor for example
-    public void SetWithAutoTrue(int value)
+    public static implicit operator T(AutoSettingBase<T> setting) => setting.Value; // Implicit conversion to T
+
+    public override string ToString() => _value?.ToString() ?? string.Empty;
+
+    public object? GetValueAsObject() => _value; // Always return the resolved value
+
+    // Properties/Fields to leave in individual derived classes:
+    //      SetValueFromString() - Each derived class type needs to handle its own conversion
+
+    // ----------------------------------------------------------------------------------
+    // --------------------------------- Auto Settings ----------------------------------
+    // ----------------------------------------------------------------------------------
+
+    // Private / Protected fields
+    protected bool _isSetToAuto;
+
+    // --------------- Public Properties ---------------
+    /// <summary>
+    /// Indicates if 'auto' is the default setting for the configuration. Defaults to true, determining how the settings
+    /// file is formatted. Otherwise the setting file will have the literal default 'Value' property (e.g., 0, -1, etc.) which may be a placeholder.
+    /// </summary>
+    public bool IsAutoDefault { get; init; }
+    public static bool SettingSupportsAuto => true; // Force this ISettingInfo property to be true for all auto settings
+    public bool IsSetToAuto => _isSetToAuto;
+
+    // ------------------ Constructor -----------------
+
+    // Implicitly require isAutoDefault using constructor, instead of 'required' keyword on the property
+    // If additional constructors were added in the future, must remember to add this to all of them
+    protected AutoSettingBase(T defaultValuePlaceholder, string configName, bool isAutoDefault)
+    {
+        IsAutoDefault = isAutoDefault;
+        _isSetToAuto = isAutoDefault; // Initial value will be true if isAutoDefault is true
+        _value = defaultValuePlaceholder;
+        ConfigName = configName;
+    }
+
+    // ------------------- Methods ------------------
+
+    // To set the value without tripping the auto flag as false if necessary. Not currently used.
+    public void ForceSetValueKeepAutoTrue(T value)
     {
         _value = value;
         _isSetToAuto = true;
     }
 
+} // --- End of AutoSettingBase ---
+
+// Integer setting but also allows 'auto' string that will do some kind of calculation to get the value
+public class IntOrAuto : AutoSettingBase<int>, ISettingInfo
+{
     // Constructor
-    public IntOrAuto(int defaultValue, string configName, bool isAutoDefault)
+    public IntOrAuto(int defaultValuePlaceholder, string configName, bool isAutoDefault) : base(defaultValuePlaceholder, configName, isAutoDefault)
     {
-        _value = defaultValue; // Set initial integer value
-        ConfigName = configName;
-        IsAutoDefault = isAutoDefault; // Set the auto default flag
+        // Just pass through the parameters to the base class constructor
     }
 
-    // Check if the setting was loaded as "auto"
-    public bool IsSetToAuto => _isSetToAuto;
+    // ---------------------------------------------------------
 
     public void SetValueFromString(string stringValue)
     {
@@ -841,10 +872,4 @@ public class IntOrAuto : IAutoSettingInfo
             }
         }
     }
-    public object? GetValueAsObject() => _value; // Always return the resolved integer value
-
-    // Implicit conversion for easier use in code expecting an int
-    public static implicit operator int(IntOrAuto setting) => setting.Value;
-
-    public override string ToString() => _value.ToString();
 }
