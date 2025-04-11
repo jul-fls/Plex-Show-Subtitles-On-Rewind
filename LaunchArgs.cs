@@ -19,7 +19,7 @@ public static class LaunchArgs
     public static readonly Argument AllowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
     public static readonly Argument ConfigTemplate =  new("settings-template",  "Generate a default settings config file.");
     public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
-    public static readonly Argument TestSettings =    new("test-settings",   "Load the settings file and show which values are valid and which are not and will be set to default.", advanced:true);
+    public static readonly Argument TestSettings =    new("test-settings",   "Load the settings file and show which values are valid, and which are not and therefore will use default values.", advanced:true);
 
     // ------------------ Argument Info Display Strings ------------------
     public static readonly string StandardLaunchArgsInfo = $"""

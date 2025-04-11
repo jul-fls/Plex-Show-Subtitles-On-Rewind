@@ -23,7 +23,7 @@ public class Settings
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
-    public IntOrAuto ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds"); // Identifiable placeholder to know if user setting failed to set when not auto
+    public IntOrAuto ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds", isAutoDefault:true); // Identifiable placeholder to know if user setting failed to set when not auto
     public SettingInfo<bool> DebugMode = new(false, "Debug_Mode");
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
 
@@ -58,7 +58,7 @@ public class Settings
             "\nNote: Event based polling might not work if this is true. If it doesn't work after going idle, try setting Use_Event_Polling to false.";
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks." +
             "\nShould be shorter than the active frequency (but not required, like for testing). You can also use 'auto' to automatically use 90% of the active frequency." +
-            "\nDefault Value: auto  |  Possible Values: Any positive whole number";
+            "\nDefault Value: auto  |  Possible Values: Any positive whole number, or \"auto\" (without quotes)";
         AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging." +
             "\nDefault Value: False";
         UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection." +
@@ -128,14 +128,14 @@ public class Settings
         // Calculate the default timeout based on the default frequency for fallback purposes *before* potentially modifying ShortTimeoutLimit
         int defaultTimeoutValue = (int)Math.Round((def.ActiveMonitorFrequency.Value * 1000 * 0.9));
 
-        if (ShortTimeoutLimit.IsAuto) // Check the IsAuto flag from the IntOrAuto class
+        if (ShortTimeoutLimit.IsSetToAuto) // Check the IsSetToAuto flag from the IntOrAuto class
         {
             // Calculate based on the current ActiveMonitorFrequency (which should have been validated already)
             // Using Math.Round just in case they used more than 3 decimal places for some weird reason
             // Don't bother checking for validity because we're using the Active frequency which was already validated
             ShortTimeoutLimit.Value = (int)Math.Round((ActiveMonitorFrequency.Value * 1000 * 0.9));
         }
-        else // User provided a specific integer value (IsAuto is false)
+        else // User provided a specific integer value (IsSetToAuto is false)
         {
             int currentTimeoutValue = ShortTimeoutLimit.Value; // Get the integer value explicitly
             int currentFreqMs = (int)Math.Round((ActiveMonitorFrequency.Value * 1000));
@@ -550,8 +550,12 @@ public static class SettingsHandler
                         // .ToString() might not always be the desired file format (e.g., for booleans, dates)
                         string valueAsString;
 
-                        // Currently just need a special case for lists
-                        if (defaultValue is List<string> list)
+                        // Handle special cases first like lists and 'auto' default values
+                        if (settingInfo is IAutoSettingInfo autoSettingInfo && autoSettingInfo.IsAutoDefault == true)
+                        {
+                            valueAsString = "auto";
+                        }
+                        else if (defaultValue is List<string> list)
                         {
                             // Join list items with commas
                             valueAsString = string.Join(",", list);
@@ -659,11 +663,16 @@ public interface ISettingInfo
     string Description { get; }
     object? GetValueAsObject(); // Method to get the value as object
     Type ValueType { get; }     // Property to get the underlying type T
-    // Potentially add IsRequired if needed
-    bool IsRequired { get; }
-    string RawValue { get; } // Store the original unprocessed raw value as a string
-    bool RevertedToDefault { get; } // If the value was changed from the default value
+    string RawValue { get; } // Original unprocessed value (or minimally processed, like after trimming)
     void SetValueFromString(string stringValue);
+    bool SettingSupportsAuto { get; }
+}
+
+// A more general 'auto' Interface that inherits from ISettingInfo and contains required properties specific to Auto types.
+public interface IAutoSettingInfo : ISettingInfo
+{
+    bool IsAutoDefault { get; }
+    bool IsSetToAuto { get; }
 }
 
 // Modify SettingInfo<T> to implement it
@@ -681,9 +690,9 @@ public class SettingInfo<T> : ISettingInfo
     // Metadata properties
     public string ConfigName { get; set; }
     public string Description { get; set; } = string.Empty;
-    public bool IsRequired { get; set; } = false;
     public string RawValue { get; private set; } = string.Empty;
-    public bool RevertedToDefault { get; set; } = false; // Check if the value equals the default value of T
+
+    public bool SettingSupportsAuto { get; } = false ; // This type never supports auto, there are specific types for that
 
     // Constructor
     public SettingInfo(T defaultValue, string configName)
@@ -705,7 +714,6 @@ public class SettingInfo<T> : ISettingInfo
     string ISettingInfo.Description => this.Description;
     object? ISettingInfo.GetValueAsObject() => this.Value; // Boxes value types
     Type ISettingInfo.ValueType => typeof(T);
-    bool ISettingInfo.IsRequired => this.IsRequired;
 
     // Implementation of the new method
     void ISettingInfo.SetValueFromString(string stringValue)
@@ -763,17 +771,21 @@ public class SettingInfo<T> : ISettingInfo
 }
 
 // Integer setting but also allows 'auto' string that will do some kind of calculation to get the value
-public class IntOrAuto : ISettingInfo
+public class IntOrAuto : IAutoSettingInfo
 {
     private int _value;
-    private bool _isAuto = true; // Flag to track if 'auto' was set
+    private bool _isSetToAuto = true; 
 
     public string ConfigName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public Type ValueType => typeof(int);
-    public bool IsRequired { get; set; } = false;
     public string RawValue { get; private set;  } = string.Empty;
-    public bool RevertedToDefault { get; set; } = false;
+    public bool SettingSupportsAuto { get; } = true;
+    /// <summary>
+    /// Indicates if 'auto' is the default setting for the configuration. Defaults to true, determining how the settings
+    /// file is formatted. Otherwise the setting file will have the literal default 'Value' property (e.g., 0, -1, etc.) which may be a placeholder.
+    /// </summary>
+    public bool IsAutoDefault { get; private set; } // To know whether the settings file should contain 'auto' or the literal default placeholder value
 
     public int Value
     {
@@ -781,7 +793,8 @@ public class IntOrAuto : ISettingInfo
         set
         {
             _value = value;
-            _isAuto = false; // If Value is set directly, it's not 'auto' anymore
+            _isSetToAuto = false; // If Value is set directly through public field, it's not 'auto' anymore because auto is a virtual value of sorts,
+                                  // not the actual value which must be an int
         }
     }
 
@@ -789,27 +802,28 @@ public class IntOrAuto : ISettingInfo
     public void SetWithAutoTrue(int value)
     {
         _value = value;
-        _isAuto = true;
+        _isSetToAuto = true;
     }
 
     // Constructor
-    public IntOrAuto(int defaultValue, string configName)
+    public IntOrAuto(int defaultValue, string configName, bool isAutoDefault)
     {
         _value = defaultValue; // Set initial integer value
         ConfigName = configName;
+        IsAutoDefault = isAutoDefault; // Set the auto default flag
     }
 
     // Check if the setting was loaded as "auto"
-    public bool IsAuto => _isAuto;
+    public bool IsSetToAuto => _isSetToAuto;
 
     public void SetValueFromString(string stringValue)
     {
-        _isAuto = false; // Reset flag
+        _isSetToAuto = false; // Reset flag
         this.RawValue = stringValue.Replace("\n", "");
 
         if (stringValue.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase))
         {
-            _isAuto = true;
+            _isSetToAuto = true;
             // Don't set _value here yet, let CleanAndValidate handle the calculation based on other settings
             // Or set a temporary placeholder if absolutely needed, but a flag is cleaner.
             // _value = -1; // Example placeholder if needed, but prefer using the flag
@@ -818,7 +832,7 @@ public class IntOrAuto : ISettingInfo
         {
             if (!int.TryParse(stringValue.Trim(), out _value))
             {
-                _isAuto = false; // Ensure flag is false on failure so we know it was a user error
+                _isSetToAuto = false; // Ensure flag is false on failure so we know it was a user error
                 // We'll use -int.MaxValue as a placeholder for invalid values
                 _value = -int.MaxValue; // This will be caught in CleanAndValidate
 
