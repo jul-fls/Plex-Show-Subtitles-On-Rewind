@@ -22,6 +22,14 @@ public static class LaunchArgs
     public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
     public static readonly Argument TestSettings =    new("test-settings",   "Load the settings file and show which values are valid, and which are not and therefore will use default values.", advanced:true);
 
+    // ---------------------------------------------------------------
+    public static List<Argument> GetAllArgs() {
+        return new List<Argument> {
+            Background, Stop, ConfigTemplate, Verbose, Help, // Standard
+            Debug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings // Advanced
+        };
+    }
+
     // ------------------ Argument Info Display Strings ------------------
     public static readonly string StandardLaunchArgsInfo = $"""
             Optional Launch Parameters:
@@ -33,10 +41,7 @@ public static class LaunchArgs
             """;
 
     // Advanced launch args are only shown when using -help or -?. It appends to the standard args info string.
-    public static readonly string AdvancedHelpInfo =
-        HeadingTitle + "\n" 
-        + StandardLaunchArgsInfo + "\n\n"
-        + $"""
+    public static readonly string AdvancedLaunchArgsInfo = $"""
             Advanced Optional Launch parameters:
                 -{LaunchArgs.Debug} {ttt}{LaunchArgs.Debug.Description}
                 -{LaunchArgs.TokenTemplate} {tt}{LaunchArgs.TokenTemplate.Description}
@@ -44,6 +49,13 @@ public static class LaunchArgs
                 -{LaunchArgs.UpdateSettings} {t}{LaunchArgs.UpdateSettings.Description}
                 -{LaunchArgs.TestSettings} {tt}{LaunchArgs.TestSettings.Description}
             """;
+
+    public static readonly string AllLaunchArgsInfo = StandardLaunchArgsInfo + "\n\n" + AdvancedLaunchArgsInfo;
+
+    public static readonly string AdvancedHelpInfo =
+        HeadingTitle + "\n"
+        + StandardLaunchArgsInfo + "\n\n"
+        + AdvancedLaunchArgsInfo;
 
     const string t = "\t";
     const string tt = "\t\t";
@@ -63,6 +75,41 @@ public static class LaunchArgs
 
     // ------------------------- Methods ------------------------------
 
+    // Validate the arguments passed to the program. Returns true if all arguments are valid, false if any are invalid.
+    public static bool CheckForUnknownArgs(string[] args)
+    {
+        List<string> unknownArgs = new List<string>();
+        List<Argument> allArgs = GetAllArgs();
+        foreach (string inputArg in args)
+        {
+            // Check with the list of all arguments
+            foreach (Argument arg in allArgs)
+            {
+                if (arg.Check(new string[] { inputArg }))
+                {
+                    break; // Break the inner loop
+                }
+                else
+                {
+                    unknownArgs.Add(inputArg);
+                }
+            }
+        }
+        // Remove duplicates
+        unknownArgs = unknownArgs.Distinct().ToList();
+
+        // If there are any unknown arguments, print them
+        if (unknownArgs.Count > 0)
+        {
+            WriteRedSuper("\n ERROR - Unknown command-line argument(s): ", noNewline:true);
+            WriteRed("  " + string.Join(", ", unknownArgs));
+            return false;
+        }
+        else
+        {
+            return true; // All arguments are valid
+        }
+    }
 
     // ========================= Argument Class Type =========================
     public class Argument(string arg, string description, bool advanced = false)

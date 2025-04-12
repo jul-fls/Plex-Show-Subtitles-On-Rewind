@@ -41,6 +41,16 @@ namespace RewindSubtitleDisplayerForPlex
             if (debugMode == true)
                 verboseMode = true;
 
+            // Check for invalid launch args. False means there are unknown args.
+            if (!LaunchArgs.CheckForUnknownArgs(args))
+            {
+                WriteColor("\n------------ See valid launch args below ------------\n", Yellow);
+                Console.WriteLine(LaunchArgs.AllLaunchArgsInfo + "\n\n");
+                Console.WriteLine("Press Enter to exit.");
+                Console.ReadLine();
+                return;
+            }
+
             // Load Settings from file early on
             if (LaunchArgs.TestSettings.Check(args))
             {
