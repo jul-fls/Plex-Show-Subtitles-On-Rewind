@@ -18,6 +18,7 @@ Once playback reaches the point where you started the rewind, it will **automati
 * **Smart-Cancellation**: Automatic disabling of temporary subtitles again on certain conditions:
   * If you rewind longer than a specified threshold (60 seconds default)
   * If you fast forward at any point
+* **Use Preferred Subtitles**: In the `settings.ini` file, you can configure how it will choose which subtitle track to display.
 
 # Other Benefits
 
@@ -40,8 +41,8 @@ Once playback reaches the point where you started the rewind, it will **automati
 
 1.  **Connect to Plex**:
     * Run the application. It will guide you through a one-time authorization process in your web browser to link with your Plex account. This is required to connect to your server via the API.
-2.  **Configure Server Address**:
-    * Edit the `settings.ini` file.
+2.  **Configure Server Address and Other Settings**:
+    * Edit the `settings.ini` file. ( See: [Settings Info Wiki Article](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/wiki/Settings.ini-File) )
     * Set `Server_URL_And_Port` to your Plex Media Server's local IP address and port (e.g., `http://192.168.1.100:32400`).
 
 ## Usage
