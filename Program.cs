@@ -69,6 +69,11 @@ namespace RewindSubtitleDisplayerForPlex
             #endif
             // -------------------
 
+            if (LaunchArgs.ForceNoDebug.Check(args))
+            {
+                debugMode = false;
+            }
+
             // Background mode - Config or Command Line
             bool runBackgroundMode = LaunchArgs.Background.Check(args)
                 || (config.BackgroundMode.Value && !LaunchArgs.Stop.Check(args)); // Ignore background mode config setting if -stop is used

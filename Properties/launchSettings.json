@@ -6,6 +6,10 @@
     "Debug (Help)": {
       "commandName": "Project",
       "commandLineArgs": "-help"
+    },
+    "Debug (Force No Debug)": {
+      "commandName": "Project",
+      "commandLineArgs": "-nd"
     }
   }
 }

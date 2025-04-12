@@ -17,6 +17,7 @@ public static class LaunchArgs
     public static readonly Argument Help =            new("help",             "Display help message with info including launch parameters.");
     // --- Advanced ---
     public static readonly Argument Debug =           new("debug",            "Enables debug mode to show the highest detail of logging output.", advanced:true);
+    public static readonly Argument ForceNoDebug =    new("force-no-debug",   "Force the program to not use debug mode even if launching from a debugger.", advanced:true);
     public static readonly Argument TokenTemplate =   new ("token-template",  "Generate an example token config file.", advanced:true);
     public static readonly Argument AllowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
     public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
@@ -24,10 +25,10 @@ public static class LaunchArgs
 
     // ---------------------------------------------------------------
     public static List<Argument> GetAllArgs() {
-        return new List<Argument> {
+        return [
             Background, Stop, ConfigTemplate, Verbose, Help, // Standard
-            Debug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings // Advanced
-        };
+            Debug, ForceNoDebug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings // Advanced
+        ];
     }
 
     // ------------------ Argument Info Display Strings ------------------
@@ -44,6 +45,7 @@ public static class LaunchArgs
     public static readonly string AdvancedLaunchArgsInfo = $"""
             Advanced Optional Launch parameters:
                 -{LaunchArgs.Debug} {ttt}{LaunchArgs.Debug.Description}
+                -{LaunchArgs.ForceNoDebug} {ttt}{LaunchArgs.ForceNoDebug.Description}
                 -{LaunchArgs.TokenTemplate} {tt}{LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.AllowDuplicateInstance} {t}{LaunchArgs.AllowDuplicateInstance.Description}
                 -{LaunchArgs.UpdateSettings} {t}{LaunchArgs.UpdateSettings.Description}
@@ -71,6 +73,7 @@ public static class LaunchArgs
         Stop.Alts = ["s"];
         UpdateSettings.Alts = ["u"];
         TestSettings.Alts = ["t"];
+        ForceNoDebug.Alts = ["nd"];
     }
 
     // ------------------------- Methods ------------------------------
@@ -82,17 +85,20 @@ public static class LaunchArgs
         List<Argument> allArgs = GetAllArgs();
         foreach (string inputArg in args)
         {
+            bool isValid = false;
             // Check with the list of all arguments
             foreach (Argument arg in allArgs)
             {
                 if (arg.Check(new string[] { inputArg }))
                 {
+                    isValid = true; // The argument is valid
                     break; // Break the inner loop
                 }
-                else
-                {
-                    unknownArgs.Add(inputArg);
-                }
+            }
+            // If the argument is not valid, add it to the list of unknown arguments
+            if (!isValid)
+            {
+                unknownArgs.Add(inputArg);
             }
         }
         // Remove duplicates
