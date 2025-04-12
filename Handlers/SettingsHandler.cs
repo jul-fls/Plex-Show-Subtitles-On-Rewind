@@ -589,7 +589,7 @@ public static class SettingsHandler
         catch (Exception ex)
         {
             // Handle exceptions (e.g., file access issues)
-            WriteRed($"Error creating settings file: {ex.Message}");
+            LogError($"Error creating settings file: {ex.Message}");
             // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
             return false; // Indicate failure
         }

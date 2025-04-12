@@ -414,11 +414,5 @@ namespace RewindSubtitleDisplayerForPlex
             LogDebug("Coordination handles disposed.");
         }
 
-        // --- Logging Placeholders ---
-        // Ensure these methods exist and are accessible, e.g., public static in Program or own class
-        //private static void LogInfo(string message) => Console.WriteLine($"INFO: {message}");
-        //private static void LogDebug(string message) { if (Program.debugMode) Console.WriteLine($"DEBUG: {message}"); }
-        //private static void LogWarning(string message) => Console.WriteLine($"WARN: {message}");
-        //private static void LogError(string message) => Console.WriteLine($"ERROR: {message}");
     }
 }

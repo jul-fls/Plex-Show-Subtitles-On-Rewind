@@ -37,7 +37,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 if (_watchdogTask != null && !_watchdogTask.IsCompleted)
                 {
-                    Console.WriteLine("Connection Watcher is already running.");
+                    LogDebug("Connection Watcher is already running.");
                     return;
                 }
 

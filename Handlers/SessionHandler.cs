@@ -38,7 +38,7 @@ namespace RewindSubtitleDisplayerForPlex
             // It will only return null for an error
             if (sessionsList == null)
             {
-                Console.WriteLine("Error Occurred. See above messages. Will use existing session list if any.");
+                LogError("Error Occurred. See above messages. Will use existing session list if any.");
                 return _activeSessionList;
             }
 
@@ -178,7 +178,7 @@ namespace RewindSubtitleDisplayerForPlex
 
             if (_activeSessionList.Count == 0 && removedSessionsCount > 0 && debugMode == true)
             {
-                Console.WriteLine($"No active sessions found after removing {removedSessionsCount} leftover sessions.");
+                LogDebug($"No active sessions found after removing {removedSessionsCount} leftover sessions.");
             }
 
             return _activeSessionList;
