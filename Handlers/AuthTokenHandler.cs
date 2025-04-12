@@ -74,7 +74,7 @@ public static class AuthTokenHandler
         if (!File.Exists(tokenFilePath))
         {
             // Prompt the user if they want to go through the auth flow to generate a token
-            WriteYellow($"Required \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
+            WriteYellow($"\nRequired \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
             Console.WriteLine(AuthStrings.tokenNote);
             Console.Write("\nAuthorize App? (y/n): ");
             string? userInput = Console.ReadLine();
@@ -92,8 +92,8 @@ public static class AuthTokenHandler
             }
             else
             {
-                WriteYellow("\nYou'll need to generate an auth token for the app to work.\n" +
-                    $"   - Either restart the app and go through the token flow\n" +
+                WriteYellow("\n\nYou'll need to generate an auth token for the app to work.\n" +
+                    $"   - Either restart the app and go through the auth instructions flow\n" +
                     $"   - Or if you know how, you can manually make the API REST requests and use {AuthStrings.tokenFileTemplateName} to store the token.\n");
                 CreateTemplateTokenFile();
             }

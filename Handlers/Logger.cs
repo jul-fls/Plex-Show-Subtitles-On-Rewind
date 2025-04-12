@@ -47,15 +47,21 @@ internal static class Logger
         // Any other newlines, add spaces after so it lines up with the prefix
         message = message.Replace("\n", "\n             ");
 
-        if (color is ConsoleColor nonNullColor)
+        try
         {
-            Console.ForegroundColor = nonNullColor;
-            Console.WriteLine($"{prefix}{message}");
-            Console.ResetColor();
+            if (color is ConsoleColor nonNullColor)
+            {
+                Console.ForegroundColor = nonNullColor;
+                Console.WriteLine($"{prefix}{message}");
+            }
+            else
+            {
+                Console.WriteLine($"{prefix}{message}");
+            }
         }
-        else
+        finally // Want to be sure to always reset the color
         {
-            Console.WriteLine($"{prefix}{message}");
+            Console.ResetColor();
         }
 
     }
@@ -177,12 +183,16 @@ internal static class Logger
         if (background != null)
             Console.BackgroundColor = background.Value;
 
-        if (noNewline)
-            Console.Write(message);
-        else
-            Console.WriteLine(message);
-
-        Console.ResetColor();
+        try
+        {
+            if (noNewline)
+                Console.Write(message);
+            else
+                Console.WriteLine(message);
+        }
+        finally
+        {
+            Console.ResetColor();
+        }        
     }
-
 }
