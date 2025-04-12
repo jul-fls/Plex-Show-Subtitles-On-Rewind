@@ -19,7 +19,7 @@ namespace RewindSubtitleDisplayerForPlex
         private static MonitoringState _monitoringState = MonitoringState.Active;
         private static int _idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
 
-        private static ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
+        private static readonly ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
 
         // This occurs when the server sends a real-time notification about playback state, so we can use this to get instant updates out of phase with the polling
         public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
@@ -210,6 +210,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 _sleepResetEvent.Reset();
 
+                // Keep going while the refresh happens in the background
                 _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
 
                 MonitoringState previousState = _monitoringState;

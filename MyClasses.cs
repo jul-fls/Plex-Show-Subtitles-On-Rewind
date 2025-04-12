@@ -702,7 +702,7 @@ public class ActiveSession
         {
             foreach (string pattern in preferredLanguages)
             {
-                if (pattern.StartsWith("-"))
+                if (pattern.StartsWith('-'))
                     negativePatterns.Add(pattern.Substring(1));
                 else
                     positivePatterns.Add(pattern);

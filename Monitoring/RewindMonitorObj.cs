@@ -12,7 +12,7 @@
 
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
 
-        private static int DefaultCooldownCount = Program.config.CoolDownCount;
+        private static readonly int DefaultCooldownCount = Program.config.CoolDownCount;
 
         private bool _isMonitoring;
         private bool _subtitlesUserEnabled;
@@ -21,7 +21,7 @@
         private int _cooldownCyclesLeft = 0; // Used after rewinding too long, to prevent detecting rewinds again too quickly
         private int _cooldownToUse = 0; // Used to store the current max cooldown so it can be reset
         private bool _temporarilyDisplayingSubtitles;
-        private double _smallestResolutionSec; // This might be updated depending on available data during refreshes
+        private readonly double _smallestResolutionSec; // This might be updated depending on available data during refreshes
 
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
@@ -73,7 +73,7 @@
             _smallestResolutionSec = otherMonitor._smallestResolutionSec;
         }
 
-        private string GetTimeString(double seconds)
+        private static string GetTimeString(double seconds)
         {
             // ---------------- Local function -------------------
             static string SecondsToTimeString(double seconds)
@@ -135,6 +135,7 @@
                 _latestWatchedPosition = newTime;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Might use in future")]
         private void PrintTimelineDebugMessage(double positionSec, bool isFromNotification, bool temporarySubtitlesWereEnabledForPass, string prepend="")
         {
             string subtitlesStatus = _activeSession.KnownIsShowingSubtitles.HasValue

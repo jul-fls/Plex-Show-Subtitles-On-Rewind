@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace RewindSubtitleDisplayerForPlex;
-internal static class Logging
+internal static partial class Logging
 {
     private static readonly Lock ConsoleWriterLock = new Lock();
     private static LogLevel _logLevel => Program.config.ConsoleLogLevel; // Default log level
@@ -18,11 +18,12 @@ internal static class Logging
     {
         return level switch
         {
-            LogLevel.Warning => "[ WARNING ]  ",
-            LogLevel.Verbose => "[ VERBOSE ]  ",
-            LogLevel.Info =>    "[  INFO   ]  ",
-            LogLevel.Error =>   "[  ERROR  ]  ",
-            LogLevel.Debug =>   "[  DEBUG  ]  ",
+            LogLevel.Warning =>     "[ WARNING ]  ",
+            LogLevel.Verbose =>     "[ VERBOSE ]  ",
+            LogLevel.Info =>        "[  INFO   ]  ",
+            LogLevel.Error =>       "[  ERROR  ]  ",
+            LogLevel.Debug =>       "[  DEBUG  ]  ",
+            LogLevel.DebugExtra =>  "[++DEBUG++]  ",
             _ => "[UNKNOWN] "
         };
     }
@@ -34,7 +35,7 @@ internal static class Logging
         // If the logTypeColor provided is not default for the log level, 
 
         // Move any leading newlines prior to the prefix
-        if (message.StartsWith("\n"))
+        if (message.StartsWith('\n'))
         {
             // Get the number of leading newlines
             int leadingNewlines = message.TakeWhile(c => c == '\n').Count();
@@ -46,7 +47,7 @@ internal static class Logging
 
         // Any trailing newlines, store them and print them after the message
         string trailingNewlines = "";
-        if (message.EndsWith("\n"))
+        if (message.EndsWith('\n'))
         {
             // Get the number of trailing newlines
             int trailingNewlineCount = message.Reverse().TakeWhile(c => c == '\n').Count();
@@ -179,7 +180,7 @@ internal static class Logging
         // If there are trailing or leading newlines, write them separately not colored.
         // This is because the background logTypeColor can be messed up by newline
 
-        string[] lines = Regex.Split(message, @"(\r\n|\r|\n)");
+        string[] lines = AnyNewlineRegex().Split(message);
 
         foreach (string line in lines)
         {
@@ -288,4 +289,7 @@ internal static class Logging
 
         Task.Run(() => MyLogger.LogToFile(message)); // Fire and forget
     }
+
+    [GeneratedRegex(@"(\r\n|\r|\n)", RegexOptions.Compiled)]
+    private static partial Regex AnyNewlineRegex();
 }

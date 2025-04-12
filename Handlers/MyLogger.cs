@@ -13,15 +13,19 @@ public static class MyLogger // Rename if needed
     private static bool IsFileLoggingEnabled => Program.config?.LogToFile ?? false; // Assumes Program.config exists
 
     // --- Core Queuing Components ---
-    private static readonly BlockingCollection<string> _logQueue = new BlockingCollection<string>();
+    private static readonly BlockingCollection<string> _logQueue = [];
     private static readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-    private static Task _consumerTask;
+    // Update the declaration of _consumerTask to make it nullable.  
+    private static Task? _consumerTask;
 
     // --- Initialization & Shutdown ---
-    public static void Initialize()
+    public static void Initialize() // Only call if logging to file is enabled
     {
         if (_consumerTask != null && !_consumerTask.IsCompleted) return; // Prevent re-initialization
-        if (string.IsNullOrEmpty(LogFilePath)) throw new InvalidOperationException("LogFilePath must be set.");
+        if (string.IsNullOrEmpty(LogFilePath))
+        { 
+            throw new InvalidOperationException("LogFilePath must be set.");
+        }
 
         _consumerTask = Task.Run(() => ProcessLogQueue(_cancellationTokenSource.Token));
     }
@@ -79,10 +83,8 @@ public static class MyLogger // Rename if needed
                 try
                 {
                     // Append message to file
-                    using (StreamWriter writer = new StreamWriter(LogFilePath, true))
-                    {
-                        writer.WriteLine(message);
-                    }
+                    using StreamWriter writer = new StreamWriter(LogFilePath, true);
+                    writer.WriteLine(message);
                 }
                 catch (Exception)
                 {
@@ -91,7 +93,11 @@ public static class MyLogger // Rename if needed
                 }
             }
         }
-        catch (OperationCanceledException) { /* Task was cancelled */ }
+        catch (OperationCanceledException)
+        {
+            // Task was cancelled, exit gracefully
+            LogDebug("Log queue processing was cancelled.");
+        }
         catch (Exception)
         {
             // Unhandled exception in consumer task
@@ -105,12 +111,15 @@ public static class MyLogger // Rename if needed
         if (string.IsNullOrEmpty(LogFilePath)) return;
         try
         {
-            string logDirectory = Path.GetDirectoryName(LogFilePath);
+            string? logDirectory = Path.GetDirectoryName(LogFilePath);
             if (!string.IsNullOrEmpty(logDirectory) && !Directory.Exists(logDirectory))
             {
                 Directory.CreateDirectory(logDirectory);
             }
         }
-        catch (Exception) { /* Failed to create directory */ }
+        catch (Exception)
+        {
+            LogError($"Failed to create log directory: {LogFilePath}");
+        }
     }
 }

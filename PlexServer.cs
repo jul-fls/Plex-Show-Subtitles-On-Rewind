@@ -339,7 +339,7 @@ namespace RewindSubtitleDisplayerForPlex
                 // Timeouts aren't a critical error so don't emphasize as error
                 if (ex.InnerException is TimeoutException)
                 {
-                    LogDebug($"Timeout fetching timeline from {deviceName} (Player app may have closed or device shut down.)");
+                    LogDebugExtra($"Timeout fetching timeline from {deviceName} (Player app may have closed or device shut down.)");
                 }
                 else
                 {

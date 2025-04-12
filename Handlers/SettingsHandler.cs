@@ -11,7 +11,7 @@ public class Settings
 {
     public class SectionDivider { } // Placeholder class for section headers
     // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
-    private static Dictionary<string, ISettingInfo> PreviousSettingsNameMap = []; 
+    //private static Dictionary<string, ISettingInfo> PreviousSettingsNameMap = []; 
 
     // This is also the order they will be written to the settings file
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
@@ -73,10 +73,10 @@ public class Settings
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";
         StartAdvancedSettings.Description = "----------------------- Advanced Settings - (Most people shouldn't need these) -----------------------";
 
-        PreviousSettingsNameMap = new() // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
-        {
-            //{ "Some_Old_ConfigName", ServerURL }, // Example
-        };
+        //PreviousSettingsNameMap = new() // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
+        //{
+        //    //{ "Some_Old_ConfigName", ServerURL }, // Example
+        //};
     }   
 
     public Dictionary<ISettingInfo, string> SettingsThatFailedToLoad = [];
@@ -133,9 +133,6 @@ public class Settings
         }
 
         // Short Timeout Limit
-        // Calculate the default timeout based on the default frequency for fallback purposes *before* potentially modifying ShortTimeoutLimit
-        int defaultTimeoutValue = (int)Math.Round((def.ActiveMonitorFrequency.Value * 1000 * 0.9));
-
         if (ShortTimeoutLimit.IsSetToAuto) // Check the IsSetToAuto flag from the IntOrAuto class
         {
             // Calculate based on the current ActiveMonitorFrequency (which should have been validated already)
@@ -147,7 +144,7 @@ public class Settings
         {
             int currentTimeoutValue = ShortTimeoutLimit.Value; // Get the integer value explicitly
             int currentFreqMs = (int)Math.Round((ActiveMonitorFrequency.Value * 1000));
-            int autoCalcDefault = (int)Math.Round((ActiveMonitorFrequency.Value * 1000 * 0.9)); // Calculate the default timeout based on the current ActiveMonitorFrequency,w hich should be valid already
+            int autoCalcDefault = (int)Math.Round((ActiveMonitorFrequency.Value * 1000 * 0.9)); // Calculate the default timeout based on the current ActiveMonitorFrequency, which should be valid already
 
             if (currentTimeoutValue < 0)
             {
@@ -303,7 +300,7 @@ public static class SettingsHandler
             static bool checkIsCommentLine(string checkLine)
             {
                 checkLine = checkLine.Trim().Trim('\t');
-                return checkLine.StartsWith("#") || checkLine.StartsWith("//");
+                return checkLine.StartsWith('#') || checkLine.StartsWith("//");
             }
             // --------------------------------------------------
 
@@ -543,7 +540,7 @@ public static class SettingsHandler
                     if (!string.IsNullOrEmpty(description)) // More concise check
                     {
                         // Use Environment.NewLine for potentially better cross-platform line breaks
-                        string[] descriptionLines = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                        string[] descriptionLines = description.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
                         foreach (string line in descriptionLines)
                         {
                             sw.WriteLine($"\t# {line}");
@@ -720,6 +717,7 @@ public class SettingInfo<T> : ISettingInfo
     Type ISettingInfo.ValueType => typeof(T);
 
     // Implementation of the new method
+    [SuppressMessage("Style", "IDE0306:Simplify collection initialization")]
     void ISettingInfo.SetValueFromString(string stringValue)
     {
         try
@@ -730,7 +728,7 @@ public class SettingInfo<T> : ISettingInfo
             if (typeof(T) == typeof(List<string>))
             {
                 // Split the string by commas and trim whitespace
-                string[] items = stringValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                string[] items = stringValue.Split([','], StringSplitOptions.RemoveEmptyEntries);
                 List<string> listValue = new(items.Select(item => item.Trim()).ToList());
                 this.Value = (T)(object)listValue; // Cast to object first to avoid invalid cast exception
                 return;

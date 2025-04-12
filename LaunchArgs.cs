@@ -79,7 +79,7 @@ public static class LaunchArgs
     // Validate the arguments passed to the program. Returns true if all arguments are valid, false if any are invalid.
     public static bool CheckForUnknownArgs(string[] args)
     {
-        List<string> unknownArgs = new List<string>();
+        List<string> unknownArgs = [];
         List<Argument> allArgs = GetAllArgs();
         foreach (string inputArg in args)
         {
