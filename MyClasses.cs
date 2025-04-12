@@ -645,11 +645,12 @@ public class ActiveSession
         return this;
     }
 
-    public void UpdateAccurateViewOffsetFromNotification(long? newViewOffset)
+    public void UpdateAccurateViewOffsetFromNotification(double? newViewOffset)
     {
         if (newViewOffset != null)
         {
             Session.ViewOffset = (int)newViewOffset; // Update the view offset with the latest time from the timeline
+            AccurateTimeMs = (int)newViewOffset; // Update the accurate time as well
         }
         else
         {

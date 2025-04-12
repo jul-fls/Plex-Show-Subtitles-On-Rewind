@@ -67,7 +67,7 @@ namespace RewindSubtitleDisplayerForPlex
                         session.RawXml = responseString;
                     }
 
-                    LogDebugExtra($"Found {container.Sessions.Count} active Plex sessions");
+                    //LogDebugExtra($"Found {container.Sessions.Count} active Plex sessions");
 
                     return container.Sessions;
                 }

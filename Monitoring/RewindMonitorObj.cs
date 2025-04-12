@@ -135,18 +135,25 @@
                 _latestWatchedPosition = newTime;
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Might use in future")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation")]
         private void PrintTimelineDebugMessage(double positionSec, bool isFromNotification, bool temporarySubtitlesWereEnabledForPass, string prepend="")
         {
-            string subtitlesStatus = _activeSession.KnownIsShowingSubtitles.HasValue
-                ? _activeSession.KnownIsShowingSubtitles.Value.ToString()
-                : "Unknown";
+            // Local function to pad true/false values
+            static string PadBool(bool boolVal)
+            {
+                return boolVal.ToString().PadLeft(5);
+            }
 
-            string msgPart1 = $"           > {_deviceName}: Position: {positionSec} " +
-                $"| Latest: {_latestWatchedPosition} " +
-                $"| Prev: {_previousPosition} " +
-                $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{temporarySubtitlesWereEnabledForPass} " +
-                //$"| FromNotification: {isFromNotification} " + // Not currently using notifications
+            string subtitlesStatus = _activeSession.KnownIsShowingSubtitles.HasValue
+                ? PadBool(_activeSession.KnownIsShowingSubtitles.Value)
+                : "Null ";
+
+            string msgPart1 = $"           " +
+                $"> {_deviceName}: Position: {Math.Round(positionSec).ToString().PadLeft(5)} " +
+                $"| Latest: {Math.Round(_latestWatchedPosition).ToString().PadLeft(5)} " + // Round to whole number and pad spaces to 4 digits
+                $"| Prev: {Math.Round(_previousPosition).ToString().PadLeft(5)} " +
+                $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{PadBool(temporarySubtitlesWereEnabledForPass)} " +
+                $"| FromNotification: {PadBool(isFromNotification)} " + // Not currently using notifications
                 $"| UserEnabledSubs: ";
 
             msgPart1 = prepend + msgPart1;
@@ -169,17 +176,35 @@
         // This is a point-in-time function that will stop subtitles based on last known position and collected data
         // It might be called from a polling loop at a regular interval, or can be updated 'out-of-phase' from a plex server notification
         //      Doing so should not interrupt the loop intervals but will allow for more instant reactions to user input
+
+        private bool discardNextPass = false; // Used to discard the next pass if it was triggered by a notification since it will be out of date
         public void MakeMonitoringPass(bool isFromNotification = false)
         {
             try
             {
-                double positionSec = _activeSession.GetPlayPositionSeconds();
+                double positionSec;
+                if (isFromNotification == true) // From a notification
+                {
+                    discardNextPass = true;
+                }
+                else // From the polling loop
+                {
+                    if (discardNextPass)
+                    {
+                        LogDebugExtra($"{_deviceName}: Discarding current pass due to notification.");
+                        discardNextPass = false; // Reset for next time
+                        return;
+                    }
+                }
+                positionSec = _activeSession.GetPlayPositionSeconds();
+
                 bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
 
                 // If the position is the same as before, we don't have any new info so don't do anything
                 if (positionSec == _previousPosition)
                 {
-                    LogDebugExtra($"{_deviceName}: Ignoring message without new data.");
+                    string type = isFromNotification ? "Notification" : "Polling";
+                    LogDebugExtra($"{_deviceName}: Ignoring {type} message without new data.");
                     return;
                 }
 

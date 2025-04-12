@@ -24,52 +24,58 @@ namespace RewindSubtitleDisplayerForPlex
         // This occurs when the server sends a real-time notification about playback state, so we can use this to get instant updates out of phase with the polling
         public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
         {
-            if (e.EventObj is PlayingEvent playEvent && playEvent.PlayState is PlexPlayState playState)
-            {
-                LogDebugExtra($"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={playEvent.ViewOffset}ms",
-                    ConsoleColor.Cyan);
-
-                // Currently we just use it to wake up from idle since the active polling is frequent enough, but we could use it to update the monitors too
-                if (playState == PlexPlayState.Playing)
+            _ = Task.Run(() =>// Handle notifications in a separate thread
+            { 
+                if (e.EventObj is PlayingEvent playEvent && playEvent.StateEnum is PlexPlayState playState)
                 {
-                    if (_monitoringState == MonitoringState.Idle)
+                    string offsetStr = playEvent.ViewOffset is double offset ? $"{Math.Round(offset / 1000).ToString()}s" : "null";
+                    string notificationString = $"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={offsetStr}";
+
+                    // Currently we just use it to wake up from idle since the active polling is frequent enough, but we could use it to update the monitors too
+                    if (playState == PlexPlayState.Playing)
                     {
-                        LogVerbose("Switching to active monitoring due to playback event.");
-                        BreakFromIdle();
-                    }
-                    // Not enabling forced monitoring since polling is frequent enough and this causes it to erroneously think subtitles were enabled for a pass for some reason
-                    // Also the playback device seems to just report the same time when it's fetched near the same time as a polling pass
+                        LogDebug(notificationString, ConsoleColor.Cyan);
 
-                    //else
-                    //{
-                    //    // Only proceed if we have info we can use in the first place
-                    //    if (playEvent.ViewOffset is long newViewOffset && newViewOffset != 0)
-                    //    {
-                    //        if (GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
-                    //        {
-                    //            monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
-                    //            monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass
-                    //        }
-                    //        else
-                    //        {
-                    //            LogDebug($"No monitor found for machine {playEvent.ClientIdentifier}. Cannot update view offset.");
-                    //        }
-                    //    }
-                    //}
+                        if (_monitoringState == MonitoringState.Idle)
+                        {
+                            LogVerbose("Switching to active monitoring due to playback event.");
+                            BreakFromIdle();
+                        }
+
+                        // Only proceed if we have info we can use in the first place
+                        if (playEvent.ViewOffset is double newViewOffset && newViewOffset != 0)
+                        {
+                            if (GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
+                            {
+                                monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
+                                monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
+                            }
+                            else
+                            {
+                                LogDebug($"No monitor found for machine {playEvent.ClientIdentifier}. Cannot update view offset.");
+                            }
+                        }
+                    }
+                    else if (playState == PlexPlayState.Paused)
+                    {
+                        LogDebug(notificationString, ConsoleColor.DarkCyan);
+                        LogVerbose("   Playback Paused.");
+                    }
+                    else if (playState == PlexPlayState.Buffering)
+                    {
+                        LogDebugExtra(notificationString, ConsoleColor.DarkCyan);
+                    }
+                    else if (playState == PlexPlayState.Stopped)
+                    {
+                        LogDebug(notificationString, ConsoleColor.DarkMagenta);
+                        LogVerbose("   Playback Stopped.");
+                    }
                 }
-                else if (playState == PlexPlayState.Paused)
+                else
                 {
-                    LogVerbose("   Playback Paused.");
+                    LogError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
                 }
-                else if (playState == PlexPlayState.Stopped)
-                {
-                    LogVerbose("   Playback Stopped.");
-                }
-            }
-            else
-            {
-                LogError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
-            }
+            });
         }
 
         public static RewindMonitor? GetMonitorForMachineID(string? machineID)
@@ -210,8 +216,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 _sleepResetEvent.Reset();
 
-                // Keep going while the refresh happens in the background
-                _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
+                //_ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
 
                 MonitoringState previousState = _monitoringState;
                 MonitoringState pendingNewState = RunMonitors_OneIteration(_allMonitors);
@@ -237,6 +242,10 @@ namespace RewindSubtitleDisplayerForPlex
                     LogVerbose("Switched to idle mode.");
                 else if (_monitoringState != previousState && _monitoringState == MonitoringState.Active)
                     LogVerbose("Switched to active mode.");
+
+                // Do the refresh right before the sleep so it will have time to process before the next pass
+                // This is async and will not block this loop
+                _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
 
                 // Sleep for a while based on the current mode, but use the cancellable sleep mechanism
                 int sleepTime;

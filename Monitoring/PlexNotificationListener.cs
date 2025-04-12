@@ -439,7 +439,7 @@ public class PlayingEvent
     public string? Key { get; set; }
 
     [JsonPropertyName("viewOffset")]
-    public long? ViewOffset { get; set; }
+    public double? ViewOffset { get; set; }
 
     [JsonPropertyName("playQueueID")]
     public int? PlayQueueID { get; set; }
@@ -451,41 +451,29 @@ public class PlayingEvent
     public string? TranscodeSession { get; set; }
 
     [JsonIgnore]
-    public PlexPlayState? PlayState => GetState(State);
+    public PlexPlayState? StateEnum => GetState(State);
 
     private static PlexPlayState? GetState(string? state)
     {
-        return state?.ToLowerInvariant() switch
+        if (state is string stateStr)
         {
-            PlexEventStrings.States.Playing => (PlexPlayState?)PlexPlayState.Playing,
-            PlexEventStrings.States.Paused => (PlexPlayState?)PlexPlayState.Paused,
-            PlexEventStrings.States.Stopped => (PlexPlayState?)PlexPlayState.Stopped,
-            _ => (PlexPlayState?)PlexPlayState._Unknown,
-        };
+            // Try to parse the string value directly to enum using Enum.TryParse
+            // This will handle case-insensitively matching the string to enum names
+            if (Enum.TryParse<PlexPlayState>(stateStr, true, out var result))
+            {
+                return result;
+            }
+
+            // If parsing failed, return _Unknown
+            return PlexPlayState._Unknown;
+        }
+
+        return null; // Return null if state is null
     }
 }
 
 public static class PlexEventStrings
 {
-    public class States
-    {
-        public const string Playing = "playing";
-        public const string Paused = "paused";
-        public const string Stopped = "stopped";
-        public const string Unknown = "unknown"; // For any unrecognized state
-
-        public PlexPlayState ToEnum()
-        {
-            return this switch
-            {
-                { } when Equals(Playing, StringComparison.OrdinalIgnoreCase) => PlexPlayState.Playing,
-                { } when Equals(Paused, StringComparison.OrdinalIgnoreCase) => PlexPlayState.Paused,
-                { } when Equals(Stopped, StringComparison.OrdinalIgnoreCase) => PlexPlayState.Stopped,
-                _ => PlexPlayState._Unknown
-            };
-        }
-    }
-
     public class NotificationNames
     {
         public const string ActivityNotification = "ActivityNotification";
@@ -556,6 +544,7 @@ public enum PlexPlayState
     Playing,
     Paused,
     Stopped,
+    Buffering,
     _Unknown, // For any unrecognized state. Not an actual JSON value.
 }
 
