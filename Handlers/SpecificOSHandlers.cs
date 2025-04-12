@@ -11,14 +11,12 @@ namespace RewindSubtitleDisplayerForPlex;
 internal static partial class OS_Handlers
 {
 
-    #if WINDOWS || DEBUG_ON_WINDOWS
     internal partial class WindowsNativeMethods
     {
         [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool AllocConsole();
     }
-    #endif
 
     // Checks if background mode is supported and applys it. Returns true only if actually running in background mode.
     public static bool HandleBackgroundMode(bool runInBackgroundArg)
@@ -27,30 +25,28 @@ internal static partial class OS_Handlers
         //OperatingSystem os = Environment.OSVersion;
         //string? targetFramework = System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>()?.FrameworkName;
 
-        // Note: The #if Windows check might only work after publishing, not during development.
-        #if WINDOWS || DEBUG_ON_WINDOWS
+        // Windows
+        if (OperatingSystem.IsWindows())
+            // Default is to NOT run in background mode, so allocate console
             if (runInBackgroundArg == false)
             {
                 WindowsNativeMethods.AllocConsole();
                 return false;
             }
-            else
+            else // To run in background mode we do nothing
             {
                 return true;
             }
-        #else
-            if (runInBackgroundArg && !OperatingSystem.IsWindows())
+        // Not windows
+        else
+        {
+            if (runInBackgroundArg)
             {
                 LogError("Error: Can only use \"background\" mode (without console window) on Windows.");
             }
-            else if (runInBackgroundArg && OperatingSystem.IsWindows())
-            {
-                // The background mode won't work in development mode. If it wasn't caught by the pre-processor directive, it didn't work so print a message
-                LogError("Error: Background mode is not supported in development mode. Please run the published version.");
-            }
 
             return false; // Not Windows, so return false always
-        #endif
+        }
     }
 }
 
