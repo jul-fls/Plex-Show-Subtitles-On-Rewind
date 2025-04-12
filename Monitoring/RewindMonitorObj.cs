@@ -23,6 +23,10 @@
         private bool _temporarilyDisplayingSubtitles;
         private readonly double _smallestResolutionSec; // This might be updated depending on available data during refreshes
 
+        // After disabling subtitles there is a delay before they actually stop showing, so we need to wait for that
+        // Use this to check if subtitles have been disabled yet after we do, to avoid false positive that user enabled them
+        private bool isPendingSubtitlesDisabled = false;
+
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
         public ActiveSession AttachedSession => _activeSession;
@@ -116,6 +120,7 @@
             {
                 _activeSession.DisableSubtitles();
                 _temporarilyDisplayingSubtitles = false;
+                isPendingSubtitlesDisabled = true;
             }
         }
 
@@ -124,6 +129,7 @@
         {
             _activeSession.DisableSubtitles();
             _temporarilyDisplayingSubtitles = false;
+            isPendingSubtitlesDisabled = true;
         }
 
         private void SetLatestWatchedPosition(double newTime)
@@ -139,20 +145,33 @@
         private void PrintTimelineDebugMessage(double positionSec, bool isFromNotification, bool temporarySubtitlesWereEnabledForPass, string prepend="")
         {
             // Local function to pad true/false values
-            static string PadBool(bool boolVal)
+            static string PadBool(bool boolVal, bool left=true)
             {
-                return boolVal.ToString().PadLeft(5);
+                if (left)
+                    return boolVal.ToString().PadLeft(5);
+                else
+                    return boolVal.ToString().PadRight(5);
             }
 
             string subtitlesStatus = _activeSession.KnownIsShowingSubtitles.HasValue
                 ? PadBool(_activeSession.KnownIsShowingSubtitles.Value)
                 : "Null ";
 
+            string expectedShowingSubs;
+            if (isPendingSubtitlesDisabled)
+                expectedShowingSubs = "Wait.";
+            else if (_activeSession.KnownIsShowingSubtitles == true)
+                expectedShowingSubs = PadBool(true, left:false);
+            else if (_activeSession.KnownIsShowingSubtitles == false)
+                expectedShowingSubs = PadBool(false, left:false);
+            else
+                expectedShowingSubs = "Null ";
+
             string msgPart1 = $"           " +
                 $"> {_deviceName}: Position: {Math.Round(positionSec).ToString().PadLeft(5)} " +
                 $"| Latest: {Math.Round(_latestWatchedPosition).ToString().PadLeft(5)} " + // Round to whole number and pad spaces to 4 digits
                 $"| Prev: {Math.Round(_previousPosition).ToString().PadLeft(5)} " +
-                $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{PadBool(temporarySubtitlesWereEnabledForPass)} " +
+                $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{expectedShowingSubs} " +
                 $"| FromNotification: {PadBool(isFromNotification)} " + // Not currently using notifications
                 $"| UserEnabledSubs: ";
 
@@ -173,11 +192,11 @@
             }
         }
 
+        private bool discardNextPass = false; // Used to discard the next pass if it was triggered by a notification since it will be out of date
+
         // This is a point-in-time function that will stop subtitles based on last known position and collected data
         // It might be called from a polling loop at a regular interval, or can be updated 'out-of-phase' from a plex server notification
         //      Doing so should not interrupt the loop intervals but will allow for more instant reactions to user input
-
-        private bool discardNextPass = false; // Used to discard the next pass if it was triggered by a notification since it will be out of date
         public void MakeMonitoringPass(bool isFromNotification = false)
         {
             try
@@ -196,11 +215,9 @@
                         return;
                     }
                 }
-                positionSec = _activeSession.GetPlayPositionSeconds();
-
-                bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
 
                 // If the position is the same as before, we don't have any new info so don't do anything
+                positionSec = _activeSession.GetPlayPositionSeconds();
                 if (positionSec == _previousPosition)
                 {
                     string type = isFromNotification ? "Notification" : "Polling";
@@ -208,7 +225,15 @@
                     return;
                 }
 
+                bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
+
+                // Reset pending subtitles disabled flag if we know they are not showing
+                if (_activeSession.KnownIsShowingSubtitles == false)
+                {
+                    isPendingSubtitlesDisabled = false; 
+                    LogDebugExtra($"{_deviceName}: Resetting pending subtitles disabled flag.");
+                }
                     
                 // If the user had manually enabled subtitles, check if they disabled them
                 if (_subtitlesUserEnabled)
@@ -222,7 +247,7 @@
                 }
                 // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them.
                 // In this case again we don't want to stop them, so this is an else-if to prevent it falling through to the else
-                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
+                else if (!_temporarilyDisplayingSubtitles && !isPendingSubtitlesDisabled && _activeSession.KnownIsShowingSubtitles == true )
                 {
                     _subtitlesUserEnabled = true;
                     SetLatestWatchedPosition(positionSec);
