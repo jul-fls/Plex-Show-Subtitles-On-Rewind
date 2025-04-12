@@ -22,7 +22,7 @@ internal static class Logger
         Debug
     }
 
-    private static void Log(string message, LogLevel level = LogLevel.Info, ConsoleColor? color = null)
+    private static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
     {
         string prefix = level switch
         {
@@ -33,6 +33,8 @@ internal static class Logger
             LogLevel.Debug =>   "[  DEBUG  ]  ",
             _ => "[UNKNOWN] "
         };
+
+        // If the logTypeColor provided is not default for the log level, 
 
         // Move any leading newlines prior to the prefix
         if (message.StartsWith("\n"))
@@ -64,19 +66,32 @@ internal static class Logger
         {
             try
             {
-                Console.ResetColor(); // Reset ahead of time just in case
+                Console.ResetColor();
 
-                if (color is ConsoleColor nonNullColor)
+                // Write the prefix
+                if (logTypeColor is ConsoleColor nonNullColor)
                 {
                     Console.ForegroundColor = nonNullColor;
-                    Console.WriteLine($"{prefix}{message}");
+                    Console.Write($"{prefix}");
                 }
                 else
                 {
-                    Console.WriteLine($"{prefix}{message}");
+                    Console.Write($"{prefix}");
+                }
+
+                // Write the message
+                if (messageColor is ConsoleColor nonNullMessageColor)
+                {
+                    Console.ForegroundColor = nonNullMessageColor;
+                    Console.WriteLine(message);
+                }
+                else
+                {
+                    // Don't reset the color so it inherits the logTypeColor
+                    Console.WriteLine(message);
                 }
             }
-            finally // Want to be sure to always reset the color
+            finally // Want to be sure to always reset the logTypeColor
             {
                 Console.ResetColor();
                 Console.Write(trailingNewlines); // Print the trailing newlines after the message
@@ -104,54 +119,39 @@ internal static class Logger
 
     public static void LogInfo(string message, ConsoleColor? color = null)
     {
-        Log(message, LogLevel.Info, color);
+        Log(message, LogLevel.Info, null, color);
     }
 
-    public static void LogDebug(string message, ConsoleColor? color = null)
+    public static void LogDebug(string message, ConsoleColor? messageColor = null)
     {
-        // If color is not provided, use dark gray by default
-        if (color == null)
-        {
-            color = ConsoleColor.DarkGray;
-        }
-
         if (_debug)
         {
-            Log(message, LogLevel.Debug, color);
+            Log(message, LogLevel.Debug, ConsoleColor.DarkGray, messageColor);
         }
     }
 
-    public static void LogWarning(string message, ConsoleColor? color = null)
+    public static void LogWarning(string message, ConsoleColor? messageColor = null)
     {
-        // If color is not provided, use yellow by default
-        if (color == null)
-        {
-            color = ConsoleColor.Yellow;
-        }
-        Log(message, LogLevel.Warning, color);
+        Log(message, LogLevel.Warning, ConsoleColor.Yellow, messageColor);
     }
 
-    public static void LogError(string message, ConsoleColor? color = null)
+    public static void LogError(string message, ConsoleColor? messageColor = null)
     {
-        // If color is not provided, use red by default
-        if (color == null)
-        {
-            color = ConsoleColor.Red;
-        }
-        Log(message, LogLevel.Error, color);
+        Log(message, LogLevel.Error, ConsoleColor.Red, messageColor);
     }
 
-    public static void LogVerbose(string message, ConsoleColor? color = null)
+    public static void LogVerbose(string message, ConsoleColor? messageColor = null)
     {
         if (_verbose)
         {
-            Log(message, LogLevel.Verbose, color);
+            Log(message, LogLevel.Verbose, null, messageColor);
         }
     }
 
+    // Log success message with green color for both the log type prefix and message
     public static void LogSuccess(string message)
     {
-        Log(message, LogLevel.Info, color:ConsoleColor.Green);
+        Log(message, LogLevel.Info, logTypeColor: ConsoleColor.Green, null);
     }
 
     // ------------------------------- COLOR RELATED ---------------------------------
@@ -169,7 +169,7 @@ internal static class Logger
     {
         // If there are any newlines in the message, split it and write each line separately.
         // If there are trailing or leading newlines, write them separately not colored.
-        // This is because the background color can be messed up by newline
+        // This is because the background logTypeColor can be messed up by newline
 
         string[] lines = Regex.Split(message, @"(\r\n|\r|\n)");
 

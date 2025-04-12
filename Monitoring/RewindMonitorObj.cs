@@ -150,7 +150,7 @@
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
                 if (_printDebug)
                 {
-                    string msgPart1 = $"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  Actually/Expected Showing Subs: {_activeSession.KnownIsShowingSubtitles}/{_temporarilyDisplayingSubtitles} | FromNotification: {isFromNotification} | UserEnabledSubs: ";
+                    string msgPart1 = $"           > {_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  Actually/Expected Showing Subs: {_activeSession.KnownIsShowingSubtitles}/{_temporarilyDisplayingSubtitles} | FromNotification: {isFromNotification} | UserEnabledSubs: ";
                     string msgPart2 = _subtitlesUserEnabled.ToString();
 
                     // Print last part about user subs with color if enabled so it's more obvious
@@ -295,7 +295,7 @@
         {
             if (_isMonitoring)
             {
-                WriteLineSafe("Already monitoring this session");
+                LogDebug("Already monitoring this session");
                 return;
             }
 
@@ -309,7 +309,7 @@
                 _latestWatchedPosition = _activeSession.GetPlayPositionSeconds();
                 if (_printDebug)
                 {
-                    WriteLineSafe($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
+                    LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
                 }
 
                 _previousPosition = _latestWatchedPosition;
@@ -319,13 +319,14 @@
 
                 if (_printDebug)
                 {
-                    WriteLineSafe($"Finished setting up monitoring for {_deviceName} and ran first pass.");
+                    LogDebug($"Finished setting up monitoring for {_deviceName} and ran first pass.");
                 }
             }
             catch (Exception e)
             {
-                WriteLineSafe($"Error during monitoring setup: {e.Message}");
-                WriteLineSafe(e.StackTrace);
+                LogError($"Error during monitoring setup: {e.Message}");
+                if (_printDebug)
+                    WriteLineSafe(e.StackTrace);
             }
         }
     }

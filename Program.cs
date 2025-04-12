@@ -194,7 +194,7 @@ namespace RewindSubtitleDisplayerForPlex
                     PLEX_APP_IDENTIFIER = "";
                 }
 
-                WriteLineSafe($"Using Plex server at {config.ServerURL}");
+                LogInfo($"Using Plex server at {config.ServerURL}");
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
                 // --- Instantiate and Start Watchdog ---
@@ -230,7 +230,7 @@ namespace RewindSubtitleDisplayerForPlex
                     waitHandles = [_ctrlCExitEvent, _appShutdownCts.Token.WaitHandle];
                 }
 
-                WriteLineSafe("Application running. Press Ctrl+C to exit.");
+                WriteLineSafe("\nApplication running. Press Ctrl+C to exit.\n");
                 int signaledHandleIndex = WaitHandle.WaitAny(waitHandles);
 
                 // Determine reason for exit
