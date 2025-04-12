@@ -10,6 +10,10 @@
     "Debug (Background)": {
       "commandName": "Project",
       "commandLineArgs": "-background"
+    },
+    "Debug Upgrade": {
+      "commandName": "Project",
+      "commandLineArgs": "-u"
     }
   }
 }
