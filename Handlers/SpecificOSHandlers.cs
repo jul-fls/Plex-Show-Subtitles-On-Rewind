@@ -36,10 +36,16 @@ internal static partial class OS_Handlers
                 return true;
             }
         #else
-            if (runInBackgroundArg)
+            if (runInBackgroundArg && !OperatingSystem.IsWindows())
             {
                 LogError("Error: Can only use \"background\" mode (without console window) on Windows.");
             }
+            else if (runInBackgroundArg && OperatingSystem.IsWindows())
+            {
+                // The background mode won't work in development mode. If it wasn't caught by the pre-processor directive, it didn't work so print a message
+                LogError("Error: Background mode is not supported in development mode. Please run the published version.");
+            }
+
             return false; // Not Windows, so return false always
         #endif
     }

@@ -109,7 +109,7 @@ namespace RewindSubtitleDisplayerForPlex
         {
             if (_anyoneHereEvent == null) { LogError("Coordination handle not initialized."); return false; }
 
-            LogInfo("Checking for other instances monitoring the same server...");
+            LogDebug("Checking for other instances monitoring the same server...");
             var respondedPidsThisCheckin = new HashSet<int>();
             var overallStopwatch = Stopwatch.StartNew();
             bool duplicateFound = false;
@@ -224,7 +224,7 @@ namespace RewindSubtitleDisplayerForPlex
                 LogDebug($"Instance check loop finished. Duration: {overallStopwatch.Elapsed}");
             }
 
-            if (!duplicateFound) { LogInfo("Duplicate server check complete. No duplicates found."); }
+            if (!duplicateFound) { LogDebug("Duplicate server check complete. No duplicates found."); }
             // Return true if a duplicate was found, false otherwise
             return duplicateFound;
         }

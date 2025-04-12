@@ -94,7 +94,7 @@ namespace RewindSubtitleDisplayerForPlex
 
                 if (response.IsSuccessStatusCode)
                 {
-                    LogSuccess("\nConnection successful!\n");
+                    LogSuccess("\nConnection successful!");
                     return ConnectionResult.Success;
                 }
                 else
