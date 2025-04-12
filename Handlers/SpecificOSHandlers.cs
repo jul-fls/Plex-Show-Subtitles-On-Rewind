@@ -10,12 +10,15 @@ namespace RewindSubtitleDisplayerForPlex;
 
 internal static partial class OS_Handlers
 {
+
+    #if WINDOWS || DEBUG_ON_WINDOWS
     internal partial class WindowsNativeMethods
     {
         [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool AllocConsole();
     }
+    #endif
 
     // Checks if background mode is supported and applys it. Returns true only if actually running in background mode.
     public static bool HandleBackgroundMode(bool runInBackgroundArg)
@@ -25,7 +28,7 @@ internal static partial class OS_Handlers
         //string? targetFramework = System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>()?.FrameworkName;
 
         // Note: The #if Windows check might only work after publishing, not during development.
-        #if WINDOWS
+        #if WINDOWS || DEBUG_ON_WINDOWS
             if (runInBackgroundArg == false)
             {
                 WindowsNativeMethods.AllocConsole();

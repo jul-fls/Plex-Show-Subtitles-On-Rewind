@@ -3,13 +3,13 @@
     "Debug (No Args)": {
       "commandName": "Project"
     },
-    "Debug (Help)": {
-      "commandName": "Project",
-      "commandLineArgs": "-help"
-    },
     "Debug (Force No Debug)": {
       "commandName": "Project",
       "commandLineArgs": "-nd"
+    },
+    "Debug (Background)": {
+      "commandName": "Project",
+      "commandLineArgs": "-background"
     }
   }
 }

@@ -16,7 +16,6 @@ namespace RewindSubtitleDisplayerForPlex
         public static bool verboseMode = false;
         public static bool isBackgroundMode = false; // Used to check if the program is running in background mode (no console window)
 
-        public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
         private static bool instancesAreSetup = false; // Used to check if the instances are set up correctly
 
         private static ConnectionWatchdog? _connectionWatchdog; // Instance of the watchdog
@@ -165,7 +164,7 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         // Error already logged by CheckForDuplicateServersAsync
                         LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
-                        if (!isBackgroundMode) { Utils.TimedWaitForEnterKey(5, "exit"); }
+                        if (!isBackgroundMode) { Utils.TimedWaitForEnterKey(15, "exit"); }
 
                         InstanceCoordinator.Cleanup(); // Cleanup handles
                         return; // Exit New Instance

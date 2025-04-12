@@ -7,10 +7,15 @@
 		
 		<!-- Default to console app, but if for Windows make it a "Windows Application" so it doesn't attach to console by default, so can run purely background. -->
 		<OutputType>Exe</OutputType>
-		<OutputType Condition="$([System.String]::Copy('$(TargetFramework)').EndsWith('-windows')) Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
-			WinExe
-		</OutputType>
 
+		<!-- Disable console attaching on startup when on windows, we'll AllocConsole. This only works when publishing so also add a check if its a debug build that was built on windows -->
+		<OutputType Condition="
+			($([System.String]::Copy('$(TargetFramework)').EndsWith('-windows')) 
+			Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win')))
+			Or (('$(Configuration)' == 'Debug') And ('$(OS)' == 'Windows_NT'))
+			">WinExe</OutputType>
+		<!-- NOTE: MSBuild is sensitive to newlines and spaces between the brackets of the OutputType tags. -->
+		
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>13.0</LangVersion>
@@ -21,6 +26,36 @@
 		<PublishTrimmed>False</PublishTrimmed>
 		<ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
 	</PropertyGroup>
+	
+	<!-- Define a preprocessor DEBUG_ON_WINDOWS I can use to force certain code to be used when not published. Same check as the one for OutputType -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug' And ('$(OS)' == 'Windows_NT')">
+	  <DefineConstants>$(DefineConstants);DEBUG_ON_WINDOWS</DefineConstants>
+	</PropertyGroup>
+	
+	<!--
+	<Target Name="DisplayProperties"
+            BeforeTargets="Build"
+            Condition="'$(Configuration)' == 'Debug'">
+	  <Message Text="Is Debug: '$(Configuration)' == 'Debug'" Importance="high" />
+	  <Message Text="Project = $(MSBuildProjectFullPath)" Importance="high" />
+	  <Message Text="Configuration = $(Configuration)" Importance="high" />
+	  <Message Text="Platform = $(Platform)" Importance="high" />
+	  <Message Text="TargetFramework = $(TargetFramework)" Importance="high" />
+	  <Message Text="TargetFrameworks = $(TargetFrameworks)" Importance="high" />
+	  <Message Text="RuntimeIdentifier = $(RuntimeIdentifier)" Importance="high" />
+	  <Message Text="RuntimeIdentifiers = $(RuntimeIdentifiers)" Importance="high" />
+	  <Message Text="Final OutputType = $(OutputType)" Importance="high" />
+	  <Message Text="AssemblyName = $(AssemblyName)" Importance="high" />
+	  <Message Text="OutputPath = $(OutputPath)" Importance="high" />
+	  <Message Text="OutDir = $(OutDir)" Importance="high" /> <Message Text="PublishDir = $(PublishDir)" Importance="high" /> <Message Text="BuildingInsideVisualStudio = $(BuildingInsideVisualStudio)" Importance="high" />
+	  <Message Text="OS (Build Machine) = $(OS)" Importance="high" />
+	  <Message Text="SelfContained = $(SelfContained)" Importance="high" /> <Message Text="PublishAot = $(PublishAot)" Importance="high" /> <Message Text="PublishTrimmed = $(PublishTrimmed)" Importance="high" /> <Message Text="PublishSingleFile = $(PublishSingleFile)" Importance="high" /> <Message Text="DebugSymbols = $(DebugSymbols)" Importance="high" />
+	  <Message Text="DebugType = $(DebugType)" Importance="high" />
+	  <Message Text="MicrosoftNETSdkVersion = $(MicrosoftNETSdkVersion)" Importance="high" />
+	  <Message Text="MSBuildVersion = $(MSBuildVersion)" Importance="high" />
+	</Target>
+	-->
+	
 	
 	<PropertyGroup>
 		<TargetName>$(AssemblyName)_$(FileVersion)</TargetName>
