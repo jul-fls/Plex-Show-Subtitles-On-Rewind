@@ -64,11 +64,16 @@ namespace RewindSubtitleDisplayerForPlex
             config = SettingsHandler.LoadSettings(); // Load settings early on but after debug mode is set by launch args if necessary
             if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
 
-            Logger.LogToFile("\n\n--------------------------------------------------- NEW INSTANCE ---------------------------------------------------\n");
+            if (config.LogToFile.Value == true)
+            {
+                MyLogger.Initialize(); // Initialize the logger if logging to file is enabled
+            }
+
+            MyLogger.LogToFile("\n\n--------------------------------------------------- NEW INSTANCE ---------------------------------------------------\n");
 
             // -------------------
-#if DEBUG
-            debugMode = true;
+            #if DEBUG
+                debugMode = true;
             #endif
             // -------------------
 
