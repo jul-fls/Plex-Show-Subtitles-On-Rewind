@@ -3,7 +3,7 @@ global using static RewindSubtitleDisplayerForPlex.GlobalDefinitions;
 global using static RewindSubtitleDisplayerForPlex.Utils;
 global using static RewindSubtitleDisplayerForPlex.MyStrings;
 global using static RewindSubtitleDisplayerForPlex.LaunchArgs;
-global using static RewindSubtitleDisplayerForPlex.Logger;
+global using static RewindSubtitleDisplayerForPlex.Logging;
 using static RewindSubtitleDisplayerForPlex.Program;
 
 #nullable enable

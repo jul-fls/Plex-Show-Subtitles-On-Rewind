@@ -15,7 +15,7 @@ public class Settings
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
-    public SettingInfo<bool> BackgroundMode = new(false, "Background_Mode");
+    //public SettingInfo<bool> BackgroundMode = new(false, "Background_Mode");
     public SettingInfo<double> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency_Seconds");
     public SettingInfo<double> MaxRewind = new(60, "Max_Rewind_Seconds");
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
@@ -37,8 +37,8 @@ public class Settings
             "\nIf https:// doesn't work, you can use http:// but only do that if it's on a local network.";
         CurrentDeviceLabel.Description = "The label you want to appear next to this app's name in your Plex account's authorized devices list." +
             "\nYou can leave this empty or set to whatever you want. Changing it after creating the authorization token will not have an effect.";
-        BackgroundMode.Description = "(True/False) Windows Only: Run in background mode. This will not show the the console Window at all, but will still run in the background and monitor playback." +
-            $"\nYou can stop all running isntances by running the app through command line again but with \"-{LaunchArgs.Stop}\" parameter.";
+        //BackgroundMode.Description = "(True/False) Windows Only: Run in background mode. This will not show the the console Window at all, but will still run in the background and monitor playback." +
+        //    $"\nYou can stop all running isntances by running the app through command line again but with \"-{LaunchArgs.Stop}\" parameter.";
         ActiveMonitorFrequency.Description = "How often (in seconds) to check for rewinds during active playback." +
             "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
             "\nDefault Value: 1  |  Possible Values: Any positive number (decimals allowed).";

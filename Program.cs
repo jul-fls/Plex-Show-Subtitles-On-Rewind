@@ -34,6 +34,13 @@ namespace RewindSubtitleDisplayerForPlex
             // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
             // =======================================================================
 
+            // Very first thing is check for background mode. Trying to print anything to console before allocating console prevents anything from showing.
+            // Local scope variable to avoid confusion of runBackgroundMode vs isBackgroundMode
+            {
+                bool runBackgroundMode = LaunchArgs.Background.Check(args); // Ignore background mode config setting if -stop is used
+                isBackgroundMode = OS_Handlers.HandleBackgroundMode(runBackgroundMode); // OS specific handling for background mode
+            }
+
             // Early processing of launch args for Debug Mode and verbose mode
             if (LaunchArgs.Debug.Check(args))
                 debugMode = true;
@@ -80,13 +87,6 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.ForceNoDebug.Check(args))
             {
                 debugMode = false;
-            }
-
-            // Background mode - Config or Command Line. Local scope variable to avoid confusion of runBackgroundMode vs isBackgroundMode
-            {
-                bool runBackgroundMode = LaunchArgs.Background.Check(args)
-                    || (config.BackgroundMode.Value && !LaunchArgs.Stop.Check(args)); // Ignore background mode config setting if -stop is used
-                isBackgroundMode = OS_Handlers.HandleBackgroundMode(runBackgroundMode); // OS specific handling for background mode
             }
 
             // Allow duplicate instances (Those that are set to connect to the same exact server. Mostly for testing.)

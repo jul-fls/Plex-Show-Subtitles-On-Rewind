@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace RewindSubtitleDisplayerForPlex;
-internal static class Logger
+internal static class Logging
 {
     private static bool _verbose => Program.verboseMode;
     private static bool _debug => Program.debugMode;
