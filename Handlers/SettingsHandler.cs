@@ -22,6 +22,7 @@ public class Settings
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<bool> DebugMode = new(false, "Debug_Output");
+    public SettingInfo<bool> LogToFile = new(false, "Log_To_File");
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
@@ -67,6 +68,7 @@ public class Settings
             "\nDefault Value: True";
         IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing." +
             "\nDefault Value: 30  |  Possible Values: Any positive number (decimals allowed)";
+        LogToFile.Description = "(True/False) Log to a file in addition to the console. This will create a log file in the same directory as the app.";
 
         // Set default values for section dividers
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";

@@ -9,11 +9,12 @@
 		<OutputType>Exe</OutputType>
 
 		<!-- Disable console attaching on startup when on windows, we'll AllocConsole. This only works when publishing so also add a check if its a debug build that was built on windows -->
-		<OutputType Condition="
+		<!-- <OutputType Condition="
 			($([System.String]::Copy('$(TargetFramework)').EndsWith('-windows')) 
 			Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win')))
 			Or (('$(Configuration)' == 'Debug') And ('$(OS)' == 'Windows_NT'))
-			">WinExe</OutputType>
+			">WinExe</OutputType> -->
+		<OutputType Condition="($([System.String]::Copy('$(TargetFramework)').EndsWith('-windows')) Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))) Or (('$(Configuration)' == 'Debug') And ('$(OS)' == 'Windows_NT'))">WinExe</OutputType>
 		<!-- NOTE: MSBuild is sensitive to newlines and spaces between the brackets of the OutputType tags. -->
 		
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -31,6 +32,16 @@
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug' And ('$(OS)' == 'Windows_NT')">
 	  <DefineConstants>$(DefineConstants);DEBUG_ON_WINDOWS</DefineConstants>
 	</PropertyGroup>
+
+	<Target Name="DisplayOutputTypeBeforeCompile" BeforeTargets="CoreCompile">
+		<Message Text="--------------------------------------------------" Importance="high" />
+		<Message Text="DIAGNOSTIC: Properties Before CoreCompile" Importance="high" />
+		<Message Text="    Configuration = $(Configuration)" Importance="high" />
+		<Message Text="    OS = $(OS)" Importance="high" />
+		<Message Text="    TargetFramework = $(TargetFramework)" Importance="high" />
+		<Message Text="    RuntimeIdentifier = '$(RuntimeIdentifier)'" Importance="high" /> <Message Text="    OutputType = '$(OutputType)'" Importance="high" />
+		<Message Text="--------------------------------------------------" Importance="high" />
+	</Target>
 	
 	<!--
 	<Target Name="DisplayProperties"

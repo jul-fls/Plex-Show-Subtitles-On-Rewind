@@ -11,6 +11,9 @@ internal static class Logger
     private static bool _verbose => Program.verboseMode;
     private static bool _debug => Program.debugMode;
     private static readonly Lock ConsoleWriterLock = new Lock();
+    private static readonly Lock LogFileLock = new Lock();
+
+    private static readonly string LogFilePath = Path.Combine(Environment.CurrentDirectory, MyStrings.LogFileName);
 
     // Log levels
     public enum LogLevel
@@ -22,17 +25,63 @@ internal static class Logger
         Debug
     }
 
-    private static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
+    // Method to log to file
+    public static void LogToFile(string message)
     {
-        string prefix = level switch
+        if (Program.config.LogToFile == false)
+        {
+            return; // Don't log to file if the setting is disabled
+        }
+
+        string logMessage = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}";
+
+        // Ensure the log file is created if it doesn't exist
+        if (!File.Exists(LogFilePath))
+        {
+            try
+            {
+                File.Create(LogFilePath).Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to create log file: {ex.Message}");
+                return;
+            }
+        }
+        // Lock access to the log file
+        lock (LogFileLock)
+        {
+            try
+            {
+                // Append the log message to the file
+                using (StreamWriter writer = new StreamWriter(LogFilePath, true))
+                {
+                    writer.WriteLine(logMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to write to log file: {ex.Message}");
+            }
+        }
+    }
+
+    private static string GetPrefix(LogLevel level)
+    {
+        return level switch
         {
             LogLevel.Warning => "[ WARNING ]  ",
             LogLevel.Verbose => "[ VERBOSE ]  ",
-            LogLevel.Info =>    "[  INFO   ]  ",
-            LogLevel.Error =>   "[  ERROR  ]  ",
-            LogLevel.Debug =>   "[  DEBUG  ]  ",
+            LogLevel.Info => "[  INFO   ]  ",
+            LogLevel.Error => "[  ERROR  ]  ",
+            LogLevel.Debug => "[  DEBUG  ]  ",
             _ => "[UNKNOWN] "
         };
+    }
+
+    private static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
+    {
+        string prefix = GetPrefix(level);
 
         // If the logTypeColor provided is not default for the log level, 
 
@@ -97,6 +146,11 @@ internal static class Logger
                 Console.Write(trailingNewlines); // Print the trailing newlines after the message
             }
         }
+
+        // Log to file
+        string logMessage = $"{prefix}{message}";
+        logMessage = logMessage.Trim();
+        LogToFile(logMessage);
     }
 
     public static void WriteSafe(string message)
@@ -189,6 +243,7 @@ internal static class Logger
                 {
                     Console.WriteLine(); // Write a newline at the end because we've been using noNewline:true
                 }
+
             }
         }
 
@@ -248,6 +303,10 @@ internal static class Logger
                 Console.ResetColor();
             }
         }
+
+        // Log to file
+        string logMessage = $"{msg1}{msg2}";
+        LogToFile(logMessage);
     }
 
     public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
@@ -272,5 +331,7 @@ internal static class Logger
                 Console.ResetColor();
             }
         }
+
+        LogToFile(message);
     }
 }
