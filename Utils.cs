@@ -102,6 +102,12 @@ internal class Utils
     /// <returns>True if Enter was pressed within the time limit, false otherwise.</returns>
     public static bool TimedWaitForEnterKey(int seconds, string verb)
     {
+        // If running in background mode, don't wait for user input.
+        if (Program.isBackgroundMode)
+        {
+            return true;
+        }
+
         WriteYellow($"\nPress Enter to {verb} now. Will {verb} automatically in {seconds} seconds...");
 
         bool enterWasPressed = false;
@@ -113,7 +119,7 @@ internal class Utils
         // Task to wait for Console.ReadLine()
         Task inputTask = Task.Run(() =>
         {
-            Console.ReadLine(); // Blocks this background thread until Enter is pressed.
+            ReadlineSafe(); // Blocks this background thread until Enter is pressed.
             enterWasPressed = true; // If ReadLine completes, set the flag to true.
         });
 
@@ -129,6 +135,20 @@ internal class Utils
         }
 
         return enterWasPressed;
+    }
+
+    public static string? ReadlineSafe()
+    {
+        // If running in background mode, don't wait for user input.
+        if (!Program.isBackgroundMode)
+        {
+            string? message = Console.ReadLine();
+            return message;
+        }
+        else
+        {
+            return null;
+        }
     }
 
     /// <summary>

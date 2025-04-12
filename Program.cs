@@ -14,6 +14,8 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static bool debugMode = false;
         public static bool verboseMode = false;
+        public static bool isBackgroundMode = false; // Used to check if the program is running in background mode (no console window)
+
         public static bool KeepAlive { get; set; } = true; // Used to keep the program running until user decides to exit
         private static bool instancesAreSetup = false; // Used to check if the instances are set up correctly
 
@@ -47,7 +49,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteColor("\n------------ See valid launch args below ------------\n", Yellow);
                 WriteLineSafe(LaunchArgs.AllLaunchArgsInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
-                Console.ReadLine();
+                ReadlineSafe();
                 return;
             }
 
@@ -62,7 +64,7 @@ namespace RewindSubtitleDisplayerForPlex
             // Load settings file and set default values if not present
             config = SettingsHandler.LoadSettings(); // Load settings early on but after debug mode is set by launch args if necessary
             if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
-            
+
             // -------------------
             #if DEBUG
                 debugMode = true;
@@ -74,10 +76,12 @@ namespace RewindSubtitleDisplayerForPlex
                 debugMode = false;
             }
 
-            // Background mode - Config or Command Line
-            bool runBackgroundMode = LaunchArgs.Background.Check(args)
-                || (config.BackgroundMode.Value && !LaunchArgs.Stop.Check(args)); // Ignore background mode config setting if -stop is used
-            OS_Handlers.HandleBackgroundMode(runBackgroundMode); // OS specific handling for background mode
+            // Background mode - Config or Command Line. Local scope variable to avoid confusion of runBackgroundMode vs isBackgroundMode
+            {
+                bool runBackgroundMode = LaunchArgs.Background.Check(args)
+                    || (config.BackgroundMode.Value && !LaunchArgs.Stop.Check(args)); // Ignore background mode config setting if -stop is used
+                isBackgroundMode = OS_Handlers.HandleBackgroundMode(runBackgroundMode); // OS specific handling for background mode
+            }
 
             // Allow duplicate instances (Those that are set to connect to the same exact server. Mostly for testing.)
             if (LaunchArgs.AllowDuplicateInstance.Check(args))
@@ -93,7 +97,7 @@ namespace RewindSubtitleDisplayerForPlex
                     WriteRed("Failed to generate token template file.");
 
                 WriteLineSafe("\nPress Enter to exit.");
-                Console.ReadLine();
+                ReadlineSafe();
                 return;
             }
 
@@ -131,7 +135,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteLineSafe(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
-                Console.ReadLine();
+                ReadlineSafe();
                 return;
             }
             else // The normal launch message (only if not running background)
@@ -161,7 +165,7 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         // Error already logged by CheckForDuplicateServersAsync
                         LogError($"Exiting because another instance is already monitoring server: {config.ServerURL}");
-                        if (!runBackgroundMode) { Utils.TimedWaitForEnterKey(5, "exit"); }
+                        if (!isBackgroundMode) { Utils.TimedWaitForEnterKey(5, "exit"); }
 
                         InstanceCoordinator.Cleanup(); // Cleanup handles
                         return; // Exit New Instance
@@ -180,7 +184,7 @@ namespace RewindSubtitleDisplayerForPlex
                     if (resultTuple == null)
                     {
                         WriteLineSafe("\nFailed to load tokens. Exiting.");
-                        if (!runBackgroundMode) { Console.ReadLine(); }
+                        ReadlineSafe();
                         return;
                     }
 
@@ -254,10 +258,10 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteErrorSuper($"Fatal error during startup: {ex.Message}\n");
                 WriteLineSafe(ex.StackTrace);
-                if (!runBackgroundMode)
+                if (!isBackgroundMode)
                 {
                     WriteLineSafe("\nPress Enter to exit...");
-                    Console.ReadKey();
+                    ReadlineSafe();
                 }
             }
             finally

@@ -17,7 +17,8 @@ internal static partial class OS_Handlers
         public static partial bool AllocConsole();
     }
 
-    public static void HandleBackgroundMode(bool runInBackgroundArg)
+    // Checks if background mode is supported and applys it. Returns true only if actually running in background mode.
+    public static bool HandleBackgroundMode(bool runInBackgroundArg)
     {
         //DEBUG - Get os and current target framework
         //OperatingSystem os = Environment.OSVersion;
@@ -28,12 +29,18 @@ internal static partial class OS_Handlers
             if (runInBackgroundArg == false)
             {
                 WindowsNativeMethods.AllocConsole();
+                return false;
+            }
+            else
+            {
+                return true;
             }
         #else
             if (runInBackgroundArg)
             {
                 LogError("Error: Can only use \"background\" mode (without console window) on Windows.");
             }
+            return false; // Not Windows, so return false always
         #endif
     }
 }

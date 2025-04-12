@@ -77,7 +77,7 @@ public static class AuthTokenHandler
             WriteYellow($"\nRequired \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
             WriteLineSafe(AuthStrings.tokenNote);
             WriteSafe("\nAuthorize App? (y/n): ");
-            string? userInput = Console.ReadLine();
+            string? userInput = ReadlineSafe();
             if (userInput != null && userInput.Equals("y", StringComparison.CurrentCultureIgnoreCase))
             {
                 bool authFlowResult = FullAuthFlow();
@@ -217,7 +217,7 @@ public static class AuthTokenHandler
             //WriteLineSafe(); // Don't add extra newline or else can't erase it
 
             // Wait for user to press Enter
-            Console.ReadLine();
+            ReadlineSafe();
 
             // Erase the past line
             ClearLastLine();
@@ -247,7 +247,7 @@ public static class AuthTokenHandler
 
                 WriteGreen($"\n\t{authUrl}");
                 WriteLineSafe("\nThen press Enter to check again.");
-                Console.ReadLine();
+                ReadlineSafe();
             }
         }
 
