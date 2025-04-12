@@ -364,6 +364,8 @@ FodyWeavers.xsd
 
 ##### Customm Ignores #####
 *.config
+*.bak
+*.bak*
 
 # Allow certain publishing profiles
 !Linux-arm64.pubxml
