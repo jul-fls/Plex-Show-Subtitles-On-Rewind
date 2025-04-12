@@ -669,7 +669,7 @@ public class ActiveSession
         }
     }
 
-    public async void EnableSubtitles()
+    public async void EnableSubtitles(bool sendDirectToDevice = true)
     {
         if (AvailableSubtitles.Count > 0)
         {
@@ -686,13 +686,13 @@ public class ActiveSession
                 subtitleID = AvailableSubtitles[0].Id;
             }
 
-            await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: subtitleID, activeSession:this);
+            await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: sendDirectToDevice, subtitleStreamID: subtitleID, activeSession:this);
         }
     }
 
-    public async void DisableSubtitles()
+    public async void DisableSubtitles(bool sendDirectToDevice = true)
     {
-        CommandResult commandResult = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, subtitleStreamID: 0, activeSession:this);
+        CommandResult commandResult = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice:sendDirectToDevice, subtitleStreamID: 0, activeSession:this);
 
         if (commandResult.Success)
         {

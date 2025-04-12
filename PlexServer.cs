@@ -239,11 +239,12 @@ namespace RewindSubtitleDisplayerForPlex
         /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
         /// <param name="mediaType">Media type to take action against (default: video)</param>
         /// <returns>Task representing the asynchronous operation</returns>
-        public static async Task<CommandResult> SetSubtitleStreamAsync(string machineID, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
+        public static async Task<CommandResult> SetSubtitleStreamAsync(string machineID, bool? sendDirectToDevice, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
         {
             // Simply call the SetStreamsAsync method with only the subtitle stream ID parameter
             return await SetStreamsAsync(
                 machineID: machineID,
+                sendDirectToDevice: sendDirectToDevice,
                 subtitleStreamID: subtitleStreamID,
                 mediaType: mediaType,
                 activeSession: activeSession
@@ -261,10 +262,12 @@ namespace RewindSubtitleDisplayerForPlex
         /// <returns>Task representing the asynchronous operation</returns>
         public static async Task<CommandResult> SetStreamsAsync(
             string machineID,
+            bool? sendDirectToDevice,
             int? audioStreamID = null,
             int? subtitleStreamID = null,
             int? videoStreamID = null,
             string mediaType = "video",
+            
             ActiveSession? activeSession = null
             )
         {
@@ -285,7 +288,7 @@ namespace RewindSubtitleDisplayerForPlex
                 parameters["type"] = mediaType;
 
             // Send the command through the PlexServer
-            return await SendCommandAsync(machineID: machineID, command: "playback/setStreams", additionalParams: parameters, activeSession:activeSession);
+            return await SendCommandAsync(machineID: machineID, command: "playback/setStreams", sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession:activeSession);
         }
 
         // Overload
@@ -354,7 +357,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        public static async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice = false, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)
+        public static async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)
         {
             string mainUrlBase;
             string? retryUrlBase;
@@ -437,6 +440,7 @@ namespace RewindSubtitleDisplayerForPlex
                     string message = $"({statusCode}) {statusName}; URL: {mainUrl} \nError: {errorText}";
 
                     CommandResult originalResult = new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
+                    LogDebug($"Command {command} failed to {mainUrlBase}. Status Code: {statusCode} ({statusName}), Error: {errorText}");
 
                     // Retry by sending the command directly to the device (or the server URL if the function call was to send to device directly)
                     if (retryUrlBase != null)
@@ -450,6 +454,7 @@ namespace RewindSubtitleDisplayerForPlex
                         {
                             // Process the XML response from the device
                             string responseData = await retryResponse.Content.ReadAsStringAsync();
+                            LogDebug($"Command fallback successful to address {retryUrlBase} for command {command}. Response: {responseData}");
                             return new CommandResult(success: true, responseErrorMessage: "", responseXml: ProcessXMLResponse(responseData));
                         }
                         else
@@ -481,7 +486,12 @@ namespace RewindSubtitleDisplayerForPlex
                         return new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
                     }
                 }
+                else
+                {
+                    LogDebug($"Command {command} sent successfully to {mainUrlBase}. Response: {response.StatusCode}");
+                }
 
+                // If the calling function needs the response XML, get and return that too
                 if (needResponse)
                 {
                     // Process the XML response

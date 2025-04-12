@@ -255,7 +255,7 @@ internal static class Logging
                 else
                     Console.ResetColor();
 
-                Console.Write(msg2);
+                Console.WriteLine(msg2);
             }
             finally
             {
