@@ -12,8 +12,6 @@ namespace RewindSubtitleDisplayerForPlex
         internal static string PLEX_APP_IDENTIFIER = "";
         public static Settings config = new();
 
-        public static bool debugMode = false;
-        public static bool verboseMode = false;
         public static bool isBackgroundMode = false; // Used to check if the program is running in background mode (no console window)
 
         private static bool instancesAreSetup = false; // Used to check if the instances are set up correctly
@@ -41,14 +39,6 @@ namespace RewindSubtitleDisplayerForPlex
                 isBackgroundMode = OS_Handlers.HandleBackgroundMode(runBackgroundMode); // OS specific handling for background mode
             }
 
-            // Early processing of launch args for Debug Mode and verbose mode
-            if (LaunchArgs.Debug.Check(args))
-                debugMode = true;
-            if (LaunchArgs.Verbose.Check(args))
-                verboseMode = true;
-            if (debugMode == true)
-                verboseMode = true;
-
             // Check for invalid launch args. False means there are unknown args.
             if (!LaunchArgs.CheckForUnknownArgs(args))
             {
@@ -69,7 +59,7 @@ namespace RewindSubtitleDisplayerForPlex
 
             // Load settings file and set default values if not present
             config = SettingsHandler.LoadSettings(); // Load settings early on but after debug mode is set by launch args if necessary
-            if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
+            //if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
 
             if (config.LogToFile.Value == true)
             {
@@ -77,16 +67,12 @@ namespace RewindSubtitleDisplayerForPlex
             }
 
             MyLogger.LogToFile("\n\n--------------------------------------------------- NEW INSTANCE ---------------------------------------------------\n");
-
-            // -------------------
-            #if DEBUG
-                debugMode = true;
-            #endif
-            // -------------------
-
-            if (LaunchArgs.ForceNoDebug.Check(args))
+            
+            if (!LaunchArgs.ForceNoDebug.Check(args))
             {
-                debugMode = false;
+                #if DEBUG
+                    config.ConsoleLogLevel.Value = LogLevel.DebugExtra;
+                #endif
             }
 
             // Allow duplicate instances (Those that are set to connect to the same exact server. Mostly for testing.)
@@ -147,10 +133,8 @@ namespace RewindSubtitleDisplayerForPlex
             else // The normal launch message (only if not running background)
             {
                 WriteGreen(MyStrings.HeadingTitle);
-                if (debugMode)
-                    WriteYellow("Debug mode enabled.\n");
-                else if (verboseMode)
-                    WriteYellow("Verbose mode enabled.\n");
+                if (Program.config.ConsoleLogLevel > LogLevel.Info)
+                    WriteYellow($"Log Level: {Program.config.ConsoleLogLevel}\n");
 
                 WriteLineSafe(LaunchArgs.StandardLaunchArgsInfo);
                 WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");

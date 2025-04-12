@@ -35,7 +35,7 @@ namespace RewindSubtitleDisplayerForPlex
         }
 
         // Using XmlSerializer to get sessions
-        public static async Task<List<PlexSession>?> GetSessionsAsync(bool printDebug = false, bool shortTimeout = false)
+        public static async Task<List<PlexSession>?> GetSessionsAsync(bool shortTimeout = false)
         {
             HttpClient httpClientToUse = shortTimeout ? _httpClientShortTimeout : _httpClient;
 
@@ -67,8 +67,7 @@ namespace RewindSubtitleDisplayerForPlex
                         session.RawXml = responseString;
                     }
 
-                    if (printDebug)
-                        LogDebug($"Found {container.Sessions.Count} active Plex sessions");
+                    LogDebugExtra($"Found {container.Sessions.Count} active Plex sessions");
 
                     return container.Sessions;
                 }
@@ -143,8 +142,7 @@ namespace RewindSubtitleDisplayerForPlex
                 {
                     if (socketEx.SocketErrorCode == SocketError.ConnectionRefused)
                     {
-                        if (Program.debugMode)
-                            LogDebug("Connection refused. Server may be down or unreachable.");
+                        LogDebug("Connection refused. Server may be down or unreachable.");
                         return ConnectionResult.Refused;
                     }
                 }

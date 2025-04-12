@@ -24,6 +24,15 @@ namespace RewindSubtitleDisplayerForPlex
         Active,
         Idle
     }
+    public enum LogLevel
+    {
+        Error = 0,
+        Warning = 1,
+        Info = 2,
+        Verbose = 3,
+        Debug = 4,
+        DebugExtra = 5
+    }
 
     public static class MyStrings
     {

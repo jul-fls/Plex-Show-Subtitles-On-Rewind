@@ -16,7 +16,6 @@ namespace RewindSubtitleDisplayerForPlex
         private static int _globalActiveFrequencyMs = (int)Math.Round(Settings.Default().ActiveMonitorFrequency * 1000); // Initial value but will be updated as needed on the fly
         private static int _globalIdleFrequencyMs = (int)Math.Round(Settings.Default().IdleMonitorFrequency * 1000);
         private static bool _isRunning = false;
-        private static bool _printDebugAll = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
         private static int _idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
 
@@ -27,7 +26,7 @@ namespace RewindSubtitleDisplayerForPlex
         {
             if (e.EventObj is PlayingEvent playEvent && playEvent.PlayState is PlexPlayState playState)
             {
-                LogDebug($"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={playEvent.ViewOffset}ms",
+                LogDebugExtra($"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={playEvent.ViewOffset}ms",
                     ConsoleColor.Cyan);
 
                 // Currently we just use it to wake up from idle since the active polling is frequent enough, but we could use it to update the monitors too
@@ -94,7 +93,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        public static void CreateAllMonitoringAllSessions(List<ActiveSession> activeSessionList, bool printDebugAll = false, string? debugDeviceName = null)
+        public static void CreateAllMonitoringAllSessions(List<ActiveSession> activeSessionList)
         {
             double maxRewindAmountSec = Program.config.MaxRewind;
             double activeFrequencySec = Program.config.ActiveMonitorFrequency;
@@ -103,21 +102,14 @@ namespace RewindSubtitleDisplayerForPlex
             _globalActiveFrequencyMs = (int)Math.Round((activeFrequencySec * 1000)); // Convert to milliseconds
             _globalIdleFrequencyMs = (int)Math.Round((idleFrequencySec * 1000));     // Convert to milliseconds
 
-            if (printDebugAll)
-                _printDebugAll = true; // Set global debug flag so that future monitors can use it
-
             foreach (ActiveSession activeSession in activeSessionList)
             {
-                // Enable/Disable debugging per session depending on variables. Either for all devices or just a specific one
-                bool printDebug = printDebugAll || Utils.CompareStringsWithWildcards(debugDeviceName, activeSession.DeviceName);
-
                 CreateMonitorForSession(
                     activeSession: activeSession,
                     activeFrequencySec: activeFrequencySec,
                     idleFrequencySec: idleFrequencySec,
                     maxRewindAmountSec: maxRewindAmountSec,
-                    smallestResolutionSec: activeSession.SmallestResolutionExpected,
-                    printDebug: printDebug
+                    smallestResolutionSec: activeSession.SmallestResolutionExpected
                 );
             }
         }
@@ -127,16 +119,10 @@ namespace RewindSubtitleDisplayerForPlex
             double maxRewindAmountSec,
             double activeFrequencySec,
             double idleFrequencySec,
-            bool printDebug = false,
             int smallestResolutionSec = DefaultSmallestResolution
             )
         {
             string playbackID = activeSession.Session.PlaybackID;
-
-            if (_printDebugAll)
-            {
-                printDebug = true;
-            }
 
             // Check if a monitor already exists for this session, if not create a new one
             if (_allMonitors.Any(m => m.PlaybackID == playbackID))
@@ -151,7 +137,6 @@ namespace RewindSubtitleDisplayerForPlex
                     activeFrequencySec: activeFrequencySec,
                     idleFrequencySec: idleFrequencySec,
                     maxRewindAmountSec: maxRewindAmountSec,
-                    printDebug: printDebug,
                     smallestResolution: smallestResolutionSec
                     );
                 _allMonitors.Add(monitor);

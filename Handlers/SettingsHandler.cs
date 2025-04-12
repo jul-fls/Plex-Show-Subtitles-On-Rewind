@@ -10,18 +10,19 @@ namespace RewindSubtitleDisplayerForPlex;
 public class Settings
 {
     public class SectionDivider { } // Placeholder class for section headers
+    // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
+    private static Dictionary<string, ISettingInfo> PreviousSettingsNameMap = []; 
 
     // This is also the order they will be written to the settings file
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
-    //public SettingInfo<bool> BackgroundMode = new(false, "Background_Mode");
     public SettingInfo<double> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency_Seconds");
     public SettingInfo<double> MaxRewind = new(60, "Max_Rewind_Seconds");
     public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
-    public SettingInfo<bool> DebugMode = new(false, "Debug_Output");
+    public SettingInfo<LogLevel> ConsoleLogLevel = new(LogLevel.Info, "Log_Level");
     public SettingInfo<bool> LogToFile = new(false, "Log_To_File");
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
@@ -37,13 +38,9 @@ public class Settings
             "\nIf https:// doesn't work, you can use http:// but only do that if it's on a local network.";
         CurrentDeviceLabel.Description = "The label you want to appear next to this app's name in your Plex account's authorized devices list." +
             "\nYou can leave this empty or set to whatever you want. Changing it after creating the authorization token will not have an effect.";
-        //BackgroundMode.Description = "(True/False) Windows Only: Run in background mode. This will not show the the console Window at all, but will still run in the background and monitor playback." +
-        //    $"\nYou can stop all running isntances by running the app through command line again but with \"-{LaunchArgs.Stop}\" parameter.";
         ActiveMonitorFrequency.Description = "How often (in seconds) to check for rewinds during active playback." +
             "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
             "\nDefault Value: 1  |  Possible Values: Any positive number (decimals allowed).";
-        DebugMode.Description = "(True/False) Always default to using debug mode without having to use '-debug' launch parameter.\n" +
-            "This doesn't change the program's behavior but will simply display more information in the console.";
         MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
             "\nDefault Value: 60  |  Possible Values: Any positive number (decimals allowed)";
         CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored." +
@@ -56,6 +53,8 @@ public class Settings
             $"\nExample to prefer English non-SDH subtitles:   {SubtitlePreferencePatterns.ConfigName}=english,-sdh";
 
         // Advanced settings
+        ConsoleLogLevel.Description = "The log level to use. DebugExtra contains additional 'noisy' less useful data that is mostly ignored anyway.\n" +
+            "Default: Info  |  Possible values (Least to Most Detailed): Error, Warning, Info, Verbose, Debug, DebugExtra";
         SkipAuth.Description = "(True/False) Skip the authorization step. (Not Recommended to enable, and not supported if functionality doesn't work right)" +
             "\nThis will only work if you have configured the server to allow connections from specific devices without authorization." +
             "\nNote: Event based polling might not work if this is true. If it doesn't work after going idle, try setting Use_Event_Polling to false.";
@@ -73,7 +72,12 @@ public class Settings
         // Set default values for section dividers
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";
         StartAdvancedSettings.Description = "----------------------- Advanced Settings - (Most people shouldn't need these) -----------------------";
-    }
+
+        PreviousSettingsNameMap = new() // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
+        {
+            //{ "Some_Old_ConfigName", ServerURL }, // Example
+        };
+    }   
 
     public Dictionary<ISettingInfo, string> SettingsThatFailedToLoad = [];
     public Dictionary<ISettingInfo, string> SettingsThatTriggeredWarning = [];
@@ -730,6 +734,19 @@ public class SettingInfo<T> : ISettingInfo
                 List<string> listValue = new(items.Select(item => item.Trim()).ToList());
                 this.Value = (T)(object)listValue; // Cast to object first to avoid invalid cast exception
                 return;
+            }
+            else if (typeof(T).BaseType == typeof(Enum))
+            {
+                // Handle Enum conversion
+                if (Enum.TryParse(enumType: typeof(T), value: stringValue, ignoreCase: true, result: out object? enumValue))
+                {
+                    this.Value = (T)enumValue;
+                    return;
+                }
+                else
+                {
+                    throw new FormatException($"Failed to convert '{stringValue}' to enum type {typeof(T).Name}.");
+                }
             }
             else
             {

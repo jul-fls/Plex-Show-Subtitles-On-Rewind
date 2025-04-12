@@ -13,11 +13,9 @@ public static class LaunchArgs
     public static readonly Argument Background =      new("background",       "Windows Only: The program runs in the background without showing a console.");
     public static readonly Argument Stop =            new("stop",             "Stop all currently running instances of the app.");
     public static readonly Argument ConfigTemplate =  new("settings-template",  "Generate a default settings config file.");
-    public static readonly Argument Verbose =         new("verbose",          "Enables verbose mode to show additional logging output.");
     public static readonly Argument Help =            new("help",             "Display help message with info including launch parameters.");
     // --- Advanced ---
-    public static readonly Argument Debug =           new("debug",            "Enables debug mode to show the highest detail of logging output.", advanced:true);
-    public static readonly Argument ForceNoDebug =    new("force-no-debug",   "Force the program to not use debug mode even if launching from a debugger.", advanced:true);
+    public static readonly Argument ForceNoDebug =    new("no-force-debug",   "Force the program to not use debug mode even if launching from a debugger.", advanced:true);
     public static readonly Argument TokenTemplate =   new ("token-template",  "Generate an example token config file.", advanced:true);
     public static readonly Argument AllowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
     public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
@@ -26,8 +24,8 @@ public static class LaunchArgs
     // ---------------------------------------------------------------
     public static List<Argument> GetAllArgs() {
         return [
-            Background, Stop, ConfigTemplate, Verbose, Help, // Standard
-            Debug, ForceNoDebug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings // Advanced
+            Background, Stop, ConfigTemplate, Help, // Standard
+            ForceNoDebug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings // Advanced
         ];
     }
 
@@ -37,14 +35,14 @@ public static class LaunchArgs
                 -{LaunchArgs.Background} {t}{LaunchArgs.Background.Description}
                 -{LaunchArgs.Stop} {tt}{LaunchArgs.Stop.Description}
                 -{LaunchArgs.ConfigTemplate} {t}{LaunchArgs.ConfigTemplate.Description}
-                -{LaunchArgs.Verbose} {tt}{LaunchArgs.Verbose.Description}
+
                 -{LaunchArgs.Help} {tt}{LaunchArgs.Help.Description}
             """;
 
     // Advanced launch args are only shown when using -help or -?. It appends to the standard args info string.
     public static readonly string AdvancedLaunchArgsInfo = $"""
             Advanced Optional Launch parameters:
-                -{LaunchArgs.Debug} {ttt}{LaunchArgs.Debug.Description}
+
                 -{LaunchArgs.ForceNoDebug} {ttt}{LaunchArgs.ForceNoDebug.Description}
                 -{LaunchArgs.TokenTemplate} {tt}{LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.AllowDuplicateInstance} {t}{LaunchArgs.AllowDuplicateInstance.Description}
@@ -67,8 +65,8 @@ public static class LaunchArgs
     static LaunchArgs()
     {
         Background.Alts = ["b"];
-        Debug.Alts = ["d"];
-        Verbose.Alts = ["v"];
+        //Debug.Alts = ["d"];
+        //Verbose.Alts = ["v"];
         Help.Alts = ["h", "?"];
         Stop.Alts = ["s"];
         UpdateSettings.Alts = ["u"];

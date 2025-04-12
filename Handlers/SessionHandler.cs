@@ -5,7 +5,6 @@ namespace RewindSubtitleDisplayerForPlex
     {
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
-        private static readonly bool debugMode = Program.debugMode;
         private const int _deadSessionGracePeriod = 60; // Seconds
 
         // This not only fetches the sessions, but also gets both active and available subtitles
@@ -41,6 +40,10 @@ namespace RewindSubtitleDisplayerForPlex
                 LogError("Error Occurred. See above messages. Will use existing session list if any.");
                 return _activeSessionList;
             }
+            else
+            {
+                LogDebug($"Fetched {sessionsList.Count} initial active sessions from server.");
+            }
 
             List <ActiveSession> activeSessions = await ProcessActiveSessions(sessionsList);
             lock (_lockObject)
@@ -68,12 +71,10 @@ namespace RewindSubtitleDisplayerForPlex
                 return _activeSessionList;
             }
 
-            if (fetchedSessionsList.Count == 0 && debugMode == true)
+            if (fetchedSessionsList.Count == 0 && Program.config.ConsoleLogLevel >= LogLevel.Debug)
             {
                 if (_activeSessionList.Count > 0)
                     LogDebug($"Server API returned 0 active sessions. {_activeSessionList.Count} were previously tracked.");
-                else
-                    LogDebug("Server API returned 0 active sessions.");
             }
 
             List<Task> tasks = [];
@@ -176,7 +177,7 @@ namespace RewindSubtitleDisplayerForPlex
                 }
             }
 
-            if (_activeSessionList.Count == 0 && removedSessionsCount > 0 && debugMode == true)
+            if (_activeSessionList.Count == 0 && removedSessionsCount > 0)
             {
                 LogDebug($"No active sessions found after removing {removedSessionsCount} leftover sessions.");
             }

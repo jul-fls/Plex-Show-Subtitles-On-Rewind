@@ -109,12 +109,12 @@ public class PlexNotificationListener : IDisposable
                 catch (JsonException jsonEx)
                 {
                     LogError($"Listener: Error deserializing event data: {jsonEx.Message}");
-                    if (Program.debugMode) WriteLineSafe($"   Raw Data: {serverEvent.Data}");
+                    if (Program.config.ConsoleLogLevel >= LogLevel.Debug) WriteLineSafe($"   Raw Data: {serverEvent.Data}");
                 }
                 catch (Exception ex)
                 {
                     LogError($"Listener: Error handling event: {ex.Message}");
-                    if (Program.debugMode) WriteLineSafe($"   Raw Data: {serverEvent.Data}");
+                    if (Program.config.ConsoleLogLevel >= LogLevel.Debug) WriteLineSafe($"   Raw Data: {serverEvent.Data}");
                 }
             }
 
@@ -232,7 +232,7 @@ public class PlexNotificationListener : IDisposable
         // Log ping events separately if desired, or just ignore them
         if (plexEventInfo.EventName.Equals(EventType.Ping))
         {
-            //WriteColor("Received Plex ping.", ConsoleColor.DarkGray); // Can be noisy
+            LogDebugExtra($"Received Ping From Plex Server.");
         }
         else if (plexEventInfo.EventName.Equals(EventType.Playing))
         {

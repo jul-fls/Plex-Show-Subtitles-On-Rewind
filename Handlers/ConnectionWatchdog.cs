@@ -136,7 +136,7 @@ namespace RewindSubtitleDisplayerForPlex
                         LogInfo($"Connection Watcher: Found {initialSessions.Count} initial session(s).", ConsoleColor.Cyan);
 
                         // Create monitors for these sessions
-                        MonitorManager.CreateAllMonitoringAllSessions(initialSessions, printDebugAll: Program.debugMode);
+                        MonitorManager.CreateAllMonitoringAllSessions(initialSessions);
 
                         // Start the MonitorManager's polling loop
                         MonitorManager.StartMonitoringLoop();

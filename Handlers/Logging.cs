@@ -8,22 +8,11 @@ using System.Threading.Tasks;
 namespace RewindSubtitleDisplayerForPlex;
 internal static class Logging
 {
-    private static bool _verbose => Program.verboseMode;
-    private static bool _debug => Program.debugMode;
     private static readonly Lock ConsoleWriterLock = new Lock();
-    
+    private static LogLevel _logLevel => Program.config.ConsoleLogLevel; // Default log level
+
 
     private static readonly string LogFilePath = Path.Combine(Environment.CurrentDirectory, MyStrings.LogFileName);
-
-    // Log levels
-    public enum LogLevel
-    {
-        Info,
-        Verbose,
-        Warning,
-        Error,
-        Debug
-    }
 
     private static string GetPrefix(LogLevel level)
     {
@@ -31,9 +20,9 @@ internal static class Logging
         {
             LogLevel.Warning => "[ WARNING ]  ",
             LogLevel.Verbose => "[ VERBOSE ]  ",
-            LogLevel.Info => "[  INFO   ]  ",
-            LogLevel.Error => "[  ERROR  ]  ",
-            LogLevel.Debug => "[  DEBUG  ]  ",
+            LogLevel.Info =>    "[  INFO   ]  ",
+            LogLevel.Error =>   "[  ERROR  ]  ",
+            LogLevel.Debug =>   "[  DEBUG  ]  ",
             _ => "[UNKNOWN] "
         };
     }
@@ -132,39 +121,45 @@ internal static class Logging
 
     public static void LogInfo(string message, ConsoleColor? color = null)
     {
-        Log(message, LogLevel.Info, null, color);
+        if (_logLevel >= LogLevel.Info)
+            Log(message, LogLevel.Info, null, color);
     }
 
     public static void LogDebug(string message, ConsoleColor? messageColor = null)
     {
-        if (_debug)
-        {
+        if (_logLevel >= LogLevel.Debug)
             Log(message, LogLevel.Debug, ConsoleColor.DarkGray, messageColor);
-        }
+    }
+
+    public static void LogDebugExtra(string message, ConsoleColor? messageColor = null)
+    {
+        if (_logLevel >= LogLevel.DebugExtra)
+            Log(message, LogLevel.DebugExtra, ConsoleColor.DarkGray, messageColor);
     }
 
     public static void LogWarning(string message, ConsoleColor? messageColor = null)
     {
-        Log(message, LogLevel.Warning, ConsoleColor.Yellow, messageColor);
+        if (_logLevel >= LogLevel.Warning)
+            Log(message, LogLevel.Warning, ConsoleColor.Yellow, messageColor);
     }
 
     public static void LogError(string message, ConsoleColor? messageColor = null)
     {
-        Log(message, LogLevel.Error, ConsoleColor.Red, messageColor);
+        if (_logLevel >= LogLevel.Error)
+            Log(message, LogLevel.Error, ConsoleColor.Red, messageColor);
     }
 
     public static void LogVerbose(string message, ConsoleColor? messageColor = null)
     {
-        if (_verbose)
-        {
+        if (_logLevel >= LogLevel.Verbose)
             Log(message, LogLevel.Verbose, null, messageColor);
-        }
     }
 
     // Log success message with green color for both the log type prefix and message
     public static void LogSuccess(string message)
     {
-        Log(message, LogLevel.Info, logTypeColor: ConsoleColor.Green, null);
+        if (_logLevel >= LogLevel.Info)
+            Log(message, LogLevel.Info, logTypeColor: ConsoleColor.Green, null);
     }
 
     // ------------------------------- COLOR RELATED ---------------------------------

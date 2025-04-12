@@ -8,7 +8,6 @@
         private readonly double _activeFrequencySec;
         private readonly double _idleFrequencySec;
         private readonly double _maxRewindAmountSec;
-        private readonly bool _printDebug;
         private readonly string _deviceName;
 
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
@@ -35,7 +34,6 @@
             double activeFrequencySec,
             double idleFrequencySec,
             double maxRewindAmountSec,
-            bool printDebug = false,
             int smallestResolution = MonitorManager.DefaultSmallestResolution
             )
         {
@@ -43,7 +41,6 @@
             _activeFrequencySec = activeFrequencySec;
             _idleFrequencySec = idleFrequencySec;
             _maxRewindAmountSec = maxRewindAmountSec;
-            _printDebug = printDebug;
             _deviceName = _activeSession.DeviceName;
             _idleFrequencySec = idleFrequencySec;
             _isMonitoring = false;
@@ -68,7 +65,6 @@
             _activeFrequencySec = otherMonitor._activeFrequencySec;
             _idleFrequencySec = otherMonitor._idleFrequencySec;
             _maxRewindAmountSec = otherMonitor._maxRewindAmountSec;
-            _printDebug = otherMonitor._printDebug;
             _idleFrequencySec = otherMonitor._idleFrequencySec;
             _isMonitoring = otherMonitor._isMonitoring;
             _subtitlesUserEnabled = otherMonitor._subtitlesUserEnabled;
@@ -94,7 +90,7 @@
             }
             // --------------------------------------------------
 
-            if (_printDebug)
+            if (Program.config.ConsoleLogLevel >= LogLevel.Debug)
                 return seconds.ToString() + $" ({SecondsToTimeString(seconds)})";
             else
                 return SecondsToTimeString(seconds);
@@ -130,13 +126,43 @@
             _temporarilyDisplayingSubtitles = false;
         }
 
-        private void UpdateLatestWatchedPosition(double newTime)
+        private void SetLatestWatchedPosition(double newTime)
         {
             // If we're in a cooldown, that means the user might still be rewinding further,
             // so we don't want to update the latest watched position until the cooldown is over,
             // otherwise when they finish rewinding beyond the max it might result in showing subtitles again
             if (_cooldownCyclesLeft == 0)
                 _latestWatchedPosition = newTime;
+        }
+
+        private void PrintTimelineDebugMessage(double positionSec, bool isFromNotification, bool temporarySubtitlesWereEnabledForPass, string prepend="")
+        {
+            string subtitlesStatus = _activeSession.KnownIsShowingSubtitles.HasValue
+                ? _activeSession.KnownIsShowingSubtitles.Value.ToString()
+                : "Unknown";
+
+            string msgPart1 = $"           > {_deviceName}: Position: {positionSec} " +
+                $"| Latest: {_latestWatchedPosition} " +
+                $"| Prev: {_previousPosition} " +
+                $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{temporarySubtitlesWereEnabledForPass} " +
+                //$"| FromNotification: {isFromNotification} " + // Not currently using notifications
+                $"| UserEnabledSubs: ";
+
+            msgPart1 = prepend + msgPart1;
+
+            string msgPart2 = _subtitlesUserEnabled.ToString();
+
+            // Print last part about user subs with color if enabled so it's more obvious
+            if (_subtitlesUserEnabled)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                WriteColorParts(msgPart1, msgPart2, ConsoleColor.White, ConsoleColor.Red);
+            }
+            else
+            {
+                WriteLineSafe(msgPart1 + msgPart2);
+                Task.Run(() => MyLogger.LogToFile(msgPart1 + msgPart2));
+            }
         }
 
         // This is a point-in-time function that will stop subtitles based on last known position and collected data
@@ -147,32 +173,23 @@
             try
             {
                 double positionSec = _activeSession.GetPlayPositionSeconds();
-                double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
-                if (_printDebug)
-                {
-                    string msgPart1 = $"           > {_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  Actually/Expected Showing Subs: {_activeSession.KnownIsShowingSubtitles}/{_temporarilyDisplayingSubtitles} | FromNotification: {isFromNotification} | UserEnabledSubs: ";
-                    string msgPart2 = _subtitlesUserEnabled.ToString();
+                bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
 
-                    // Print last part about user subs with color if enabled so it's more obvious
-                    if (_subtitlesUserEnabled)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        WriteColorParts(msgPart1, msgPart2, ConsoleColor.White, ConsoleColor.Red);
-                    }
-                    else
-                    {
-                        WriteLineSafe(msgPart1 + msgPart2);
-                        Task.Run(() => MyLogger.LogToFile(msgPart1 + msgPart2));
-                    }
+                // If the position is the same as before, we don't have any new info so don't do anything
+                if (positionSec == _previousPosition)
+                {
+                    LogDebugExtra($"{_deviceName}: Ignoring message without new data.");
+                    return;
                 }
 
+                double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
                     
                 // If the user had manually enabled subtitles, check if they disabled them
                 if (_subtitlesUserEnabled)
                 {
-                    UpdateLatestWatchedPosition(positionSec);
+                    SetLatestWatchedPosition(positionSec);
                     // If the active subtitles are empty, the user must have disabled them
-                    if (_activeSession.HasActiveSubtitles() == false)
+                    if (_activeSession.KnownIsShowingSubtitles == false)
                     {
                         _subtitlesUserEnabled = false;
                     }
@@ -182,7 +199,7 @@
                 else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true)
                 {
                     _subtitlesUserEnabled = true;
-                    UpdateLatestWatchedPosition(positionSec);
+                    SetLatestWatchedPosition(positionSec);
                     LogInfo($"{_deviceName}: User appears to have enabled subtitles manually.", Yellow);
                 }
                 // Only further process & check for rewinds if the user hasn't manually enabled subtitles
@@ -196,7 +213,7 @@
                         {
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded", Yellow);
 
-                            UpdateLatestWatchedPosition(positionSec);
+                            SetLatestWatchedPosition(positionSec);
                             StopSubtitlesIfNotUserEnabled();
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
@@ -204,7 +221,7 @@
                         {
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
 
-                            UpdateLatestWatchedPosition(positionSec);
+                            SetLatestWatchedPosition(positionSec);
                             StopSubtitlesIfNotUserEnabled();
 
                             // Initiate a cooldown, because if the user is rewinding in steps with a remote with brief pauses,
@@ -229,7 +246,7 @@
                         else if (positionSec > _latestWatchedPosition + _smallestResolution)
                         {
                             ReachedOriginalPosition();
-                            UpdateLatestWatchedPosition(positionSec);
+                            SetLatestWatchedPosition(positionSec);
                         }
                     }
                     // Special handling during cooldown
@@ -239,7 +256,7 @@
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
                             LogInfo($"{_deviceName}: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
-                            UpdateLatestWatchedPosition(positionSec);
+                            SetLatestWatchedPosition(positionSec);
                             _cooldownCyclesLeft = 0; // Reset cooldown
                         }
                         else if (!isFromNotification)
@@ -266,9 +283,13 @@
                     // Otherwise update the latest watched position
                     else
                     {
-                        UpdateLatestWatchedPosition(positionSec);
+                        SetLatestWatchedPosition(positionSec);
                     }
                 }
+
+                // Print the timeline debug message at the end of the pass so the watch position related data is updated
+                // But use the temporary subtitles value from the start of the pass because any changes wouldn't have taken effect yet because the player takes time to do it
+                if (Program.config.ConsoleLogLevel >= LogLevel.Debug) PrintTimelineDebugMessage(positionSec, isFromNotification, temporarySubtitlesWereEnabledForPass);
 
                 _previousPosition = positionSec;
 
@@ -302,31 +323,25 @@
 
             try
             {
-                if (_activeSession.HasActiveSubtitles())
+                if (_activeSession.KnownIsShowingSubtitles == true)
                 {
                     _subtitlesUserEnabled = true;
                 }
 
                 _latestWatchedPosition = _activeSession.GetPlayPositionSeconds();
-                if (_printDebug)
-                {
-                    LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
-                }
+                LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
 
                 _previousPosition = _latestWatchedPosition;
                 _isMonitoring = true;
 
                 MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway
 
-                if (_printDebug)
-                {
-                    LogDebug($"Finished setting up monitoring for {_deviceName} and ran first pass.");
-                }
+                LogDebug($"Finished setting up monitoring for {_deviceName} and ran first pass.");
             }
             catch (Exception e)
             {
                 LogError($"Error during monitoring setup: {e.Message}");
-                if (_printDebug)
+                if (Program.config.ConsoleLogLevel >= LogLevel.Debug)
                     WriteLineSafe(e.StackTrace);
             }
         }

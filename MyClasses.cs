@@ -573,18 +573,6 @@ public class ActiveSession
 
     // ------------------ Methods ------------------
 
-    public bool HasActiveSubtitles()
-    {
-        if (KnownIsShowingSubtitles != null)
-        {
-            return KnownIsShowingSubtitles.Value; // If we know for sure, return that value
-        }
-        else
-        {
-            return ActiveSubtitles.Count > 0;
-        }
-    }
-
     public double GetPlayPositionSeconds()
     {
         int positionMilliseconds;
@@ -696,7 +684,9 @@ public class ActiveSession
 
         if (commandResult.Success)
         {
-            KnownIsShowingSubtitles = false; // If the command was successful, we know subtitles are not showing
+            // There is a delay from the server even after it accepts the command
+            // So we'll set to null because we can't be sure it's false yet. It will be updated in the next timeline update
+            KnownIsShowingSubtitles = null; 
         }
     }
 
