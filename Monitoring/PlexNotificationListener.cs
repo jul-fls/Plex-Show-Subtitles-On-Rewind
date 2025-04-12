@@ -109,12 +109,12 @@ public class PlexNotificationListener : IDisposable
                 catch (JsonException jsonEx)
                 {
                     LogError($"Listener: Error deserializing event data: {jsonEx.Message}");
-                    if (Program.debugMode) Console.WriteLine($"   Raw Data: {serverEvent.Data}");
+                    if (Program.debugMode) WriteLineSafe($"   Raw Data: {serverEvent.Data}");
                 }
                 catch (Exception ex)
                 {
                     LogError($"Listener: Error handling event: {ex.Message}");
-                    if (Program.debugMode) Console.WriteLine($"   Raw Data: {serverEvent.Data}");
+                    if (Program.debugMode) WriteLineSafe($"   Raw Data: {serverEvent.Data}");
                 }
             }
 

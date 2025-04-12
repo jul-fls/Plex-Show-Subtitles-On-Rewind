@@ -409,7 +409,7 @@ public static class SettingsHandler
         Dictionary<ISettingInfo, string> failedSettings = settings.SettingsThatFailedToLoad;
         Dictionary<ISettingInfo, string>  warnedSettings = settings.SettingsThatTriggeredWarning;
 
-        Console.WriteLine("\n------------------------ Resulting Config ------------------------\n\n" +
+        WriteLineSafe("\n------------------------ Resulting Config ------------------------\n\n" +
             "These resulting values will be used based on your config file.\n" +
             "Note: They may not appear exactly as they do in the file, such as for 'auto' settings and values reset to default because they failed or were missing.\n");
 
@@ -449,29 +449,29 @@ public static class SettingsHandler
                 if (problem == ProblemType.Error)
                 {
                     WriteRedSuper(configName, noNewline: true);
-                    Console.Write(" = ");
-                    Console.Write($"{resultValue}");
+                    WriteSafe(" = ");
+                    WriteSafe($"{resultValue}");
                     WriteRed("  (See Error Above) - Default Value Will Be Used");
                 }
                 else if (problem == ProblemType.Warning)
                 {
                     WriteYellow(configName, noNewline: true);
-                    Console.Write(" = ");
-                    Console.Write($"{resultValue}");
+                    WriteSafe(" = ");
+                    WriteSafe($"{resultValue}");
                     WriteYellow("  (See Warning Above)");
                 }
                 else if (problem == ProblemType.Missing)
                 {
                     WriteRedSuper(configName, noNewline: true);
-                    Console.Write(" = ");
-                    Console.Write($"{resultValue}");
+                    WriteSafe(" = ");
+                    WriteSafe($"{resultValue}");
                     WriteRed("  (Missing Setting) - Default Value Will Be Used");
                 }
                 else // No problem
                 {
                     WriteGreen(configName, noNewline: true);
-                    Console.Write(" = ");
-                    Console.WriteLine($"{resultValue}"); // Print the value
+                    WriteSafe(" = ");
+                    WriteLineSafe($"{resultValue}"); // Print the value
                 }
             }
         }
@@ -479,7 +479,7 @@ public static class SettingsHandler
         // Print unknown settings and missing settings
         if (settings.UnknownSettings.Count > 0)
         {
-            Console.WriteLine("\nUnknown Settings:");
+            WriteLineSafe("\nUnknown Settings:");
             foreach (string unknownSetting in settings.UnknownSettings)
             {
                 WriteRed(unknownSetting);
@@ -488,7 +488,7 @@ public static class SettingsHandler
 
         if (settings.MissingSettings.Count > 0)
         {
-            Console.WriteLine("\nMissing Settings:");
+            WriteLineSafe("\nMissing Settings:");
             foreach (string missingSetting in settings.MissingSettings)
             {
                 WriteRed(missingSetting);
@@ -575,8 +575,8 @@ public static class SettingsHandler
                     {
                         // Optional: Log or handle cases where essential info is missing
                         LogWarning($"Warning: Skipping field '{field.Name}'. ConfigName or DefaultValue is missing/null.");
-                        if (string.IsNullOrEmpty(configName)) Console.WriteLine($" - ConfigName is missing.");
-                        if (defaultValue == null) Console.WriteLine($" - DefaultValue is null.");
+                        if (string.IsNullOrEmpty(configName)) WriteLineSafe($" - ConfigName is missing.");
+                        if (defaultValue == null) WriteLineSafe($" - DefaultValue is null.");
                     }
                 }
             }
@@ -590,7 +590,7 @@ public static class SettingsHandler
         {
             // Handle exceptions (e.g., file access issues)
             LogError($"Error creating settings file: {ex.Message}");
-            // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
+            // Optionally log the inner exception: WriteLineSafe(ex.InnerException);
             return false; // Indicate failure
         }
     }
@@ -630,7 +630,7 @@ public static class SettingsHandler
             {
                 // Handle exceptions (e.g., file access issues)
                 WriteRed($"Error - Cannot update settings file. Failed while creating backup settings file: {ex.Message}");
-                // Optionally log the inner exception: Console.WriteLine(ex.InnerException);
+                // Optionally log the inner exception: WriteLineSafe(ex.InnerException);
                 return false; // Indicate failure
             }
         }

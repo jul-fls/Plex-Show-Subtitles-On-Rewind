@@ -93,7 +93,7 @@ internal static class Logger
         }
     }
 
-    public static void WriteLineSafe(string message)
+    public static void WriteLineSafe(string? message = null)
     {
         lock (ConsoleWriterLock) // Lock access to the console
         {
@@ -219,6 +219,35 @@ internal static class Logger
     public static void WriteRedSuper(string message, bool noNewline=false)
     {
         WriteWithBackground(message: message, foreground: ConsoleColor.White, background: ConsoleColor.DarkRed, noNewLine: noNewline);
+    }
+
+    public static void WriteColorParts(string msg1, string msg2, ConsoleColor? foreground1 = null, ConsoleColor? foreground2 = null)
+    {
+        lock (ConsoleWriterLock)
+        {
+            try
+            {
+                Console.ResetColor();
+
+                // First Part
+                if (foreground1 is ConsoleColor nonNullColor1)
+                    Console.ForegroundColor = nonNullColor1;
+
+                Console.Write(msg1);
+
+                // Second Part
+                if (foreground2 is ConsoleColor nonNullColor2)
+                    Console.ForegroundColor = nonNullColor2;
+                else
+                    Console.ResetColor();
+
+                Console.Write(msg2);
+            }
+            finally
+            {
+                Console.ResetColor();
+            }
+        }
     }
 
     public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)

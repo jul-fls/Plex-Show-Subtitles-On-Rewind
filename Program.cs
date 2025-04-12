@@ -45,8 +45,8 @@ namespace RewindSubtitleDisplayerForPlex
             if (!LaunchArgs.CheckForUnknownArgs(args))
             {
                 WriteColor("\n------------ See valid launch args below ------------\n", Yellow);
-                Console.WriteLine(LaunchArgs.AllLaunchArgsInfo + "\n\n");
-                Console.WriteLine("Press Enter to exit.");
+                WriteLineSafe(LaunchArgs.AllLaunchArgsInfo + "\n\n");
+                WriteLineSafe("Press Enter to exit.");
                 Console.ReadLine();
                 return;
             }
@@ -54,7 +54,7 @@ namespace RewindSubtitleDisplayerForPlex
             // Load Settings from file early on
             if (LaunchArgs.TestSettings.Check(args))
             {
-                Console.WriteLine();
+                WriteLineSafe();
                 SettingsHandler.LoadSettings(printResult: SettingsHandler.PrintResultType.ResultingConfig);
                 return;
             }
@@ -92,7 +92,7 @@ namespace RewindSubtitleDisplayerForPlex
                 else
                     WriteRed("Failed to generate token template file.");
 
-                Console.WriteLine("\nPress Enter to exit.");
+                WriteLineSafe("\nPress Enter to exit.");
                 Console.ReadLine();
                 return;
             }
@@ -129,8 +129,8 @@ namespace RewindSubtitleDisplayerForPlex
             // Display startup message or help message (right now they are basically the same)
             if (LaunchArgs.Help.Check(args))
             {
-                Console.WriteLine(LaunchArgs.AdvancedHelpInfo + "\n\n");
-                Console.WriteLine("Press Enter to exit.");
+                WriteLineSafe(LaunchArgs.AdvancedHelpInfo + "\n\n");
+                WriteLineSafe("Press Enter to exit.");
                 Console.ReadLine();
                 return;
             }
@@ -142,9 +142,9 @@ namespace RewindSubtitleDisplayerForPlex
                 else if (verboseMode)
                     WriteYellow("Verbose mode enabled.\n");
 
-                Console.WriteLine(LaunchArgs.StandardLaunchArgsInfo);
+                WriteLineSafe(LaunchArgs.StandardLaunchArgsInfo);
                 WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");
-                Console.WriteLine("------------------------------------------------------------------------\n");
+                WriteLineSafe("------------------------------------------------------------------------\n");
             }
 
             // ------------ New Instance Logic: Check for Duplicates ------------
@@ -179,7 +179,7 @@ namespace RewindSubtitleDisplayerForPlex
                     (string, string)? resultTuple = AuthTokenHandler.LoadTokens();
                     if (resultTuple == null)
                     {
-                        Console.WriteLine("\nFailed to load tokens. Exiting.");
+                        WriteLineSafe("\nFailed to load tokens. Exiting.");
                         if (!runBackgroundMode) { Console.ReadLine(); }
                         return;
                     }
@@ -194,7 +194,7 @@ namespace RewindSubtitleDisplayerForPlex
                     PLEX_APP_IDENTIFIER = "";
                 }
 
-                Console.WriteLine($"Using Plex server at {config.ServerURL}");
+                WriteLineSafe($"Using Plex server at {config.ServerURL}");
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
                 // --- Instantiate and Start Watchdog ---
@@ -230,7 +230,7 @@ namespace RewindSubtitleDisplayerForPlex
                     waitHandles = [_ctrlCExitEvent, _appShutdownCts.Token.WaitHandle];
                 }
 
-                Console.WriteLine("Application running. Press Ctrl+C to exit.");
+                WriteLineSafe("Application running. Press Ctrl+C to exit.");
                 int signaledHandleIndex = WaitHandle.WaitAny(waitHandles);
 
                 // Determine reason for exit
@@ -253,10 +253,10 @@ namespace RewindSubtitleDisplayerForPlex
             catch (Exception ex) // Catch errors during initial setup
             {
                 WriteErrorSuper($"Fatal error during startup: {ex.Message}\n");
-                Console.WriteLine(ex.StackTrace);
+                WriteLineSafe(ex.StackTrace);
                 if (!runBackgroundMode)
                 {
-                    Console.WriteLine("\nPress Enter to exit...");
+                    WriteLineSafe("\nPress Enter to exit...");
                     Console.ReadKey();
                 }
             }

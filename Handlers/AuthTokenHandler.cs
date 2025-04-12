@@ -75,8 +75,8 @@ public static class AuthTokenHandler
         {
             // Prompt the user if they want to go through the auth flow to generate a token
             WriteYellow($"\nRequired \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
-            Console.WriteLine(AuthStrings.tokenNote);
-            Console.Write("\nAuthorize App? (y/n): ");
+            WriteLineSafe(AuthStrings.tokenNote);
+            WriteSafe("\nAuthorize App? (y/n): ");
             string? userInput = Console.ReadLine();
             if (userInput != null && userInput.Equals("y", StringComparison.CurrentCultureIgnoreCase))
             {
@@ -176,9 +176,9 @@ public static class AuthTokenHandler
     public static void ClearLastLine()
     {
         Console.SetCursorPosition(0, Console.CursorTop - 1);
-        Console.Write(new string(' ', Console.BufferWidth - 1));
+        WriteSafe(new string(' ', Console.BufferWidth - 1));
         Console.SetCursorPosition(0, Console.CursorTop - 1);
-        Console.WriteLine(); // This seems needed to prevent weird overlapping of text
+        WriteLineSafe(); // This seems needed to prevent weird overlapping of text
     }
 
     static bool FullAuthFlow()
@@ -204,17 +204,17 @@ public static class AuthTokenHandler
             // Generate the auth URL and tell the user to visit it
             authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: appNameIncludingConfig);
 
-            Console.WriteLine("\n----------------------------------------------------------------");
+            WriteLineSafe("\n----------------------------------------------------------------");
             WriteGreen($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}");
-            Console.WriteLine("\n\nTip: After authorizing, you should see it show up in the 'devices' section at:" +
+            WriteLineSafe("\n\nTip: After authorizing, you should see it show up in the 'devices' section at:" +
                 "\n     http://<Your Server IP>:<Port>/web/index.html#!/settings/devices/all");
 
-            Console.WriteLine("\n----------------------------------------------------------------");
-            Console.Write("Press Enter to continue ");
+            WriteLineSafe("\n----------------------------------------------------------------");
+            WriteSafe("Press Enter to continue ");
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.Write("after you have authorized the app.");
+            WriteSafe("after you have authorized the app.");
             Console.ResetColor();
-            //Console.WriteLine(); // Don't add extra newline or else can't erase it
+            //WriteLineSafe(); // Don't add extra newline or else can't erase it
 
             // Wait for user to press Enter
             Console.ReadLine();
@@ -224,7 +224,7 @@ public static class AuthTokenHandler
         }
         else
         {
-            Console.WriteLine($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.");
+            WriteLineSafe($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.");
             return false;
         }
 
@@ -241,12 +241,12 @@ public static class AuthTokenHandler
             }
             else
             {
-                Console.WriteLine("----------------------------------------------------------------");
+                WriteLineSafe("----------------------------------------------------------------");
                 WriteErrorSuper("\nThe app does not appear authorized.", noNewLine:true);
                 WriteRed("  Visit this URL and sign in if you haven't already: ");
 
                 WriteGreen($"\n\t{authUrl}");
-                Console.WriteLine("\nThen press Enter to check again.");
+                WriteLineSafe("\nThen press Enter to check again.");
                 Console.ReadLine();
             }
         }
@@ -293,24 +293,24 @@ public static class AuthTokenHandler
             }
             else
             {
-                Console.WriteLine($"Request failed with status code: {response.StatusCode}");
+                WriteLineSafe($"Request failed with status code: {response.StatusCode}");
                 return new TokenGenResult(false);
             }
 
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine($"Request error: {e.Message}");
+            WriteLineSafe($"Request error: {e.Message}");
             return new TokenGenResult(false);
         }
         catch (TaskCanceledException e)
         {
-            Console.WriteLine($"Request timed out: {e.Message}");
+            WriteLineSafe($"Request timed out: {e.Message}");
             return new TokenGenResult(false);
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Unexpected error: {e.Message}");
+            WriteLineSafe($"Unexpected error: {e.Message}");
             return new TokenGenResult(false);
         }
     }
@@ -357,7 +357,7 @@ public static class AuthTokenHandler
         }
         else
         {
-            Console.WriteLine($"Request failed with status code: {response.StatusCode}");
+            WriteLineSafe($"Request failed with status code: {response.StatusCode}");
             return null;
         }
     }
@@ -378,26 +378,26 @@ public static class AuthTokenHandler
                 if (authTokenAttr != null && !string.IsNullOrEmpty(authTokenAttr.Value))
                 {
                     authToken = authTokenAttr.Value;
-                    Console.WriteLine("----------------------------------------------------------------");
+                    WriteLineSafe("----------------------------------------------------------------");
                     WriteSuccessSuper("\t    Success!    ");
-                    Console.WriteLine($"\tSuccessfully created auth token: {authToken}");
-                    Console.WriteLine($"\tIt will automatically be stored in the file {AuthStrings.tokenFileName}");
-                    Console.WriteLine("----------------------------------------------------------------");
+                    WriteLineSafe($"\tSuccessfully created auth token: {authToken}");
+                    WriteLineSafe($"\tIt will automatically be stored in the file {AuthStrings.tokenFileName}");
+                    WriteLineSafe("----------------------------------------------------------------");
                 }
                 else
                 {
-                    Console.WriteLine("\tReceived invalid token response.");
+                    WriteLineSafe("\tReceived invalid token response.");
                 }
             }
             else
             {
-                Console.WriteLine("\tReceived invalid token response.");
+                WriteLineSafe("\tReceived invalid token response.");
             }
             return authToken;
         }
         catch (XmlException ex)
         {
-            Console.WriteLine($"\tFailed to parse XML response: {ex.Message}");
+            WriteLineSafe($"\tFailed to parse XML response: {ex.Message}");
             return "";
         }
     }
@@ -424,7 +424,7 @@ public static class AuthTokenHandler
             else
             {
                 // If the result is null or doesn't contain the expected data, return a failure
-                Console.WriteLine("Token generation failed. Please check the response.");
+                WriteLineSafe("Token generation failed. Please check the response.");
                 return new TokenGenResult(false);
             }
 
@@ -433,12 +433,12 @@ public static class AuthTokenHandler
         catch (JsonException jsonEx)
         {
             // Handle potential JSON parsing errors
-            Console.WriteLine($"Error parsing token generation JSON: {jsonEx.Message}");
+            WriteLineSafe($"Error parsing token generation JSON: {jsonEx.Message}");
             return new TokenGenResult(false);
         }
         catch (Exception ex) // Catch other potential errors (e.g., if context.Default failed)
         {
-            Console.WriteLine($"Unexpected error in ParseTokenGenJsonResponse: {ex.Message}");
+            WriteLineSafe($"Unexpected error in ParseTokenGenJsonResponse: {ex.Message}");
             return new TokenGenResult(false);
         }
     }

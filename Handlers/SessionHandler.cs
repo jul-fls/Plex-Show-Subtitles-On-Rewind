@@ -262,30 +262,30 @@ namespace RewindSubtitleDisplayerForPlex
                 string deviceName = activeSession.DeviceName;
                 string mediaTitle = activeSession.MediaTitle;
 
-                Console.WriteLine("\n-------------------------------------");
-                Console.WriteLine($"Active Subtitles for {mediaTitle} on {deviceName}:");
+                WriteLineSafe("\n-------------------------------------");
+                WriteLineSafe($"Active Subtitles for {mediaTitle} on {deviceName}:");
                 if (activeSubtitles.Count == 0)
                 {
-                    Console.WriteLine("[None]");
+                    WriteLineSafe("[None]");
                 }
                 else
                 {
                     foreach (SubtitleStream subtitle in activeSubtitles)
                     {
-                        Console.WriteLine(subtitle.ExtendedDisplayTitle);
+                        WriteLineSafe(subtitle.ExtendedDisplayTitle);
                     }
                 }
 
-                Console.WriteLine($"\nAvailable Subtitles for {mediaTitle} on {deviceName}:");
+                WriteLineSafe($"\nAvailable Subtitles for {mediaTitle} on {deviceName}:");
                 if (availableSubtitles.Count == 0)
                 {
-                    Console.WriteLine("[None]");
+                    WriteLineSafe("[None]");
                 }
                 else
                 {
                     foreach (SubtitleStream subtitle in availableSubtitles)
                     {
-                        Console.WriteLine(subtitle.ExtendedDisplayTitle);
+                        WriteLineSafe(subtitle.ExtendedDisplayTitle);
                     }
                 }
             }

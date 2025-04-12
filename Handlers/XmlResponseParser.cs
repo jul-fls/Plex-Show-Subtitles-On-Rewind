@@ -38,8 +38,8 @@ public static class XmlResponseParser
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing MediaContainer XML: {ex.Message}");
-            // Optionally log the XML: Console.WriteLine($"XML: {xml}");
+            WriteLineSafe($"Error parsing MediaContainer XML: {ex.Message}");
+            // Optionally log the XML: WriteLineSafe($"XML: {xml}");
             return null;
         }
     }
@@ -71,8 +71,8 @@ public static class XmlResponseParser
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing Timeline MediaContainer XML: {ex.Message}");
-            // Optionally log the XML: Console.WriteLine($"XML: {xml}");
+            WriteLineSafe($"Error parsing Timeline MediaContainer XML: {ex.Message}");
+            // Optionally log the XML: WriteLineSafe($"XML: {xml}");
             return null;
         }
     }
@@ -100,8 +100,8 @@ public static class XmlResponseParser
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing Connection Test Response XML: {ex.Message}");
-            // Optionally log the XML: Console.WriteLine($"XML: {xml}");
+            WriteLineSafe($"Error parsing Connection Test Response XML: {ex.Message}");
+            // Optionally log the XML: WriteLineSafe($"XML: {xml}");
             return null;
         }
     }
@@ -144,8 +144,8 @@ public static class XmlResponseParser
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing Plex Media Item XML: {ex.Message}");
-            // Optionally log the XML: Console.WriteLine($"XML: {xml}");
+            WriteLineSafe($"Error parsing Plex Media Item XML: {ex.Message}");
+            // Optionally log the XML: WriteLineSafe($"XML: {xml}");
             return null;
         }
     }

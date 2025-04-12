@@ -68,19 +68,19 @@ namespace RewindSubtitleDisplayerForPlex
                     }
 
                     if (printDebug)
-                        Console.WriteLine($"Found {container.Sessions.Count} active Plex sessions");
+                        WriteLineSafe($"Found {container.Sessions.Count} active Plex sessions");
 
                     return container.Sessions;
                 }
                 else
                 {
-                    Console.WriteLine("Something went wrong deserializing the sessions MediaContainer. It returned null.");
+                    WriteLineSafe("Something went wrong deserializing the sessions MediaContainer. It returned null.");
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting sessions (Will return what it can): {ex.Message}");
+                WriteLineSafe($"Error getting sessions (Will return what it can): {ex.Message}");
                 return null;
             }
         }
@@ -119,18 +119,18 @@ namespace RewindSubtitleDisplayerForPlex
                         // If it's maintenance, return that specifically so we know to check more often
                         if (testResponse.Code == "503" && String.Equals(testResponse.Title, "maintenance", StringComparison.CurrentCultureIgnoreCase))
                         {
-                            Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
+                            WriteLineSafe($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
                             return ConnectionResult.Maintenance;
                         }
                         else
                         {
-                            Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
+                            WriteLineSafe($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
                             return ConnectionResult.Failure;
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
+                        WriteLineSafe($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
                         return ConnectionResult.Failure;
                     }
                     
@@ -138,32 +138,32 @@ namespace RewindSubtitleDisplayerForPlex
             }
             catch (HttpRequestException hEx)
             {
-                //Console.WriteLine($"Error testing connection: {hEx.Message}\n");
+                //WriteLineSafe($"Error testing connection: {hEx.Message}\n");
                 if (hEx.InnerException is SocketException socketEx)
                 {
                     if (socketEx.SocketErrorCode == SocketError.ConnectionRefused)
                     {
                         if (Program.debugMode)
-                            Console.WriteLine("Connection refused. Server may be down or unreachable.");
+                            WriteLineSafe("Connection refused. Server may be down or unreachable.");
                         return ConnectionResult.Refused;
                     }
                 }
 
                 // Fall through to general error handling
-                Console.WriteLine($"Server Connection Error: {hEx.Message}");
+                WriteLineSafe($"Server Connection Error: {hEx.Message}");
                 // If inner exception show it
                 if (hEx.InnerException != null)
                 {
-                    Console.WriteLine($"Inner Exception: {hEx.InnerException.Message}\n");
+                    WriteLineSafe($"Inner Exception: {hEx.InnerException.Message}\n");
                 }
                 return ConnectionResult.Failure;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Server Connection Error: {ex.Message}");
+                WriteLineSafe($"Server Connection Error: {ex.Message}");
                 if (ex.InnerException != null)
                 {
-                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}\n");
+                    WriteLineSafe($"Inner Exception: {ex.InnerException.Message}\n");
                 }
                 return ConnectionResult.Failure;
             }
@@ -210,25 +210,25 @@ namespace RewindSubtitleDisplayerForPlex
                     // Calculate subtitle count (restored from original logic)
                     int subtitleCount = mediaItem.GetSubtitleStreams().Count;
                     // Logging line (restored, still commented out as in original)
-                    // Console.WriteLine($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
+                    // WriteLineSafe($"Fetched media item: {mediaItem.Title} with {subtitleCount} subtitle streams");
 
                     return mediaItem;
                 }
                 else
                 {
                     // Parsing failed, log an error and return a default/empty item
-                    Console.WriteLine($"Failed to parse media item response for key: {key}");
+                    WriteLineSafe($"Failed to parse media item response for key: {key}");
                     return new PlexMediaItem(key: key); // Return an empty item with the key
                 }
             }
             catch (HttpRequestException httpEx)
             {
-                Console.WriteLine($"HTTP Error fetching media item {key}: {httpEx.Message}");
+                WriteLineSafe($"HTTP Error fetching media item {key}: {httpEx.Message}");
                 return new PlexMediaItem(key: key); // Return default on error
             }
             catch (Exception ex) // Catch other potential exceptions (network issues, etc.)
             {
-                Console.WriteLine($"Error fetching media item {key}: {ex.Message}");
+                WriteLineSafe($"Error fetching media item {key}: {ex.Message}");
                 return new PlexMediaItem(key: key); // Return default on error
             }
         }
@@ -369,7 +369,7 @@ namespace RewindSubtitleDisplayerForPlex
                 else
                 {
                     // If no active session, we can't send directly
-                    Console.WriteLine("No active session found to send command directly.");
+                    WriteLineSafe("No active session found to send command directly.");
                     mainUrlBase = _url;
                     retryUrlBase = null;
                 }
@@ -457,7 +457,7 @@ namespace RewindSubtitleDisplayerForPlex
                             // Log the retry failure
                             string retryErrorText = await retryResponse.Content.ReadAsStringAsync();
                             retryErrorText = retryErrorText.Replace("\n", " ");
-                            Console.WriteLine($"Retry failed. Error: {retryErrorText}");
+                            WriteLineSafe($"Retry failed. Error: {retryErrorText}");
                             return originalResult;
                         }
                     }
@@ -465,19 +465,19 @@ namespace RewindSubtitleDisplayerForPlex
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
                         //throw new UnauthorizedAccessException(message);
-                        Console.WriteLine("Unauthorized Error. Error Message: " + message);
+                        WriteLineSafe("Unauthorized Error. Error Message: " + message);
                         return new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
                     }
                     else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
                         //throw new FileNotFoundException(message);
-                        Console.WriteLine("Not Found Error. Error Message: " + message);
+                        WriteLineSafe("Not Found Error. Error Message: " + message);
                         return new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
                     }
                     else
                     {
                         //throw new InvalidOperationException(message);
-                        Console.WriteLine("Invalid Operation Error. Error Message: " + message);
+                        WriteLineSafe("Invalid Operation Error. Error Message: " + message);
                         return new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
                     }
                 }
@@ -497,7 +497,7 @@ namespace RewindSubtitleDisplayerForPlex
             catch (Exception ex)
             {
                 // Log the error and rethrow
-                Console.WriteLine($"Error sending command: {ex.Message}");
+                WriteLineSafe($"Error sending command: {ex.Message}");
                 return new CommandResult(success: false, responseErrorMessage: "[Exception while sending request, no response error to get]", responseXml: null);
             }
         }
@@ -522,7 +522,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
             catch (XmlException)
             {
-                Console.WriteLine("Invalid response from server. Command may have been successful anyway.");
+                WriteLineSafe("Invalid response from server. Command may have been successful anyway.");
                 return null;
             }
         }

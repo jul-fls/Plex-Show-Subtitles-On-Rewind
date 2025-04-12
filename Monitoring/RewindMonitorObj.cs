@@ -150,15 +150,19 @@
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
                 if (_printDebug)
                 {
-                    Console.Write($"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  Actually/Expected Showing Subs: {_activeSession.KnownIsShowingSubtitles}/{_temporarilyDisplayingSubtitles} | FromNotification: {isFromNotification} | UserEnabledSubs: ");
+                    string msgPart1 = $"{_deviceName}: Position: {positionSec} | Latest: {_latestWatchedPosition} | Prev: {_previousPosition} |  Actually/Expected Showing Subs: {_activeSession.KnownIsShowingSubtitles}/{_temporarilyDisplayingSubtitles} | FromNotification: {isFromNotification} | UserEnabledSubs: ";
+                    string msgPart2 = _subtitlesUserEnabled.ToString();
+
                     // Print last part about user subs with color if enabled so it's more obvious
                     if (_subtitlesUserEnabled)
                     {
                         Console.ForegroundColor = ConsoleColor.Red;
+                        WriteColorParts(msgPart1, msgPart2, ConsoleColor.White, ConsoleColor.Red);
                     }
-                    Console.Write(_subtitlesUserEnabled);
-                    Console.ResetColor();
-                    Console.WriteLine();
+                    else
+                    {
+                        WriteLineSafe(msgPart1 + msgPart2);
+                    }
                 }
 
                     
@@ -291,7 +295,7 @@
         {
             if (_isMonitoring)
             {
-                Console.WriteLine("Already monitoring this session");
+                WriteLineSafe("Already monitoring this session");
                 return;
             }
 
@@ -305,7 +309,7 @@
                 _latestWatchedPosition = _activeSession.GetPlayPositionSeconds();
                 if (_printDebug)
                 {
-                    Console.WriteLine($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
+                    WriteLineSafe($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
                 }
 
                 _previousPosition = _latestWatchedPosition;
@@ -315,13 +319,13 @@
 
                 if (_printDebug)
                 {
-                    Console.WriteLine($"Finished setting up monitoring for {_deviceName} and ran first pass.");
+                    WriteLineSafe($"Finished setting up monitoring for {_deviceName} and ran first pass.");
                 }
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error during monitoring setup: {e.Message}");
-                Console.WriteLine(e.StackTrace);
+                WriteLineSafe($"Error during monitoring setup: {e.Message}");
+                WriteLineSafe(e.StackTrace);
             }
         }
     }
