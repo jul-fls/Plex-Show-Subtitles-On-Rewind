@@ -27,7 +27,8 @@ Once playback reaches the point where you started the rewind, it will **automati
 * **Run Purely in Background**: On Windows use the `-background` launch argument to run it without any console Window. It will sit idle until Plex notifies it that Media is playing.
 
 ## Screenshot
-![Screenshot](https://github.com/user-attachments/assets/e01928bb-8131-47dc-b1c8-9479080a5d98)
+![window](https://github.com/user-attachments/assets/fa406e71-62a9-4d4b-a8e9-d2cd5ccd8005)
+
 
 
 ## Requirements
