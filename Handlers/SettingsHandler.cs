@@ -30,7 +30,7 @@ public class Settings
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
     public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
-    public IntOrAuto ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds", isAutoDefault:true); // Identifiable placeholder to know if user setting failed to set when not auto
+    public AutoSettingInfo<int> ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds", isAutoDefault:true); // Identifiable placeholder to know if user setting failed to set when not auto
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
 
     // Constructor to set descriptions for each setting
@@ -790,7 +790,7 @@ public class SettingInfo<T> : ISettingInfo
 
 // Generic base class for auto settings. Takes a type parameter T
 //TODO: Can probably consolidate this into the SettingInfo<T> class and remove the need for this class
-public abstract class AutoSettingBase<T>
+public class AutoSettingInfo<T> : ISettingInfo
 {
     // ------------ Matching Properties required by ISettingInfo ---------------
     public string ConfigName { get; set; } = string.Empty;
@@ -798,7 +798,7 @@ public abstract class AutoSettingBase<T>
     public Type ValueType => typeof(int);
     public string RawValue { get; protected set; } = string.Empty;
 
-    protected T _value;
+    private T _value;
     public virtual T Value
     {
         get => _value;
@@ -809,21 +809,47 @@ public abstract class AutoSettingBase<T>
         }
     }
 
-    public static implicit operator T(AutoSettingBase<T> setting) => setting.Value; // Implicit conversion to T
+    public static implicit operator T(AutoSettingInfo<T> setting) => setting.Value; // Implicit conversion to T
 
     public override string ToString() => _value?.ToString() ?? string.Empty;
 
     public object? GetValueAsObject() => _value; // Always return the resolved value
 
-    // Properties/Fields to leave in individual derived classes:
-    //      SetValueFromString() - Each derived class type needs to handle its own conversion
+    public void SetValueFromString(string stringValue)
+    {
+        _isSetToAuto = false; // Reset flag
+        this.RawValue = stringValue.Replace("\n", " ");
+
+        try
+        {
+
+            if (stringValue.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase))
+            {
+                _isSetToAuto = true;
+                // Don't set _value here yet, let CleanAndValidate handle the calculation based on other settings
+                // Or set a temporary placeholder if absolutely needed, but a flag is cleaner.
+                // _value = -1; // Example placeholder if needed, but prefer using the flag
+            }
+            else
+            {
+                // Perform the conversion from the input string to Type T internally
+                // This uses the known type T of this specific SettingInfo instance
+                this.Value = (T)Convert.ChangeType(stringValue, typeof(T));
+                return;
+            }
+        }
+        catch
+        {
+            throw new FormatException($"Failed to convert text '{stringValue}'.  Must be 'auto' or valid value for type {typeof(T).Name}.");
+        }
+    }
 
     // ----------------------------------------------------------------------------------
     // --------------------------------- Auto Settings ----------------------------------
     // ----------------------------------------------------------------------------------
 
     // Private / Protected fields
-    protected bool _isSetToAuto;
+    private bool _isSetToAuto;
 
     // --------------- Public Properties ---------------
     /// <summary>
@@ -838,7 +864,7 @@ public abstract class AutoSettingBase<T>
 
     // Implicitly require isAutoDefault using constructor, instead of 'required' keyword on the property
     // If additional constructors were added in the future, must remember to add this to all of them
-    protected AutoSettingBase(T defaultValuePlaceholder, string configName, bool isAutoDefault)
+    public AutoSettingInfo(T defaultValuePlaceholder, string configName, bool isAutoDefault)
     {
         IsAutoDefault = isAutoDefault;
         _isSetToAuto = isAutoDefault; // Initial value will be true if isAutoDefault is true
@@ -855,42 +881,4 @@ public abstract class AutoSettingBase<T>
         _isSetToAuto = true;
     }
 
-} // --- End of AutoSettingBase ---
-
-// Integer setting but also allows 'auto' string that will do some kind of calculation to get the value
-public class IntOrAuto : AutoSettingBase<int>, ISettingInfo
-{
-    // Constructor
-    public IntOrAuto(int defaultValuePlaceholder, string configName, bool isAutoDefault) : base(defaultValuePlaceholder, configName, isAutoDefault)
-    {
-        // Just pass through the parameters to the base class constructor
-    }
-
-    // ---------------------------------------------------------
-
-    public void SetValueFromString(string stringValue)
-    {
-        _isSetToAuto = false; // Reset flag
-        this.RawValue = stringValue.Replace("\n", "");
-
-        if (stringValue.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase))
-        {
-            _isSetToAuto = true;
-            // Don't set _value here yet, let CleanAndValidate handle the calculation based on other settings
-            // Or set a temporary placeholder if absolutely needed, but a flag is cleaner.
-            // _value = -1; // Example placeholder if needed, but prefer using the flag
-        }
-        else
-        {
-            if (!int.TryParse(stringValue.Trim(), out _value))
-            {
-                _isSetToAuto = false; // Ensure flag is false on failure so we know it was a user error
-                // We'll use -int.MaxValue as a placeholder for invalid values
-                _value = -int.MaxValue; // This will be caught in CleanAndValidate
-
-                // Let the caller (LoadSettings) handle the FormatException
-                throw new FormatException($"Invalid integer value: '{stringValue}' for setting '{ConfigName}'. Must be an integer or 'auto'. Default value will be used");
-            }
-        }
-    }
-}
+} // --- End of AutoSettingInfo ---
