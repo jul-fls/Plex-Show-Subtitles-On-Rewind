@@ -46,6 +46,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(LaunchArgs.AllLaunchArgsInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
                 ReadlineSafe();
+                OS_Handlers.FreeConsole();
                 return;
             }
 
@@ -54,6 +55,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteLineSafe();
                 SettingsHandler.LoadSettings(printResult: SettingsHandler.PrintResultType.ResultingConfig);
+                OS_Handlers.FreeConsole();
                 return;
             }
 
@@ -90,13 +92,13 @@ namespace RewindSubtitleDisplayerForPlex
 
                 WriteLineSafe("\nPress Enter to exit.");
                 ReadlineSafe();
-                return;
             }
 
             // Config Template Generation
             if (LaunchArgs.ConfigTemplate.Check(args))
             {
                 SettingsHandler.GenerateTemplateSettingsFile();
+                OS_Handlers.FreeConsole();
                 return;
             }
 
@@ -104,6 +106,7 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.UpdateSettings.Check(args))
             {
                 SettingsHandler.UpdateSettingsFile(config);
+                OS_Handlers.FreeConsole();
                 return;
             }
 
@@ -118,6 +121,7 @@ namespace RewindSubtitleDisplayerForPlex
                 InstanceCoordinator.SignalShutdown();
                 // Clean up handles for this short-lived instance
                 InstanceCoordinator.Cleanup();
+                OS_Handlers.FreeConsole();
                 return; // Exit this instance itself after signaling others to shutdown
             }
             // ---------- End Instance Coordination -----------
@@ -128,6 +132,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
                 ReadlineSafe();
+                OS_Handlers.FreeConsole();
                 return;
             }
             else // The normal launch message (only if not running background)
@@ -158,6 +163,7 @@ namespace RewindSubtitleDisplayerForPlex
                         if (!isBackgroundMode) { Utils.TimedWaitForEnterKey(15, "exit"); }
 
                         InstanceCoordinator.Cleanup(); // Cleanup handles
+                        OS_Handlers.FreeConsole();
                         return; // Exit New Instance
                     }
                 }
@@ -175,6 +181,7 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         WriteLineSafe("\nFailed to load tokens. Exiting.");
                         ReadlineSafe();
+                        OS_Handlers.FreeConsole();
                         return;
                     }
 
@@ -263,6 +270,9 @@ namespace RewindSubtitleDisplayerForPlex
                 //MonitorManager.RemoveAllMonitors(); // Not needed if we're just exiting the app, plus should be already handled
                 LogInfo("    Application exited.");
                 _ctrlCExitEvent.Dispose();
+                _appShutdownCts.Dispose(); // Dispose the cancellation token source
+
+                OS_Handlers.FreeConsole();
             }
         }
 

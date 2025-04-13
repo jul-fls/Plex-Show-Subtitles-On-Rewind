@@ -16,12 +16,26 @@ internal static partial class OS_Handlers
     {
         [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static partial bool AttachConsole(uint dwProcessId);
+        internal static partial bool AttachConsole(uint dwProcessId);
 
         [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static partial bool AllocConsole();
+        internal static partial bool AllocConsole();
+
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static partial bool FreeConsole(); // Added FreeConsole P/Invoke
     }
+
+    public static void FreeConsole()
+    {
+        if (OperatingSystem.IsWindows() && isConsoleAttachedOrAllocated)
+        {
+            WindowsNativeMethods.FreeConsole();
+        }
+    }
+
+    private static bool isConsoleAttachedOrAllocated = false;
 
     // Checks if background mode is supported and applys it. Returns true only if actually running in background mode.
     public static bool HandleBackgroundMode(bool runInBackgroundArg)
@@ -64,6 +78,7 @@ internal static partial class OS_Handlers
                         LogDebug(bgMode);
                         LogDebug(noParentConsole);
                         LogDebug("Console allocated successfully.");
+                        isConsoleAttachedOrAllocated = true;
                     }
 
 
@@ -74,6 +89,7 @@ internal static partial class OS_Handlers
                     LogDebug(osMessage);
                     LogDebug(bgMode);
                     LogDebug("Attached to parent console successfully.");
+                    isConsoleAttachedOrAllocated = true;
                     return false; // Successfully attached to the parent console, so we are not in background mode.
                 }
 
@@ -91,7 +107,7 @@ internal static partial class OS_Handlers
             {
                 LogError("Error: Can only use \"background\" mode (without console window) on Windows.");
             }
-
+            isConsoleAttachedOrAllocated = true;
             return false; // Not Windows, so return false always
         }
     }

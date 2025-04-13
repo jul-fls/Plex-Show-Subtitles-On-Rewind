@@ -14,6 +14,10 @@
     "Debug Upgrade": {
       "commandName": "Project",
       "commandLineArgs": "-u"
+    },
+    "Settings Template": {
+      "commandName": "Project",
+      "commandLineArgs": "-settings-template"
     }
   }
 }
