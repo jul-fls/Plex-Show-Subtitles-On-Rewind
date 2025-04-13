@@ -25,7 +25,10 @@
 
         // After disabling subtitles there is a delay before they actually stop showing, so we need to wait for that
         // Use this to check if subtitles have been disabled yet after we do, to avoid false positive that user enabled them
+        // Also track a timeout to assume user enabled them if they keep showing for a long time
         private bool isPendingSubtitlesDisabled = false;
+        private int pendingDisableTimeoutCount = 5;
+        private int pendingDisabledTimeoutCyclesLeft = 0;
 
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
@@ -102,34 +105,91 @@
 
         private void RewindOccurred()
         {
+            if (discardNextPass)
+                return;
+
             LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
-            _activeSession.EnableSubtitles();
+            StartSubtitlesWithRetry();
             _temporarilyDisplayingSubtitles = true;
         }
 
         // Disable subtitles but only if they were enabled by the monitor
         private void ReachedOriginalPosition()
         {
+            if (discardNextPass)
+                return;
+
             LogInfo($"{_deviceName}: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}", Yellow);
-            StopSubtitlesIfNotUserEnabled();
+            StopSubtitlesWithRetry(false);
         }
 
-        public void StopSubtitlesIfNotUserEnabled()
+        public void StartSubtitlesWithRetry()
         {
-            if (_temporarilyDisplayingSubtitles)
+            int retryCount = 3;
+            bool? success = false;
+
+            if (_activeSession.AvailableSubtitles.Count > 0) { }
+
+            _ = Task.Run(async () =>
             {
-                _activeSession.DisableSubtitles();
-                _temporarilyDisplayingSubtitles = false;
-                isPendingSubtitlesDisabled = true;
-            }
+                while (retryCount > 0 && success == false)
+                {
+                    success = await _activeSession.EnableSubtitles();
+                    if (success == true)
+                    {
+                        _temporarilyDisplayingSubtitles = true;
+                        break;
+                    }
+                    else if (success == false)
+                    {
+                        retryCount--;
+                        LogDebugExtra($"{_deviceName}: {retryCount} retries remaining to enable subtitles.");
+
+                        if (retryCount > 0)
+                            await Task.Delay(150); // Short delay before retrying
+                        else
+                            LogError($"{_deviceName}: Failed to enable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
+                    }
+                    else // It's null which means no available subtitles, so don't bother retrying
+                    {
+                        break;
+                    }
+                }
+            });
         }
 
-        // Disables subtitles regardless of how they were enabled
-        private void ForceStopShowingSubtitles()
+        public void StopSubtitlesWithRetry(bool force)
         {
-            _activeSession.DisableSubtitles();
-            _temporarilyDisplayingSubtitles = false;
-            isPendingSubtitlesDisabled = true;
+            if (_temporarilyDisplayingSubtitles || force == true)
+            {
+                int retryCount = 3;
+                bool success = false;
+
+                _ = Task.Run(async () =>
+                {
+                    while (retryCount > 0 && !success)
+                    {
+                        success = await _activeSession.DisableSubtitles();
+                        if (success)
+                        {
+                            _temporarilyDisplayingSubtitles = false;
+                            isPendingSubtitlesDisabled = true;
+                            pendingDisabledTimeoutCyclesLeft = pendingDisableTimeoutCount; // Reset the timeout counter
+                            break;
+                        }
+                        else
+                        {
+                            retryCount--;
+                            LogDebugExtra($"{_deviceName}: {retryCount} retries remaining to disable subtitles.");
+
+                            if (retryCount > 0)
+                                await Task.Delay(150); // Short delay before retrying
+                            else
+                                LogError($"{_deviceName}: Failed to disable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
+                        }
+                    }
+                });
+            }
         }
 
         private void SetLatestWatchedPosition(double newTime)
@@ -137,7 +197,7 @@
             // If we're in a cooldown, that means the user might still be rewinding further,
             // so we don't want to update the latest watched position until the cooldown is over,
             // otherwise when they finish rewinding beyond the max it might result in showing subtitles again
-            if (_cooldownCyclesLeft == 0)
+            if (_cooldownCyclesLeft == 0 && !discardNextPass)
                 _latestWatchedPosition = newTime;
         }
 
@@ -202,19 +262,10 @@
             try
             {
                 double positionSec;
-                if (isFromNotification == true) // From a notification
-                {
-                    discardNextPass = true;
-                }
-                else // From the polling loop
-                {
-                    if (discardNextPass)
-                    {
-                        LogDebugExtra($"{_deviceName}: Discarding current pass due to notification.");
-                        discardNextPass = false; // Reset for next time
-                        return;
-                    }
-                }
+
+                // We always want to use notification info if available, but this will be set to true again at the end of the pass
+                if (isFromNotification)
+                    discardNextPass = false;
 
                 // If the position is the same as before, we don't have any new info so don't do anything
                 positionSec = _activeSession.GetPlayPositionSeconds();
@@ -228,13 +279,29 @@
                 bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
 
-                // Reset pending subtitles disabled flag if we know they are not showing
-                if (_activeSession.KnownIsShowingSubtitles == false)
+                if (isPendingSubtitlesDisabled)
                 {
-                    isPendingSubtitlesDisabled = false; 
-                    LogDebugExtra($"{_deviceName}: Resetting pending subtitles disabled flag.");
+                    // Reset pending subtitles disabled flag if we know they are not showing
+                    if (_activeSession.KnownIsShowingSubtitles == false)
+                    {
+                        isPendingSubtitlesDisabled = false;
+                        pendingDisabledTimeoutCyclesLeft = 0; // Reset the timeout counter
+                        LogDebugExtra($"{_deviceName}: Resetting pending subtitles disabled flag and reset timeout cycle to 0.");
+                    }
+                    else if (pendingDisabledTimeoutCyclesLeft > 0)
+                    {
+                        if (!isFromNotification) // Only decrement if this is from the polling loop
+                            pendingDisabledTimeoutCyclesLeft--;
+                        LogDebugExtra($"{_deviceName}: Pending subtitles disabled timeout cycles left: {pendingDisabledTimeoutCyclesLeft}");
+                    }
+                    else // Pending timeout cycle has reached zero
+                    {
+                        // If the timeout has expired, we'll manually set the flag to false
+                        isPendingSubtitlesDisabled = false;
+                        LogDebugExtra($"{_deviceName}: Pending subtitles disabled timeout expired. Resetting flag to false.");
+                    }
                 }
-                    
+
                 // If the user had manually enabled subtitles, check if they disabled them
                 if (_subtitlesUserEnabled)
                 {
@@ -247,7 +314,7 @@
                 }
                 // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them.
                 // In this case again we don't want to stop them, so this is an else-if to prevent it falling through to the else
-                else if (!_temporarilyDisplayingSubtitles && !isPendingSubtitlesDisabled && _activeSession.KnownIsShowingSubtitles == true )
+                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true && !isPendingSubtitlesDisabled && pendingDisabledTimeoutCyclesLeft > 0)
                 {
                     _subtitlesUserEnabled = true;
                     SetLatestWatchedPosition(positionSec);
@@ -265,7 +332,7 @@
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded", Yellow);
 
                             SetLatestWatchedPosition(positionSec);
-                            StopSubtitlesIfNotUserEnabled();
+                            StopSubtitlesWithRetry(false);
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmountSec)
@@ -273,24 +340,12 @@
                             LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
 
                             SetLatestWatchedPosition(positionSec);
-                            StopSubtitlesIfNotUserEnabled();
+                            StopSubtitlesWithRetry(false);
 
                             // Initiate a cooldown, because if the user is rewinding in steps with a remote with brief pauses,
                             //      further rewinds may be interpreted as rewinds to show subtitles again
-                            // If in accurate mode, cooldown for 2 cycles (2 seconds), otherwise 1 cycle since that's about 5 seconds.
-
-                            // Note: Add 1 to the actual number of cooldowns you want because we decrement it immediately after at the end of the loop
-                            if (_activeSession.AccurateTimeMs != null)
-                            {
-                                _cooldownCyclesLeft = DefaultCooldownCount;
-                                _cooldownToUse = DefaultCooldownCount;
-                            }
-                            else
-                            {
-                                _cooldownCyclesLeft = 2;
-                                _cooldownToUse = 2;
-                            }
-
+                            _cooldownCyclesLeft = DefaultCooldownCount;
+                            _cooldownToUse = DefaultCooldownCount;
                         }
                         // Check if the position has gone back by the rewind amount.
                         // Add smallest resolution to avoid stopping subtitles too early
@@ -310,9 +365,10 @@
                             SetLatestWatchedPosition(positionSec);
                             _cooldownCyclesLeft = 0; // Reset cooldown
                         }
-                        else if (!isFromNotification)
+                        else
                         {
-                            _cooldownCyclesLeft--;
+                            if (!isFromNotification)
+                                _cooldownCyclesLeft--;
 
                             // If the user rewinded again while in cooldown, we want to reset the cooldown
                             if (positionSec < _previousPosition - 2)
@@ -340,9 +396,25 @@
 
                 // Print the timeline debug message at the end of the pass so the watch position related data is updated
                 // But use the temporary subtitles value from the start of the pass because any changes wouldn't have taken effect yet because the player takes time to do it
-                if (Program.config.ConsoleLogLevel >= LogLevel.Debug) PrintTimelineDebugMessage(positionSec, isFromNotification, temporarySubtitlesWereEnabledForPass);
+                string prepend = discardNextPass ? "Discarded: " : "";
+                if (Program.config.ConsoleLogLevel >= LogLevel.Debug) PrintTimelineDebugMessage(positionSec, isFromNotification, temporarySubtitlesWereEnabledForPass, prepend:prepend);
 
                 _previousPosition = positionSec;
+
+                // ----- Finally set or reset discard flag ------
+                // DiscardNextPass will make certain actions not happen unless the pass was triggered by a notification
+                if (isFromNotification == true) // From a notification
+                {
+                    discardNextPass = true;
+                }
+                else // From the polling loop
+                {
+                    if (discardNextPass)
+                    {
+                        LogDebugExtra($"{_deviceName}: Discarding current pass due to notification.");
+                        discardNextPass = false; // Reset for next time
+                    }
+                }
 
             }
             catch (Exception e)
@@ -356,7 +428,7 @@
         public void StopMonitoring()
         {
             _isMonitoring = false;
-            StopSubtitlesIfNotUserEnabled();
+            StopSubtitlesWithRetry(false);
         }
 
         public void RestartMonitoring()

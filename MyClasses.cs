@@ -658,7 +658,8 @@ public class ActiveSession
         }
     }
 
-    public async void EnableSubtitles(bool sendDirectToDevice = true)
+    // Returns true for success, false for failure, null for no subtitles available
+    public async Task<bool?> EnableSubtitles(bool sendDirectToDevice = true)
     {
         if (AvailableSubtitles.Count > 0)
         {
@@ -675,11 +676,30 @@ public class ActiveSession
                 subtitleID = AvailableSubtitles[0].Id;
             }
 
-            await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: sendDirectToDevice, subtitleStreamID: subtitleID, activeSession:this);
+            CommandResult result = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: sendDirectToDevice, subtitleStreamID: subtitleID, activeSession:this);
+
+            if (result.Success)
+            {
+                // There is a delay from the server even after it accepts the command
+                // So we'll set to null because we can't be sure it's true yet. It will be updated in the next timeline update
+                KnownIsShowingSubtitles = null;
+                return true;
+            }
+            else
+            {
+                // Log the error message
+                LogWarning($"Failed to enable subtitles: {result.Message}");
+                return false;
+            }
+        }
+        else
+        {
+            LogWarning("No available subtitles to enable.");
+            return null; // Use null to indicate no subtitles available
         }
     }
 
-    public async void DisableSubtitles(bool sendDirectToDevice = true)
+    public async Task<bool> DisableSubtitles(bool sendDirectToDevice = true)
     {
         CommandResult commandResult = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice:sendDirectToDevice, subtitleStreamID: 0, activeSession:this);
 
@@ -688,6 +708,13 @@ public class ActiveSession
             // There is a delay from the server even after it accepts the command
             // So we'll set to null because we can't be sure it's false yet. It will be updated in the next timeline update
             KnownIsShowingSubtitles = null; 
+            return true;
+        }
+        else
+        {
+            // Log the error message
+            LogWarning($"Failed to disable subtitles: {commandResult.Message}");
+            return false;
         }
     }
 
