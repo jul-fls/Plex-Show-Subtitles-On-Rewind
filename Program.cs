@@ -46,8 +46,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(LaunchArgs.AllLaunchArgsInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
                 ReadlineSafe();
-                OS_Handlers.FreeConsole();
-                return;
+                ExitProgramSafe();
             }
 
             // Load Settings from file early on
@@ -55,8 +54,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteLineSafe();
                 SettingsHandler.LoadSettings(printResult: SettingsHandler.PrintResultType.ResultingConfig);
-                OS_Handlers.FreeConsole();
-                return;
+                ExitProgramSafe();
             }
 
             // Load settings file and set default values if not present
@@ -98,16 +96,14 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.ConfigTemplate.Check(args))
             {
                 SettingsHandler.GenerateTemplateSettingsFile();
-                OS_Handlers.FreeConsole();
-                return;
+                ExitProgramSafe();
             }
 
             // Update Settings File
             if (LaunchArgs.UpdateSettings.Check(args))
             {
                 SettingsHandler.UpdateSettingsFile(config);
-                OS_Handlers.FreeConsole();
-                return;
+                ExitProgramSafe();
             }
 
             // ------------ Instance Coordination ------------
@@ -121,8 +117,7 @@ namespace RewindSubtitleDisplayerForPlex
                 InstanceCoordinator.SignalShutdown();
                 // Clean up handles for this short-lived instance
                 InstanceCoordinator.Cleanup();
-                OS_Handlers.FreeConsole();
-                return; // Exit this instance itself after signaling others to shutdown
+                ExitProgramSafe();
             }
             // ---------- End Instance Coordination -----------
 
@@ -132,8 +127,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
                 ReadlineSafe();
-                OS_Handlers.FreeConsole();
-                return;
+                ExitProgramSafe();
             }
             else // The normal launch message (only if not running background)
             {
@@ -163,8 +157,7 @@ namespace RewindSubtitleDisplayerForPlex
                         if (!isBackgroundMode) { Utils.TimedWaitForEnterKey(15, "exit"); }
 
                         InstanceCoordinator.Cleanup(); // Cleanup handles
-                        OS_Handlers.FreeConsole();
-                        return; // Exit New Instance
+                        ExitProgramSafe();
                     }
                 }
             }
@@ -181,8 +174,7 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         WriteLineSafe("\nFailed to load tokens. Exiting.");
                         ReadlineSafe();
-                        OS_Handlers.FreeConsole();
-                        return;
+                        return; // Will end up in finally block
                     }
 
                     PLEX_APP_TOKEN = resultTuple.Value.Item1;
@@ -272,8 +264,25 @@ namespace RewindSubtitleDisplayerForPlex
                 _ctrlCExitEvent.Dispose();
                 _appShutdownCts.Dispose(); // Dispose the cancellation token source
 
-                OS_Handlers.FreeConsole();
+                ExitProgramSafe();
             }
+        }
+
+        private static void ExitProgramSafe()
+        {
+            try
+            {
+                // Flush standard output and error streams BEFORE releasing the console
+                Console.Out.Flush();
+                Console.Error.Flush();
+            }
+            catch (IOException ex)
+            {
+                Debug.WriteLine($"Error flushing console output: {ex.Message}");
+            }
+
+            OS_Handlers.FreeConsole();
+            Environment.Exit(0);
         }
 
     }  // ---------------- End class Program ----------------
