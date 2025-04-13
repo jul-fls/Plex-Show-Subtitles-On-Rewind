@@ -280,8 +280,8 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 Debug.WriteLine($"Error flushing console output: {ex.Message}");
             }
-
-            OS_Handlers.FreeConsole();
+            SayPressEnterIfConsoleAttached();
+            OS_Handlers.FreeConsoleIfNeeded();
             Environment.Exit(0);
         }
 

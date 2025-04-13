@@ -27,7 +27,7 @@ internal static partial class OS_Handlers
         internal static partial bool FreeConsole();
     }
 
-    public static void FreeConsole()
+    public static void FreeConsoleIfNeeded()
     {
         if (OperatingSystem.IsWindows() && isConsoleAttached)
         {
@@ -35,7 +35,7 @@ internal static partial class OS_Handlers
         }
     }
 
-    private static bool isConsoleAttached = false;
+    public static bool isConsoleAttached = false;
 
     // Checks if background mode is supported and applys it. Returns true only if actually running in background mode.
     public static bool HandleBackgroundMode(bool runInBackgroundArg)
@@ -89,6 +89,12 @@ internal static partial class OS_Handlers
                     LogDebug(bgMode);
                     LogDebug("Attached to parent console successfully.");
                     isConsoleAttached = true;
+
+                    // Use carriage return to clear the current line and write the full width of the console
+                    Console.Write("\r");
+                    Console.Write(new string(' ', Console.WindowWidth-1));
+                    Console.Write("\r");
+
                     return false; // Successfully attached to the parent console, so we are not in background mode.
                 }
 

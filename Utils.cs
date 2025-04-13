@@ -137,6 +137,16 @@ internal class Utils
         return enterWasPressed;
     }
 
+    public static void SayPressEnterIfConsoleAttached()
+    {
+        // If running in background mode, don't wait for user input.
+        if (OS_Handlers.isConsoleAttached)
+        {
+            Console.WriteLine("\nPress Enter to Exit...");
+            //ReadlineSafe(); // This isn't actually needed for some reason
+        }
+    }
+
     public static string? ReadlineSafe()
     {
         // If running in background mode, don't wait for user input.
