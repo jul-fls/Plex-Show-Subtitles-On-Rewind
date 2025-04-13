@@ -49,6 +49,7 @@ namespace RewindSubtitleDisplayerForPlex
                             {
                                 monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
                                 monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
+                                RestartPassTimer();
                             }
                             else
                             {
@@ -208,44 +209,45 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
+
+        private static bool skip = false; // Used to prevent skipping if the session is already at the end of the video
         // This contains the main loop that refreshes the monitors and checks their state
         // It also handles the transition between active and idle states
         private static void PollingRefreshLoop()
         {
             while (_isRunning)
             {
-                _sleepResetEvent.Reset();
+                if (skip == false)
+                {   
+                    MonitoringState previousState = _monitoringState;
+                    MonitoringState pendingNewState = RunMonitors_OneIteration(_allMonitors);
 
-                //_ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
-
-                MonitoringState previousState = _monitoringState;
-                MonitoringState pendingNewState = RunMonitors_OneIteration(_allMonitors);
-
-                // When switching from active to idle, we'll allow a few extra loops before actually switching to idle
-                if (pendingNewState == MonitoringState.Idle && previousState == MonitoringState.Active)
-                {
-                    _idleGracePeriodCount++;
-                    if (_idleGracePeriodCount > 5)
+                    // When switching from active to idle, we'll allow a few extra loops before actually switching to idle
+                    if (pendingNewState == MonitoringState.Idle && previousState == MonitoringState.Active)
                     {
-                        _monitoringState = MonitoringState.Idle;
+                        _idleGracePeriodCount++;
+                        if (_idleGracePeriodCount > 5)
+                        {
+                            _monitoringState = MonitoringState.Idle;
+                            _idleGracePeriodCount = 0;
+                        }
+                    }
+                    else
+                    {
+                        _monitoringState = pendingNewState;
                         _idleGracePeriodCount = 0;
                     }
-                }
-                else
-                {
-                    _monitoringState = pendingNewState;
-                    _idleGracePeriodCount = 0;
-                }
 
-                // Notify if the monitoring state has actually changed
-                if (_monitoringState != previousState && _monitoringState == MonitoringState.Idle)
-                    LogVerbose("Switched to idle mode.");
-                else if (_monitoringState != previousState && _monitoringState == MonitoringState.Active)
-                    LogVerbose("Switched to active mode.");
+                    // Notify if the monitoring state has actually changed
+                    if (_monitoringState != previousState && _monitoringState == MonitoringState.Idle)
+                        LogVerbose("Switched to idle mode.");
+                    else if (_monitoringState != previousState && _monitoringState == MonitoringState.Active)
+                        LogVerbose("Switched to active mode.");
 
-                // Do the refresh right before the sleep so it will have time to process before the next pass
-                // This is async and will not block this loop
-                _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
+                    // Do the refresh right before the sleep so it will have time to process before the next pass
+                    // This is async and will not block this loop
+                    _ = SessionHandler.RefreshExistingActiveSessionsAsync(currentState: _monitoringState);
+                }
 
                 // Sleep for a while based on the current mode, but use the cancellable sleep mechanism
                 int sleepTime;
@@ -259,11 +261,22 @@ namespace RewindSubtitleDisplayerForPlex
                     sleepTime = (int)_globalIdleFrequencyMs;
 
                 // Wait on the event with a timeout, allowing for cancellation
+                skip = false;
+                _sleepResetEvent.Reset();
                 _sleepResetEvent.WaitOne(millisecondsTimeout: sleepTime);
             }
 
             LogDebug("MonitorManager: Exiting polling refresh loop.");
             _isRunning = false; // Ensure state is updated on exit
+        }
+
+        // If the _sleepResetEvent is waiting, this will wake it up, but set a flag so the loop skips right back to waiting again with the full time
+        // If the loop was already going, this will not affect it
+        public static void RestartPassTimer()
+        {
+            skip = true; // Set the flag to skip the sleep
+            _sleepResetEvent.Set(); // Wake up the sleeping thread
+            LogDebugExtra("Sleep timer reset - skipping to next pass.");
         }
 
         public static void BreakFromIdle()

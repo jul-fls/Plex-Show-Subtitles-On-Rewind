@@ -15,13 +15,16 @@ public class Settings
 
     // This is also the order they will be written to the settings file
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
+
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
-    public SettingInfo<double> ActiveMonitorFrequency = new(1, "Active_Monitor_Frequency_Seconds");
+    public SettingInfo<double> ActiveMonitorFrequency = new(1.2, "Active_Monitor_Frequency_Seconds");
     public SettingInfo<double> MaxRewind = new(60, "Max_Rewind_Seconds");
-    public SettingInfo<int> CoolDownCount = new(5, "Max_Rewind_Cooldown");
+    public SettingInfo<int> CoolDownCount = new(4, "Max_Rewind_Cooldown");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
+
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
+
     public SettingInfo<LogLevel> ConsoleLogLevel = new(LogLevel.Info, "Log_Level");
     public SettingInfo<bool> LogToFile = new(false, "Log_To_File");
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
@@ -40,12 +43,12 @@ public class Settings
             "\nYou can leave this empty or set to whatever you want. Changing it after creating the authorization token will not have an effect.";
         ActiveMonitorFrequency.Description = "How often (in seconds) to check for rewinds during active playback." +
             "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
-            "\nDefault Value: 1  |  Possible Values: Any positive number (decimals allowed).";
+           $"\nDefault Value: {ActiveMonitorFrequency.Value}  |  Possible Values: Any positive number (decimals allowed).";
         MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
-            "\nDefault Value: 60  |  Possible Values: Any positive number (decimals allowed)";
+           $"\nDefault Value: {MaxRewind.Value}  |  Possible Values: Any positive number (decimals allowed)";
         CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored." +
             $"\nThis is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
-            $"\nDefault Value: 5  | Possible Values: Positive whole number, or zero.";
+            $"\nDefault Value: {CoolDownCount.Value}  | Possible Values: Positive whole number, or zero.";
         SubtitlePreferencePatterns.Description = "This allows you to define a filter for which subtitle track will be chosen. If left empty it will always choose the first subtitle track." +
             "\nIt should be a comma separated list of words or phrases, where it will try to look for any subtitle tracks that have a name that matches ALL the listed phrases." +
             "\nYou can also start a word/phrase with a hyphen (-) to require it NOT match that. So you can exclude 'SDH' subtitles by putting '-SDH' (without quotes)." +
@@ -54,20 +57,20 @@ public class Settings
 
         // Advanced settings
         ConsoleLogLevel.Description = "The log level to use. DebugExtra contains additional 'noisy' less useful data that is mostly ignored anyway.\n" +
-            "Default: Info  |  Possible values (Least to Most Detailed): Error, Warning, Info, Verbose, Debug, DebugExtra";
+           $"Default: {ConsoleLogLevel.Value}  |  Possible values (Least to Most Detailed): Error, Warning, Info, Verbose, Debug, DebugExtra";
+        LogToFile.Description = "(True/False) Log to a file in addition to the console. This will create a log file in the same directory as the app.";
         SkipAuth.Description = "(True/False) Skip the authorization step. (Not Recommended to enable, and not supported if functionality doesn't work right)" +
             "\nThis will only work if you have configured the server to allow connections from specific devices without authorization." +
             "\nNote: Event based polling might not work if this is true. If it doesn't work after going idle, try setting Use_Event_Polling to false.";
+        UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection." +
+           $"\nDefault Value: {UseEventPolling.Value}";
+        IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing." +
+           $"\nDefault Value: {IdleMonitorFrequency.Value}  |  Possible Values: Any positive number (decimals allowed)";
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks." +
             "\nShould be shorter than the active frequency (but not required, like for testing). You can also use 'auto' to automatically use 90% of the active frequency." +
             "\nDefault Value: auto  |  Possible Values: Any positive whole number, or \"auto\" (without quotes)";
         AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging." +
-            "\nDefault Value: False";
-        UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection." +
-            "\nDefault Value: True";
-        IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing." +
-            "\nDefault Value: 30  |  Possible Values: Any positive number (decimals allowed)";
-        LogToFile.Description = "(True/False) Log to a file in addition to the console. This will create a log file in the same directory as the app.";
+           $"\nDefault Value: {AllowDuplicateInstance.Value}";
 
         // Set default values for section dividers
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";

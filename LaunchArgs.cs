@@ -35,15 +35,13 @@ public static class LaunchArgs
                 -{LaunchArgs.Background} {t}{LaunchArgs.Background.Description}
                 -{LaunchArgs.Stop} {tt}{LaunchArgs.Stop.Description}
                 -{LaunchArgs.ConfigTemplate} {t}{LaunchArgs.ConfigTemplate.Description}
-
                 -{LaunchArgs.Help} {tt}{LaunchArgs.Help.Description}
             """;
 
     // Advanced launch args are only shown when using -help or -?. It appends to the standard args info string.
     public static readonly string AdvancedLaunchArgsInfo = $"""
             Advanced Optional Launch parameters:
-
-                -{LaunchArgs.ForceNoDebug} {ttt}{LaunchArgs.ForceNoDebug.Description}
+                -{LaunchArgs.ForceNoDebug} {tt}{LaunchArgs.ForceNoDebug.Description}
                 -{LaunchArgs.TokenTemplate} {tt}{LaunchArgs.TokenTemplate.Description}
                 -{LaunchArgs.AllowDuplicateInstance} {t}{LaunchArgs.AllowDuplicateInstance.Description}
                 -{LaunchArgs.UpdateSettings} {t}{LaunchArgs.UpdateSettings.Description}

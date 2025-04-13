@@ -202,7 +202,7 @@
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation")]
-        private void PrintTimelineDebugMessage(double positionSec, bool isFromNotification, bool temporarySubtitlesWereEnabledForPass, string prepend="")
+        private void PrintTimelineDebugMessage(double positionSec, bool isFromNotification, bool temporarySubtitlesWereEnabledForPass, string prepend="", bool discarded=false)
         {
             // Local function to pad true/false values
             static string PadBool(bool boolVal, bool left=true)
@@ -227,7 +227,7 @@
             else
                 expectedShowingSubs = "Null ";
 
-            string msgPart1 = $"           " +
+            string msgPart1 = $"           " + prepend + 
                 $"> {_deviceName}: Position: {Math.Round(positionSec).ToString().PadLeft(5)} " +
                 $"| Latest: {Math.Round(_latestWatchedPosition).ToString().PadLeft(5)} " + // Round to whole number and pad spaces to 4 digits
                 $"| Prev: {Math.Round(_previousPosition).ToString().PadLeft(5)} " +
@@ -235,19 +235,25 @@
                 $"| FromNotification: {PadBool(isFromNotification)} " + // Not currently using notifications
                 $"| UserEnabledSubs: ";
 
-            msgPart1 = prepend + msgPart1;
-
             string msgPart2 = _subtitlesUserEnabled.ToString();
 
             // Print last part about user subs with color if enabled so it's more obvious
             if (_subtitlesUserEnabled)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                WriteColorParts(msgPart1, msgPart2, ConsoleColor.White, ConsoleColor.Red);
+                ConsoleColor msgColor = ConsoleColor.White;
+
+                if (discarded == true)
+                    msgColor = ConsoleColor.DarkGray;
+
+                WriteColorParts(msgPart1, msgPart2, msgColor, ConsoleColor.Red);
             }
             else
             {
-                WriteLineSafe(msgPart1 + msgPart2);
+                if (discarded)
+                    WriteColor(msgPart1 + msgPart2, ConsoleColor.DarkGray);
+                else
+                    WriteLineSafe(msgPart1 + msgPart2);
+
                 Task.Run(() => MyLogger.LogToFile(msgPart1 + msgPart2));
             }
         }
@@ -262,6 +268,11 @@
             try
             {
                 double positionSec;
+
+                // If there's only one active session and this is a notification, reset the monitor manager delay 
+                if (isFromNotification) {
+                    //MonitorManager.ResetDelay();
+                }
 
                 // We always want to use notification info if available, but this will be set to true again at the end of the pass
                 if (isFromNotification)
@@ -396,8 +407,15 @@
 
                 // Print the timeline debug message at the end of the pass so the watch position related data is updated
                 // But use the temporary subtitles value from the start of the pass because any changes wouldn't have taken effect yet because the player takes time to do it
-                string prepend = discardNextPass ? "Discarded: " : "";
-                if (Program.config.ConsoleLogLevel >= LogLevel.Debug) PrintTimelineDebugMessage(positionSec, isFromNotification, temporarySubtitlesWereEnabledForPass, prepend:prepend);
+                if (discardNextPass)
+                {
+                    if (Program.config.ConsoleLogLevel >= LogLevel.DebugExtra) PrintTimelineDebugMessage(positionSec, isFromNotification, temporarySubtitlesWereEnabledForPass, prepend: "Discarded: ", discarded:true);
+                }
+                else
+                {
+                    if (Program.config.ConsoleLogLevel >= LogLevel.Debug) PrintTimelineDebugMessage(positionSec, isFromNotification, temporarySubtitlesWereEnabledForPass);
+                }
+                    
 
                 _previousPosition = positionSec;
 

@@ -486,7 +486,7 @@ namespace RewindSubtitleDisplayerForPlex
                 }
                 else
                 {
-                    LogDebug($"Command {command} sent successfully to {mainUrlBase}. Response: {response.StatusCode}");
+                    LogDebugExtra($"Command {command} sent successfully to {mainUrlBase}. Response: {response.StatusCode}");
                 }
 
                 // If the calling function needs the response XML, get and return that too
