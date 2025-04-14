@@ -33,8 +33,12 @@
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
         public ActiveSession AttachedSession => _activeSession;
-
         public string MachineID { get => _activeSession.MachineID; }
+
+        private bool isOnCooldown = false;
+
+        // First 5 characters of the playback ID
+        private string PlaybackIDShort => PlaybackID.Substring(0, 5); // Get the last 5 characters of the playback ID
 
         public RewindMonitor(
             ActiveSession session,
@@ -108,7 +112,7 @@
             if (discardNextPass)
                 return;
 
-            LogInfo($"{_deviceName}: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
+            LogInfo($"{_deviceName} [{PlaybackIDShort}]: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
             StartSubtitlesWithRetry();
             _temporarilyDisplayingSubtitles = true;
         }
@@ -119,7 +123,7 @@
             if (discardNextPass)
                 return;
 
-            LogInfo($"{_deviceName}: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}", Yellow);
+            LogInfo($"{_deviceName} [{PlaybackIDShort}]: Reached original position {GetTimeString(_latestWatchedPosition)} for {_activeSession.MediaTitle}", Yellow);
             StopSubtitlesWithRetry(false);
         }
 
@@ -143,12 +147,12 @@
                     else if (success == false)
                     {
                         retryCount--;
-                        LogDebugExtra($"{_deviceName}: {retryCount} retries remaining to enable subtitles.");
+                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: {retryCount} retries remaining to enable subtitles.");
 
                         if (retryCount > 0)
                             await Task.Delay(150); // Short delay before retrying
                         else
-                            LogError($"{_deviceName}: Failed to enable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
+                            LogError($"{_deviceName} [{PlaybackIDShort}]: Failed to enable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
                     }
                     else // It's null which means no available subtitles, so don't bother retrying
                     {
@@ -180,12 +184,12 @@
                         else
                         {
                             retryCount--;
-                            LogDebugExtra($"{_deviceName}: {retryCount} retries remaining to disable subtitles.");
+                            LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: {retryCount} retries remaining to disable subtitles.");
 
                             if (retryCount > 0)
                                 await Task.Delay(150); // Short delay before retrying
                             else
-                                LogError($"{_deviceName}: Failed to disable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
+                                LogError($"{_deviceName} [{PlaybackIDShort}]: Failed to disable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
                         }
                     }
                 });
@@ -228,7 +232,7 @@
                 expectedShowingSubs = "Null ";
 
             string msgPart1 = $"           " + prepend + 
-                $"> {_deviceName}: Position: {Math.Round(positionSec).ToString().PadLeft(5)} " +
+                $"> {_deviceName} [{PlaybackIDShort}]: Position: {Math.Round(positionSec).ToString().PadLeft(5)} " +
                 $"| Latest: {Math.Round(_latestWatchedPosition).ToString().PadLeft(5)} " + // Round to whole number and pad spaces to 4 digits
                 $"| Prev: {Math.Round(_previousPosition).ToString().PadLeft(5)} " +
                 $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{expectedShowingSubs} " +
@@ -269,23 +273,28 @@
             {
                 double positionSec;
 
-                // If there's only one active session and this is a notification, reset the monitor manager delay 
-                if (isFromNotification) {
-                    //MonitorManager.ResetDelay();
-                }
-
-                // We always want to use notification info if available, but this will be set to true again at the end of the pass
-                if (isFromNotification)
-                    discardNextPass = false;
-
                 // If the position is the same as before, we don't have any new info so don't do anything
                 positionSec = _activeSession.GetPlayPositionSeconds();
                 if (positionSec == _previousPosition)
                 {
                     string type = isFromNotification ? "Notification" : "Polling";
-                    LogDebugExtra($"{_deviceName}: Ignoring {type} message without new data.");
+                    LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Ignoring {type} message without new data.");
+
+                    // Set the discardNextPass flag (whether enabling or disabling) because this pass should still count
+                    if (isFromNotification)
+                        discardNextPass = true;
+                    else
+                        discardNextPass = false;
+
                     return;
                 }
+
+                // We always want to use notification info if available, but this will be set to true again at the end of the pass
+                // This won't skip the entire loop like the duplicate message check does, it just skips certain parts.
+                // Because there is still some logic that needs to run even if the position is the same
+                if (isFromNotification)
+                    discardNextPass = false;
+
 
                 bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
@@ -297,19 +306,19 @@
                     {
                         isPendingSubtitlesDisabled = false;
                         pendingDisabledTimeoutCyclesLeft = 0; // Reset the timeout counter
-                        LogDebugExtra($"{_deviceName}: Resetting pending subtitles disabled flag and reset timeout cycle to 0.");
+                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Resetting pending subtitles disabled flag and reset timeout cycle to 0.");
                     }
                     else if (pendingDisabledTimeoutCyclesLeft > 0)
                     {
                         if (!isFromNotification) // Only decrement if this is from the polling loop
                             pendingDisabledTimeoutCyclesLeft--;
-                        LogDebugExtra($"{_deviceName}: Pending subtitles disabled timeout cycles left: {pendingDisabledTimeoutCyclesLeft}");
+                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Pending subtitles disabled timeout cycles left: {pendingDisabledTimeoutCyclesLeft}");
                     }
                     else // Pending timeout cycle has reached zero
                     {
                         // If the timeout has expired, we'll manually set the flag to false
                         isPendingSubtitlesDisabled = false;
-                        LogDebugExtra($"{_deviceName}: Pending subtitles disabled timeout expired. Resetting flag to false.");
+                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Pending subtitles disabled timeout expired. Resetting flag to false.");
                     }
                 }
 
@@ -329,7 +338,7 @@
                 {
                     _subtitlesUserEnabled = true;
                     SetLatestWatchedPosition(positionSec);
-                    LogInfo($"{_deviceName}: User appears to have enabled subtitles manually.", Yellow);
+                    LogInfo($"{_deviceName} [{PlaybackIDShort}]: User appears to have enabled subtitles manually.", Yellow);
                 }
                 // Only further process & check for rewinds if the user hasn't manually enabled subtitles
                 else
@@ -340,15 +349,19 @@
                         // If the user fast forwards, stop showing subtitles
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
-                            LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded", Yellow);
+                            LogInfo($"{_deviceName} [{PlaybackIDShort}]: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User fast forwarded", Yellow);
 
                             SetLatestWatchedPosition(positionSec);
                             StopSubtitlesWithRetry(false);
+
+                            // If they fast forward then get rid of the cooldown
+                            _cooldownCyclesLeft = 0;
+
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmountSec)
                         {
-                            LogInfo($"{_deviceName}: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
+                            LogInfo($"{_deviceName} [{PlaybackIDShort}]: Force stopping subtitles for {_activeSession.MediaTitle} - Reason: User rewound too far. Initiating cooldown.", Yellow);
 
                             SetLatestWatchedPosition(positionSec);
                             StopSubtitlesWithRetry(false);
@@ -372,7 +385,7 @@
                         // If they have fast forwarded
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
-                            LogInfo($"{_deviceName}: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
+                            LogInfo($"{_deviceName} [{PlaybackIDShort}]: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
                             SetLatestWatchedPosition(positionSec);
                             _cooldownCyclesLeft = 0; // Reset cooldown
                         }
@@ -387,7 +400,7 @@
                                 _cooldownCyclesLeft = _cooldownToUse;
                             }
 
-                            LogDebug($"{_deviceName}: Cooldown cycles left: {_cooldownCyclesLeft}");
+                            LogDebug($"{_deviceName} [{PlaybackIDShort}]: Cooldown cycles left: {_cooldownCyclesLeft}");
                         }
                     }
                     // Check if the position has gone back by 2 seconds or more. Using 2 seconds just for safety to be sure.
@@ -429,7 +442,7 @@
                 {
                     if (discardNextPass)
                     {
-                        LogDebugExtra($"{_deviceName}: Discarding current pass due to notification.");
+                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Discarding current pass due to notification.");
                         discardNextPass = false; // Reset for next time
                     }
                 }
@@ -437,10 +450,39 @@
             }
             catch (Exception e)
             {
-                LogError($"{_deviceName}: Error in monitor iteration: {e.Message}");
+                LogError($"{_deviceName} [{PlaybackIDShort}]: Error in monitor iteration: {e.Message}");
                 // Add a small delay to avoid tight loop on errors
                 //Thread.Sleep(1000); // Moving the delay to more global loop
             }
+        }
+
+        // Async function that sets isOnCooldown to true, waits 5 seconds on another thread, then sets it back to false
+        private readonly ManualResetEvent _cooldownResetEvent = new ManualResetEvent(false);
+        private bool _cooldownTimerLoop_DontDisableCooldown = false;
+        private void SetCooldownAsync()
+        {
+            while (true)
+            {
+                // Wait on the event with a timeout, allowing for cancellation
+                isOnCooldown = true;
+                _cooldownTimerLoop_DontDisableCooldown = false;
+                _cooldownResetEvent.Reset(); // Reset the event for the next wait
+                _cooldownResetEvent.WaitOne(millisecondsTimeout: 3000);
+                
+                if (!_cooldownTimerLoop_DontDisableCooldown)
+                {
+                    isOnCooldown = false;
+                    LogDebug("Cooldown timer expired. Cooldown disabled.");
+                }
+                    
+            }
+        }
+
+        public void RestartCooldownTimer()
+        {
+            _cooldownTimerLoop_DontDisableCooldown = true;
+            _cooldownResetEvent.Set(); // Wake up the sleeping thread
+            LogDebug("Sleep timer reset.");
         }
 
         public void StopMonitoring()

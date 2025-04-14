@@ -49,7 +49,10 @@ namespace RewindSubtitleDisplayerForPlex
                             {
                                 monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
                                 monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
-                                RestartPassTimer();
+
+                                // If there's only one active session, restart the timer so it waits long enough for actual new info to come in
+                                if (_allMonitors.Count <= 1)
+                                    RestartPassTimer();
                             }
                             else
                             {
