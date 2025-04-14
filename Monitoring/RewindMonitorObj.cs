@@ -201,7 +201,7 @@
             // If we're in a cooldown, that means the user might still be rewinding further,
             // so we don't want to update the latest watched position until the cooldown is over,
             // otherwise when they finish rewinding beyond the max it might result in showing subtitles again
-            if (_cooldownCyclesLeft == 0 && !discardNextPass)
+            if (!isOnCooldown && !discardNextPass)
                 _latestWatchedPosition = newTime;
         }
 
@@ -355,7 +355,7 @@
                             StopSubtitlesWithRetry(false);
 
                             // If they fast forward then get rid of the cooldown
-                            _cooldownCyclesLeft = 0;
+                            StopCooldownNow();
 
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
@@ -368,8 +368,7 @@
 
                             // Initiate a cooldown, because if the user is rewinding in steps with a remote with brief pauses,
                             //      further rewinds may be interpreted as rewinds to show subtitles again
-                            _cooldownCyclesLeft = DefaultCooldownCount;
-                            _cooldownToUse = DefaultCooldownCount;
+                            StartCooldown();
                         }
                         // Check if the position has gone back by the rewind amount.
                         // Add smallest resolution to avoid stopping subtitles too early
@@ -380,34 +379,31 @@
                         }
                     }
                     // Special handling during cooldown
-                    else if (_cooldownCyclesLeft > 0)
+                    else if (isOnCooldown)
                     {
                         // If they have fast forwarded
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
                             LogInfo($"{_deviceName} [{PlaybackIDShort}]: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
                             SetLatestWatchedPosition(positionSec);
-                            _cooldownCyclesLeft = 0; // Reset cooldown
+                            StopCooldownNow(); // Reset cooldown
                         }
                         else
                         {
-                            if (!isFromNotification)
-                                _cooldownCyclesLeft--;
+                            LogDebug($"{_deviceName} [{PlaybackIDShort}]: Still on cooldown.");
 
                             // If the user rewinded again while in cooldown, we want to reset the cooldown
                             if (positionSec < _previousPosition - 2)
                             {
-                                _cooldownCyclesLeft = _cooldownToUse;
+                                RestartCooldownTimer();
                             }
-
-                            LogDebug($"{_deviceName} [{PlaybackIDShort}]: Cooldown cycles left: {_cooldownCyclesLeft}");
                         }
                     }
                     // Check if the position has gone back by 2 seconds or more. Using 2 seconds just for safety to be sure.
                     // But don't count it if the rewind amount goes beyond the max.
                     // Since at this point it isn't displaying subtitles we can technically use either _previousPosition or _latestWatchedPosition to check for rewinds.
                     // Only _previousPosition works with the cooldown but that doesn't matter because we handle that in the other else if
-                    else if ((positionSec < _latestWatchedPosition - 2) && !(positionSec < _latestWatchedPosition - _maxRewindAmountSec))
+                    else if ((positionSec < _previousPosition - 2) && !(positionSec < _previousPosition - _maxRewindAmountSec))
                     {
                         RewindOccurred();
                     }
@@ -459,23 +455,41 @@
         // Async function that sets isOnCooldown to true, waits 5 seconds on another thread, then sets it back to false
         private readonly ManualResetEvent _cooldownResetEvent = new ManualResetEvent(false);
         private bool _cooldownTimerLoop_DontDisableCooldown = false;
-        private void SetCooldownAsync()
+        private void StartCooldown()
         {
-            while (true)
+            if (isOnCooldown)
             {
-                // Wait on the event with a timeout, allowing for cancellation
-                isOnCooldown = true;
+                LogDebug("Already on cooldown, not starting again.");
+                return;
+            }
+            else
+            {
+                LogDebug("Starting rewind cooldown.");
+            }
+
+            // Wait on the event with a timeout, allowing for cancellation
+            isOnCooldown = true;
+            while (isOnCooldown)
+            {
                 _cooldownTimerLoop_DontDisableCooldown = false;
                 _cooldownResetEvent.Reset(); // Reset the event for the next wait
-                _cooldownResetEvent.WaitOne(millisecondsTimeout: 3000);
+                _cooldownResetEvent.WaitOne(millisecondsTimeout: 5000);
                 
                 if (!_cooldownTimerLoop_DontDisableCooldown)
                 {
                     isOnCooldown = false;
-                    LogDebug("Cooldown timer expired. Cooldown disabled.");
+                    LogVerbose("Cooldown timer expired.", Yellow);
+                    break;
                 }
-                    
             }
+        }
+
+        public void StopCooldownNow()
+        {
+            isOnCooldown = false;
+            _cooldownTimerLoop_DontDisableCooldown = false;
+            _cooldownResetEvent.Set(); // Wake up the sleeping thread
+            LogDebug("Cooldown timer stopped.");
         }
 
         public void RestartCooldownTimer()

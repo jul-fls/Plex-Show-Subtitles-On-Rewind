@@ -279,7 +279,7 @@ namespace RewindSubtitleDisplayerForPlex
         {
             skip = true; // Set the flag to skip the sleep
             _sleepResetEvent.Set(); // Wake up the sleeping thread
-            LogDebugExtra("Sleep timer reset - skipping to next pass.");
+            LogDebugExtra("Polling timer reset - waiting for next pass.");
         }
 
         public static void BreakFromIdle()
