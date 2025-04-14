@@ -659,7 +659,7 @@ public class ActiveSession
     }
 
     // Returns true for success, false for failure, null for no subtitles available
-    public async Task<bool?> EnableSubtitles(bool sendDirectToDevice = true)
+    public async Task<bool?> EnableSubtitles()
     {
         if (AvailableSubtitles.Count > 0)
         {
@@ -676,7 +676,7 @@ public class ActiveSession
                 subtitleID = AvailableSubtitles[0].Id;
             }
 
-            CommandResult result1 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: true, subtitleStreamID: subtitleID, activeSession:this);
+            CommandResult result1 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: Program.config.SendCommandDirectToDevice, subtitleStreamID: subtitleID, activeSession:this);
             //CommandResult result2 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: true, subtitleStreamID: subtitleID, activeSession:this);
 
             if (result1.Success)
@@ -700,9 +700,9 @@ public class ActiveSession
         }
     }
 
-    public async Task<bool> DisableSubtitles(bool sendDirectToDevice = true)
+    public async Task<bool> DisableSubtitles()
     {
-        CommandResult commandResult = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice:sendDirectToDevice, subtitleStreamID: 0, activeSession:this);
+        CommandResult commandResult = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice:Program.config.SendCommandDirectToDevice, subtitleStreamID: 0, activeSession:this);
 
         if (commandResult.Success)
         {

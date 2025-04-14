@@ -7,13 +7,13 @@ namespace RewindSubtitleDisplayerForPlex
     public static class MonitorManager
     {
         // Shared values / constants
-        public static readonly double DefaultMaxRewindAmount =  Settings.Default().MaxRewind;
+        public static readonly double DefaultMaxRewindAmount =  Settings.Default().MaxRewindSec;
         public const int DefaultWaitOnEventIdleFrequency_seconds = 3600; // Used when preferring event-based polling when idle, so this will be very long
         public const int DefaultSmallestResolution = 5; // If using the viewOffset, it's usually 5 seconds but apparently can be as high as 10s
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
         private static readonly List<RewindMonitor> _allMonitors = [];
-        private static int _globalActiveFrequencyMs = (int)Math.Round(Settings.Default().ActiveMonitorFrequency * 1000); // Initial value but will be updated as needed on the fly
+        private static int _globalActiveFrequencyMs = (int)Math.Round(Settings.Default().ActiveMonitorFrequencySec * 1000); // Initial value but will be updated as needed on the fly
         private static int _globalIdleFrequencyMs = (int)Math.Round(Settings.Default().IdleMonitorFrequency * 1000);
         private static bool _isRunning = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
@@ -105,8 +105,8 @@ namespace RewindSubtitleDisplayerForPlex
 
         public static void CreateAllMonitoringAllSessions(List<ActiveSession> activeSessionList)
         {
-            double maxRewindAmountSec = Program.config.MaxRewind;
-            double activeFrequencySec = Program.config.ActiveMonitorFrequency;
+            double maxRewindAmountSec = Program.config.MaxRewindSec;
+            double activeFrequencySec = Program.config.ActiveMonitorFrequencySec;
             double idleFrequencySec = Program.config.IdleMonitorFrequency;
 
             _globalActiveFrequencyMs = (int)Math.Round((activeFrequencySec * 1000)); // Convert to milliseconds

@@ -265,17 +265,16 @@
         {
             try
             {
-                double positionSec;
+                double positionSec = _activeSession.GetPlayPositionSeconds();
 
-                // If the position is the same as before, we don't have any new info so don't do anything
-                positionSec = _activeSession.GetPlayPositionSeconds();
-                if (positionSec == _previousPosition)
+                // If the position is the same as before, we don't have any new info so we might not want to do anything
+                if (Program.config.IgnoreMessagesSameOffset && positionSec == _previousPosition)
                 {
                     string type = isFromNotification ? "Notification" : "Polling";
                     LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Ignoring {type} message without new data.");
 
                     // Set the discardNextPass flag (whether enabling or disabling) because this pass should still count
-                    if (isFromNotification)
+                    if (isFromNotification && Program.config.DiscardNextPass)
                         discardNextPass = true;
                     else
                     {
@@ -292,7 +291,6 @@
                 // Because there is still some logic that needs to run even if the position is the same
                 if (isFromNotification)
                     discardNextPass = false;
-
 
                 bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
@@ -429,7 +427,8 @@
                 // DiscardNextPass will make certain actions not happen unless the pass was triggered by a notification
                 if (isFromNotification == true) // From a notification
                 {
-                    discardNextPass = true;
+                    if (Program.config.DiscardNextPass == true)
+                        discardNextPass = true;
                 }
                 else // From the polling loop
                 {
@@ -454,6 +453,16 @@
         private bool _cooldownTimerLoop_DontDisableCooldown = false;
         private void StartCooldown()
         {
+            int cooldownMs = (int)Program.config.MaxRewindCoolDownSec * 1000;
+
+            // -------------------- Check whether to skip ---------------------------
+
+            if (cooldownMs == 0)
+            {
+                LogDebug("Max Rewind Cooldown disabled in settings (value is 0), not starting.");
+                return;
+            }
+
             if (isOnCooldown)
             {
                 LogDebug("Already on cooldown, not starting again.");
@@ -464,14 +473,20 @@
                 LogDebug("Starting rewind cooldown.");
             }
 
-            // Wait on the event with a timeout, allowing for cancellation
+            // -------------------- Actual Logic ---------------------------
+
+            // -- Wait on the event with a timeout, allowing for cancellation --
+            // The loop behavior is: Setup the event, wait for the timer, then disable the cooldown
+            //    HOWEVER if the timer was reset, the 'disable cooldown' flag will have been set to true,
+            //    so it will pass over the cooldown disable line and restart to hit the delay again
             isOnCooldown = true;
-            while (isOnCooldown)
+            while (isOnCooldown) 
             {
                 _cooldownTimerLoop_DontDisableCooldown = false;
-                _cooldownResetEvent.Reset(); // Reset the event for the next wait
-                _cooldownResetEvent.WaitOne(millisecondsTimeout: 5000);
-                
+                _cooldownResetEvent.Reset(); // Reset the event for the next wait. In this case it is like filling up the hourglass again
+                _cooldownResetEvent.WaitOne(millisecondsTimeout: cooldownMs); // Wait on the event, with a timeout. Note: Can also be ended early using Set() on the event
+
+                // After the timer expires or is cancelled in the WaitOne line, the code is 'released' and allowed to continue here
                 if (!_cooldownTimerLoop_DontDisableCooldown)
                 {
                     isOnCooldown = false;

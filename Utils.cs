@@ -95,6 +95,21 @@ internal class Utils
         return request;
     }
 
+    public static Dictionary<object, object> AppendDictionaryToAnother(Dictionary<object, object> dict, Dictionary<object, object> dictToAppend)
+    {
+        if (dictToAppend != null)
+        {
+            foreach (KeyValuePair<object, object> kvp in dictToAppend)
+            {
+                if (!dict.ContainsKey(kvp.Key))
+                {
+                    dict.Add(kvp.Key, kvp.Value);
+                }
+            }
+        }
+        return dict;
+    }
+
     /// <summary>
     /// Waits for the user to press Enter or for a specified timeout.
     /// </summary>

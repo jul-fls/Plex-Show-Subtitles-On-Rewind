@@ -112,8 +112,8 @@ namespace RewindSubtitleDisplayerForPlex
                         // Create a new monitor for the newly found session. The method will automatically check for duplicates
                         MonitorManager.CreateMonitorForSession(
                             activeSession: newSession,
-                            maxRewindAmountSec: Program.config.MaxRewind,
-                            activeFrequencySec: Program.config.ActiveMonitorFrequency,
+                            maxRewindAmountSec: Program.config.MaxRewindSec,
+                            activeFrequencySec: Program.config.ActiveMonitorFrequencySec,
                             idleFrequencySec: Program.config.IdleMonitorFrequency,
                             smallestResolutionSec: newSession.SmallestResolutionExpected);
                     }

@@ -11,18 +11,18 @@ public class Settings
 {
     public class SectionDivider { } // Placeholder class for section headers
     // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
-    //private static Dictionary<string, ISettingInfo> PreviousSettingsNameMap = []; 
+    public Dictionary<string, ISettingInfo> PreviousSettingsNameMap = []; //{ get; init; } = [];
 
     // This is also the order they will be written to the settings file
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
 
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
-    public SettingInfo<double> ActiveMonitorFrequency = new(1.2, "Active_Monitor_Frequency_Seconds");
-    public SettingInfo<double> MaxRewind = new(60, "Max_Rewind_Seconds");
-    public SettingInfo<int> CoolDownCount = new(4, "Max_Rewind_Cooldown");
+    public SettingInfo<double> ActiveMonitorFrequencySec = new(1.2, "Active_Monitor_Frequency_Seconds");
+    public SettingInfo<double> MaxRewindSec = new(60, "Max_Rewind_Seconds");
+    public SettingInfo<double> MaxRewindCoolDownSec = new(4, "Max_Rewind_Cooldown_Seconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
-
+    // -----------------
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
 
     public SettingInfo<LogLevel> ConsoleLogLevel = new(LogLevel.Info, "Log_Level");
@@ -32,6 +32,12 @@ public class Settings
     public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
     public AutoSettingInfo<int> ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds", isAutoDefault:true); // Identifiable placeholder to know if user setting failed to set when not auto
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
+    // -----------------
+    public SettingInfo<SectionDivider> ExperimentalAndDeveloperSettings = new(new(), ""); // Placeholder for Experimental Settings section header
+
+    public SettingInfo<bool> DiscardNextPass = new(true, "Discard_Next_Pass");
+    public SettingInfo<bool> IgnoreMessagesSameOffset = new(true, "Ignore_Pass_If_Same_View_Offset");
+    public SettingInfo<bool> SendCommandDirectToDevice = new(true, "Send_Command_Direct_To_Device");
 
     // Constructor to set descriptions for each setting
     public Settings()
@@ -41,14 +47,14 @@ public class Settings
             "\nIf https:// doesn't work, you can use http:// but only do that if it's on a local network.";
         CurrentDeviceLabel.Description = "The label you want to appear next to this app's name in your Plex account's authorized devices list." +
             "\nYou can leave this empty or set to whatever you want. Changing it after creating the authorization token will not have an effect.";
-        ActiveMonitorFrequency.Description = "How often (in seconds) to check for rewinds during active playback." +
+        ActiveMonitorFrequencySec.Description = "How often (in seconds) to check for rewinds during active playback." +
             "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
-           $"\nDefault Value: {ActiveMonitorFrequency.Value}  |  Possible Values: Any positive number (decimals allowed).";
-        MaxRewind.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
-           $"\nDefault Value: {MaxRewind.Value}  |  Possible Values: Any positive number (decimals allowed)";
-        CoolDownCount.Description = $"After you rewind further than {MaxRewind.ConfigName}, for this many cycles (each cycle as long as {ActiveMonitorFrequency.ConfigName}), further rewinds will be ignored." +
+           $"\nDefault Value: {ActiveMonitorFrequencySec.Value}  |  Possible Values: Any positive number (decimals allowed).";
+        MaxRewindSec.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
+           $"\nDefault Value: {MaxRewindSec.Value}  |  Possible Values: Any positive number (decimals allowed)";
+        MaxRewindCoolDownSec.Description = $"After you rewind further than {MaxRewindSec.ConfigName}, for this many seconds further rewinds will be ignored." +
             $"\nThis is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
-            $"\nDefault Value: {CoolDownCount.Value}  | Possible Values: Positive whole number, or zero.";
+            $"\nDefault Value: {MaxRewindCoolDownSec.Value}  | Possible Values: Positive number or decimal, or 0";
         SubtitlePreferencePatterns.Description = "This allows you to define a filter for which subtitle track will be chosen. If left empty it will always choose the first subtitle track." +
             "\nIt should be a comma separated list of words or phrases, where it will try to look for any subtitle tracks that have a name that matches ALL the listed phrases." +
             "\nYou can also start a word/phrase with a hyphen (-) to require it NOT match that. So you can exclude 'SDH' subtitles by putting '-SDH' (without quotes)." +
@@ -72,14 +78,27 @@ public class Settings
         AllowDuplicateInstance.Description = "(True/False) Allow multiple instances of the app to run at the same time. Not recommended, mostly used for debugging." +
            $"\nDefault Value: {AllowDuplicateInstance.Value}";
 
-        // Set default values for section dividers
+        // Experimental & Development Settings
+        DiscardNextPass.Description = "(True/False) If true, the polling pass immediately following a notification event will be discarded because it probably has no new info." +
+            $"\nDefault Value: {DiscardNextPass.Value}";
+        IgnoreMessagesSameOffset.Description = "(True/False) If true, the app will skip processing messages that have the same playback offset as the last session status check." +
+            $"\nDefault Value: {IgnoreMessagesSameOffset.Value}";
+        SendCommandDirectToDevice.Description = "(True/False) If true, the app will send commands directly to the device IP instead of going through the server." +
+            $"\nDefault Value: {SendCommandDirectToDevice.Value}";
+
+        // ---------------- Set default values for section dividers ----------------
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";
         StartAdvancedSettings.Description = "----------------------- Advanced Settings - (Most people shouldn't need these) -----------------------";
+        ExperimentalAndDeveloperSettings.Description = "----------------------- Experimental & Development Settings  -----------------------\n" +
+            "These are mostly for debugging, probably don't mess with them. Changing these could cause unexpected behavior.";
 
-        //PreviousSettingsNameMap = new() // If any settings have their config name changed, we can keep track of them here to be able to still load them and update the config
-        //{
-        //    //{ "Some_Old_ConfigName", ServerURL }, // Example
-        //};
+        // Create a new dictionary with your name mappings
+        PreviousSettingsNameMap = new Dictionary<string, ISettingInfo>
+        {
+            //{ "Some_Old_ConfigName", ServerURL }, // Example
+            { "Max_Rewind_Cooldown", MaxRewindCoolDownSec },
+        };
+
     }   
 
     public Dictionary<ISettingInfo, string> SettingsThatFailedToLoad = [];
@@ -109,21 +128,21 @@ public class Settings
         }
 
         // Active Monitor Frequency
-        if (ActiveMonitorFrequency < 0)
+        if (ActiveMonitorFrequencySec < 0)
         {
-            string errorMessage = $"Error for setting {ActiveMonitorFrequency.ConfigName}: Active Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.ActiveMonitorFrequency}";
+            string errorMessage = $"Error for setting {ActiveMonitorFrequencySec.ConfigName}: Active Monitor Frequency must be greater than or equal to 0.\nWill use default value {def.ActiveMonitorFrequencySec}";
             LogError(errorMessage);
-            this.SettingsThatFailedToLoad.TryAdd(ActiveMonitorFrequency, errorMessage);
-            ActiveMonitorFrequency = def.ActiveMonitorFrequency;
+            this.SettingsThatFailedToLoad.TryAdd(ActiveMonitorFrequencySec, errorMessage);
+            ActiveMonitorFrequencySec = def.ActiveMonitorFrequencySec;
         }
-        else if (ActiveMonitorFrequency < 1) // Allow but warn
+        else if (ActiveMonitorFrequencySec < 1) // Allow but warn
         {
-            string warningMessage = $"Warning for setting {ActiveMonitorFrequency.ConfigName}: " +
+            string warningMessage = $"Warning for setting {ActiveMonitorFrequencySec.ConfigName}: " +
                 $"Active Monitor Frequency of less than 1 second is not recommended because player apps probably won't report the time more accurately than that.\n" +
                 $"Too low a frequency could potentially cause longer responses than just setting it at the default 1s if the server / player gets bogged down.\n" +
                 $"I recommend you enable debug mode and see if the 'Position' timestamp for each polling status is actually changing every time at this frequency.";
             LogWarning(warningMessage);
-            this.SettingsThatTriggeredWarning.TryAdd(ActiveMonitorFrequency, warningMessage);
+            this.SettingsThatTriggeredWarning.TryAdd(ActiveMonitorFrequencySec, warningMessage);
         }
 
         // Idle Monitor Frequency
@@ -141,13 +160,13 @@ public class Settings
             // Calculate based on the current ActiveMonitorFrequency (which should have been validated already)
             // Using Math.Round just in case they used more than 3 decimal places for some weird reason
             // Don't bother checking for validity because we're using the Active frequency which was already validated
-            ShortTimeoutLimit.Value = (int)Math.Round((ActiveMonitorFrequency.Value * 1000 * 0.9));
+            ShortTimeoutLimit.Value = (int)Math.Round((ActiveMonitorFrequencySec.Value * 1000 * 0.9));
         }
         else // User provided a specific integer value (IsSetToAuto is false)
         {
             int currentTimeoutValue = ShortTimeoutLimit.Value; // Get the integer value explicitly
-            int currentFreqMs = (int)Math.Round((ActiveMonitorFrequency.Value * 1000));
-            int autoCalcDefault = (int)Math.Round((ActiveMonitorFrequency.Value * 1000 * 0.9)); // Calculate the default timeout based on the current ActiveMonitorFrequency, which should be valid already
+            int currentFreqMs = (int)Math.Round((ActiveMonitorFrequencySec.Value * 1000));
+            int autoCalcDefault = (int)Math.Round((ActiveMonitorFrequencySec.Value * 1000 * 0.9)); // Calculate the default timeout based on the current ActiveMonitorFrequency, which should be valid already
 
             if (currentTimeoutValue < 0)
             {
@@ -155,11 +174,11 @@ public class Settings
                 if (currentTimeoutValue == -int.MaxValue) // This means it wasn't auto, and also an invalid value that was replaced with -int.MaxValue as invalid placeholder
                 {
                     // In this case it should already have been logged as an error so we don't need to log it again. Still creating the error message in case we need it later
-                    errorMessage = $"Error for setting {ShortTimeoutLimit.ConfigName}: Active Timeout value ('{currentTimeoutValue}') cannot be negative. Will use default value {autoCalcDefault}ms (90% of {ActiveMonitorFrequency.ConfigName})";
+                    errorMessage = $"Error for setting {ShortTimeoutLimit.ConfigName}: Active Timeout value ('{currentTimeoutValue}') cannot be negative. Will use default value {autoCalcDefault}ms (90% of {ActiveMonitorFrequencySec.ConfigName})";
                 }                
                 else
                 {
-                    errorMessage = $"Error for setting {ShortTimeoutLimit.ConfigName}: Active Timeout value ('{currentTimeoutValue}') cannot be negative. Will use default value {autoCalcDefault}ms (90% of {ActiveMonitorFrequency.ConfigName})";
+                    errorMessage = $"Error for setting {ShortTimeoutLimit.ConfigName}: Active Timeout value ('{currentTimeoutValue}') cannot be negative. Will use default value {autoCalcDefault}ms (90% of {ActiveMonitorFrequencySec.ConfigName})";
                     LogError(errorMessage);
                 }
                 
@@ -169,28 +188,28 @@ public class Settings
             // Optional: Warn if timeout > frequency, but don't force reset unless it's negative
             else if (currentTimeoutValue > currentFreqMs)
             {
-                string warning = $"Warning for setting {ShortTimeoutLimit.ConfigName}: Value ({currentTimeoutValue}ms) is greater than {ActiveMonitorFrequency.ConfigName} ({currentFreqMs}ms). This might lead to overlapping checks.";
+                string warning = $"Warning for setting {ShortTimeoutLimit.ConfigName}: Value ({currentTimeoutValue}ms) is greater than {ActiveMonitorFrequencySec.ConfigName} ({currentFreqMs}ms). This might lead to overlapping checks.";
                 SettingsThatTriggeredWarning.TryAdd(ShortTimeoutLimit, warning);
                 LogWarning(warning); 
             }
         }
 
         // Max Rewind
-        if (MaxRewind < 0)
+        if (MaxRewindSec < 0)
         {
-            string errorMessage = $"Error for setting {MaxRewind.ConfigName}: Max Rewind must be greater than or equal to 0.\nWill use default value {def.MaxRewind}";
+            string errorMessage = $"Error for setting {MaxRewindSec.ConfigName}: Max Rewind must be greater than or equal to 0.\nWill use default value {def.MaxRewindSec}";
             LogError(errorMessage);
-            this.SettingsThatFailedToLoad.TryAdd(MaxRewind, errorMessage);
-            MaxRewind = def.MaxRewind;
+            this.SettingsThatFailedToLoad.TryAdd(MaxRewindSec, errorMessage);
+            MaxRewindSec = def.MaxRewindSec;
         }
 
         // Cool Down Count
-        if (CoolDownCount < 0)
+        if (MaxRewindCoolDownSec < 0)
         {
-            string errorMessage = $"Error for setting {CoolDownCount.ConfigName}: Cool Down Count must be greater than or equal to 0.\nWill use default value {def.CoolDownCount}";
+            string errorMessage = $"Error for setting {MaxRewindCoolDownSec.ConfigName}: Cooldown must be greater than or equal to 0.\nWill use default value {def.MaxRewindCoolDownSec}";
             LogError(errorMessage);
-            this.SettingsThatFailedToLoad.TryAdd(CoolDownCount, errorMessage);
-            CoolDownCount = def.CoolDownCount;
+            this.SettingsThatFailedToLoad.TryAdd(MaxRewindCoolDownSec, errorMessage);
+            MaxRewindCoolDownSec = def.MaxRewindCoolDownSec;
         }
 
         // Subtitle preference
@@ -318,10 +337,22 @@ public static class SettingsHandler
                 string rawSettingValue = parts[1].Trim().Trim('"');
                 bool recognized = false; // Flag to track if we found the config name in the dictionary
 
+                // Check if any old settings names are used and warn the user. Will attempt to load the value into the new setting name anyway.
+                if (settings.PreviousSettingsNameMap.TryGetValue(configName, out ISettingInfo? newSetting))
+                {
+                    string oldConfigName = configName;
+                    configName = newSetting.ConfigName; // Update to the new config name
+
+                    string warningMessage = $"Warning: The setting name '{oldConfigName}' is deprecated. Use '{configName}' instead.\n" +
+                        $"Use the -{LaunchArgs.UpdateSettings.Arg} launch argument to automatically update the settings file.";
+                    LogWarning(warningMessage);
+                    settings.SettingsThatTriggeredWarning.TryAdd(newSetting, warningMessage);
+                }
+
                 // Find the field with this config name (Loop using fieldToConfigName)
                 foreach (KeyValuePair<string, string> kvp in fieldToConfigName)
                 {
-                    if (kvp.Value == configName) // Found the config name match
+                    if (kvp.Value == configName) // configName is the string in the file, kvp.Value is each known setting name
                     {
                         // Get the C# Field name (key) and retrieve the FieldInfo
                         System.Reflection.FieldInfo? field = settingsType.GetField(kvp.Key);

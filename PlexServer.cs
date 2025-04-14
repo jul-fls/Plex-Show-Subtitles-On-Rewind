@@ -253,7 +253,7 @@ namespace RewindSubtitleDisplayerForPlex
         /// <param name="subtitleStreamID">ID of the subtitle stream from the media object</param>
         /// <param name="mediaType">Media type to take action against (default: video)</param>
         /// <returns>Task representing the asynchronous operation</returns>
-        public static async Task<CommandResult> SetSubtitleStreamAsync(string machineID, bool? sendDirectToDevice, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
+        public static async Task<CommandResult> SetSubtitleStreamAsync(string machineID, bool sendDirectToDevice, int subtitleStreamID, string mediaType = "video", ActiveSession? activeSession = null)
         {
             // Simply call the SetStreamsAsync method with only the subtitle stream ID parameter
             return await SetStreamsAsync(
@@ -276,7 +276,7 @@ namespace RewindSubtitleDisplayerForPlex
         /// <returns>Task representing the asynchronous operation</returns>
         public static async Task<CommandResult> SetStreamsAsync(
             string machineID,
-            bool? sendDirectToDevice,
+            bool sendDirectToDevice,
             int? audioStreamID = null,
             int? subtitleStreamID = null,
             int? videoStreamID = null,
