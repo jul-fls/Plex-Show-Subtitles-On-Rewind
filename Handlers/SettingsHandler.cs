@@ -38,6 +38,8 @@ public class Settings
     public SettingInfo<bool> DiscardNextPass = new(true, "Discard_Next_Pass");
     public SettingInfo<bool> IgnoreMessagesSameOffset = new(true, "Ignore_Pass_If_Same_View_Offset");
     public SettingInfo<bool> SendCommandDirectToDevice = new(true, "Send_Command_Direct_To_Device");
+    public SettingInfo<double> PendingDisabledCooldownSec = new(3, "Pending_Disabled_Cooldown_Seconds"); // Not used yet, but will be for pending disabled state when using event polling mode
+    public SettingInfo<bool> DisableSubtitlesOnAppStartup = new(false, "Disable_Subtitles_On_New_Sessions");
 
     // Constructor to set descriptions for each setting
     public Settings()
@@ -85,12 +87,17 @@ public class Settings
             $"\nDefault Value: {IgnoreMessagesSameOffset.Value}";
         SendCommandDirectToDevice.Description = "(True/False) If true, the app will send commands directly to the device IP instead of going through the server." +
             $"\nDefault Value: {SendCommandDirectToDevice.Value}";
+        PendingDisabledCooldownSec.Description = "After subtitles are disabled, there is a short delay when the player actually disables them. This accounts for that." +
+            $"\nDefault Value: {PendingDisabledCooldownSec.Value}  |  Possible Values: Any positive number (decimals allowed)";
+        DisableSubtitlesOnAppStartup.Description = "(True/False) If true, this app will disable subtitles on the player on app startup and when a new session is detected." +
+            $"\nDefault Value: {DisableSubtitlesOnAppStartup.Value}";
+
 
         // ---------------- Set default values for section dividers ----------------
         StandardSettings.Description =      "----------------------- Standard Settings -----------------------";
         StartAdvancedSettings.Description = "----------------------- Advanced Settings - (Most people shouldn't need these) -----------------------";
         ExperimentalAndDeveloperSettings.Description = "----------------------- Experimental & Development Settings  -----------------------\n" +
-            "These are mostly for debugging, probably don't mess with them. Changing these could cause unexpected behavior.";
+            "# These are mostly for debugging, probably don't mess with them. Changing these could cause unexpected behavior.";
 
         // Create a new dictionary with your name mappings
         PreviousSettingsNameMap = new Dictionary<string, ISettingInfo>

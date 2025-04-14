@@ -19,18 +19,16 @@
         private bool _temporarilyDisplayingSubtitles;
         private readonly double _smallestResolutionSec; // This might be updated depending on available data during refreshes
 
-        // After disabling subtitles there is a delay before they actually stop showing, so we need to wait for that
-        // Use this to check if subtitles have been disabled yet after we do, to avoid false positive that user enabled them
-        // Also track a timeout to assume user enabled them if they keep showing for a long time
-        private int pendingDisableTimeoutCount = 5;
-        private int pendingDisabledTimeoutCyclesLeft = 0;
-
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoring => _isMonitoring;
         public ActiveSession AttachedSession => _activeSession;
         public string MachineID { get => _activeSession.MachineID; }
 
-        private bool isOnCooldown = false;
+        private bool isOnMaxRewindCooldown = false;
+
+        // After disabling subtitles there is a delay before they actually stop showing, so we need to wait for that
+        // Use this to check if subtitles have been disabled yet after we do, to avoid false positive that user enabled them
+        private bool isOnPendingDisabledCooldown = false;
 
         // First 5 characters of the playback ID
         private string PlaybackIDShort => PlaybackID.Substring(0, 5); // Get the last 5 characters of the playback ID
@@ -127,7 +125,11 @@
             int retryCount = 3;
             bool? success = false;
 
-            if (_activeSession.AvailableSubtitles.Count > 0) { }
+            if (_activeSession.AvailableSubtitles.Count == 0)
+            {
+                LogWarning($"{_deviceName} [{PlaybackIDShort}]: No available subtitles for {_activeSession.MediaTitle}. Cannot start subtitles.", Yellow);
+                return;
+            }
 
             _ = Task.Run(async () =>
             {
@@ -172,7 +174,7 @@
                         if (success)
                         {
                             _temporarilyDisplayingSubtitles = false;
-                            pendingDisabledTimeoutCyclesLeft = pendingDisableTimeoutCount; // Reset the timeout counter
+                            StartPendingDisabledCooldown();
                             break;
                         }
                         else
@@ -195,7 +197,7 @@
             // If we're in a cooldown, that means the user might still be rewinding further,
             // so we don't want to update the latest watched position until the cooldown is over,
             // otherwise when they finish rewinding beyond the max it might result in showing subtitles again
-            if (!isOnCooldown && !discardNextPass)
+            if (!isOnMaxRewindCooldown && !discardNextPass)
                 _latestWatchedPosition = newTime;
         }
 
@@ -216,7 +218,7 @@
                 : "Null ";
 
             string expectedShowingSubs;
-            if (pendingDisabledTimeoutCyclesLeft > 0)
+            if (isOnPendingDisabledCooldown)
                 expectedShowingSubs = "Wait.";
             else if (_activeSession.KnownIsShowingSubtitles == true)
                 expectedShowingSubs = PadBool(true, left:false);
@@ -279,8 +281,6 @@
                     else
                     {
                         discardNextPass = false;
-                        if (pendingDisabledTimeoutCyclesLeft > 0)
-                            pendingDisabledTimeoutCyclesLeft--;
                     }
 
                     return;
@@ -295,26 +295,10 @@
                 bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
 
-                if (pendingDisabledTimeoutCyclesLeft > 0)
+                if (isOnPendingDisabledCooldown && _activeSession.KnownIsShowingSubtitles == false)
                 {
-                    // Reset pending subtitles disabled flag if we know they are not showing
-                    if (_activeSession.KnownIsShowingSubtitles == false)
-                    {
-                        pendingDisabledTimeoutCyclesLeft = 0; // Reset the timeout counter
-                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Resetting pending subtitles disabled flag and reset timeout cycle to 0.");
-                    }
-                    else if (pendingDisabledTimeoutCyclesLeft > 0)
-                    {
-                        if (!isFromNotification) // Only decrement if this is from the polling loop
-                            pendingDisabledTimeoutCyclesLeft--;
-                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Pending subtitles disabled timeout cycles left: {pendingDisabledTimeoutCyclesLeft}");
-                    }
-                    else // Pending timeout cycle has reached zero
-                    {
-                        // If the timeout has expired, we'll manually set the flag to false
-                        pendingDisabledTimeoutCyclesLeft = 0;
-                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Pending subtitles disabled timeout expired. Resetting flag to false.");
-                    }
+                    StopPendingDisableCooldownNow();
+                    LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Ended Pending Disabled cooldown because subtitles are now known as disabled.");
                 }
 
                 // If the user had manually enabled subtitles, check if they disabled them
@@ -329,7 +313,7 @@
                 }
                 // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them.
                 // In this case again we don't want to stop them, so this is an else-if to prevent it falling through to the else
-                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true && pendingDisabledTimeoutCyclesLeft > 0)
+                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true && !isOnPendingDisabledCooldown)
                 {
                     _subtitlesUserEnabled = true;
                     SetLatestWatchedPosition(positionSec);
@@ -350,7 +334,7 @@
                             StopSubtitlesWithRetry(false);
 
                             // If they fast forward then get rid of the cooldown
-                            StopCooldownNow();
+                            StopMaxRewindCooldownNow();
 
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
@@ -363,7 +347,7 @@
 
                             // Initiate a cooldown, because if the user is rewinding in steps with a remote with brief pauses,
                             //      further rewinds may be interpreted as rewinds to show subtitles again
-                            StartCooldown();
+                            StartMaxRewindCooldown();
                         }
                         // Check if the position has gone back by the rewind amount.
                         // Add smallest resolution to avoid stopping subtitles too early
@@ -374,14 +358,14 @@
                         }
                     }
                     // Special handling during cooldown
-                    else if (isOnCooldown)
+                    else if (isOnMaxRewindCooldown)
                     {
                         // If they have fast forwarded
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
                             LogInfo($"{_deviceName} [{PlaybackIDShort}]: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
                             SetLatestWatchedPosition(positionSec);
-                            StopCooldownNow(); // Reset cooldown
+                            StopMaxRewindCooldownNow(); // Reset cooldown
                         }
                         else
                         {
@@ -390,7 +374,7 @@
                             // If the user rewinded again while in cooldown, we want to reset the cooldown
                             if (positionSec < _previousPosition - 2)
                             {
-                                RestartCooldownTimer();
+                                RestartMaxRewindCooldownTimer();
                             }
                         }
                     }
@@ -448,10 +432,12 @@
             }
         }
 
-        // Async function that sets isOnCooldown to true, waits 5 seconds on another thread, then sets it back to false
-        private readonly ManualResetEvent _cooldownResetEvent = new ManualResetEvent(false);
-        private bool _cooldownTimerLoop_DontDisableCooldown = false;
-        private void StartCooldown()
+        // ------------------ Max Rewind Cooldown Logic ------------------ //
+
+        // Function that sets isOnCooldown to true, waits 5 seconds on another thread, then sets it back to false
+        private readonly ManualResetEvent _maxRewindCooldownResetEvent = new ManualResetEvent(false);
+        private bool _maxRewindCooldownTimerLoop_DontDisableCooldown = false;
+        private void StartMaxRewindCooldown()
         {
             int cooldownMs = (int)Program.config.MaxRewindCoolDownSec * 1000;
 
@@ -463,9 +449,12 @@
                 return;
             }
 
-            if (isOnCooldown)
+            // Automatically restart the cooldown if it was already running. Can also separately call associated Restart method to do this
+            if (isOnMaxRewindCooldown)
             {
-                LogDebug("Already on cooldown, not starting again.");
+                _maxRewindCooldownTimerLoop_DontDisableCooldown = true;
+                _maxRewindCooldownResetEvent.Set(); // Wake up the sleeping thread
+                LogDebug("Max Rewind Sleep timer reset.");
                 return;
             }
             else
@@ -479,37 +468,107 @@
             // The loop behavior is: Setup the event, wait for the timer, then disable the cooldown
             //    HOWEVER if the timer was reset, the 'disable cooldown' flag will have been set to true,
             //    so it will pass over the cooldown disable line and restart to hit the delay again
-            isOnCooldown = true;
-            while (isOnCooldown) 
+            isOnMaxRewindCooldown = true;
+            while (isOnMaxRewindCooldown) 
             {
-                _cooldownTimerLoop_DontDisableCooldown = false;
-                _cooldownResetEvent.Reset(); // Reset the event for the next wait. In this case it is like filling up the hourglass again
-                _cooldownResetEvent.WaitOne(millisecondsTimeout: cooldownMs); // Wait on the event, with a timeout. Note: Can also be ended early using Set() on the event
+                _maxRewindCooldownTimerLoop_DontDisableCooldown = false;
+                _maxRewindCooldownResetEvent.Reset(); // Reset the event for the next wait. In this case it is like filling up the hourglass again
+                _maxRewindCooldownResetEvent.WaitOne(millisecondsTimeout: cooldownMs); // Wait on the event, with a timeout. Note: Can also be ended early using Set() on the event
 
                 // After the timer expires or is cancelled in the WaitOne line, the code is 'released' and allowed to continue here
-                if (!_cooldownTimerLoop_DontDisableCooldown)
+                if (!_maxRewindCooldownTimerLoop_DontDisableCooldown)
                 {
-                    isOnCooldown = false;
-                    LogVerbose("Cooldown timer expired.", Yellow);
+                    isOnMaxRewindCooldown = false;
+                    LogVerbose("COOLDOWN ENDED: Max Rewind Cooldown", ConsoleColor.DarkYellow);
                     break;
                 }
             }
         }
 
-        public void StopCooldownNow()
+        public void StopMaxRewindCooldownNow()
         {
-            isOnCooldown = false;
-            _cooldownTimerLoop_DontDisableCooldown = false;
-            _cooldownResetEvent.Set(); // Wake up the sleeping thread
-            LogDebug("Cooldown timer stopped.");
+            isOnMaxRewindCooldown = false;
+            _maxRewindCooldownTimerLoop_DontDisableCooldown = false;
+            _maxRewindCooldownResetEvent.Set(); // Wake up the sleeping thread
+            LogDebug("Max Rewind Cooldown timer stopped.");
         }
 
-        public void RestartCooldownTimer()
+        public void RestartMaxRewindCooldownTimer()
         {
-            _cooldownTimerLoop_DontDisableCooldown = true;
-            _cooldownResetEvent.Set(); // Wake up the sleeping thread
-            LogDebug("Sleep timer reset.");
+            _maxRewindCooldownTimerLoop_DontDisableCooldown = true;
+            _maxRewindCooldownResetEvent.Set(); // Wake up the sleeping thread
+            LogDebug("Max Rewind Sleep timer reset.");
         }
+
+        // ---------------------------------------------------------------------
+
+        // Function that sets isOnCooldown to true, waits 5 seconds on another thread, then sets it back to false
+        private readonly ManualResetEvent _pendingDisabledCooldownResetEvent = new ManualResetEvent(false);
+        private bool _pendingDisabledCooldownTimerLoop_DontDisableCooldown = false;
+        private void StartPendingDisabledCooldown()
+        {
+            int cooldownMs = (int)Program.config.PendingDisabledCooldownSec * 1000;
+
+            // -------------------- Check whether to skip ---------------------------
+
+            if (cooldownMs == 0)
+            {
+                LogDebug("Subtitle-Disabled Cooldown disabled in settings (value is 0), not starting.");
+                return;
+            }
+
+            // Automatically restart the cooldown if it was already running. Can also separately call associated Restart method to do this
+            if (isOnPendingDisabledCooldown)
+            {
+                _pendingDisabledCooldownTimerLoop_DontDisableCooldown = true;
+                _pendingDisabledCooldownResetEvent.Set(); // Wake up the sleeping thread
+                LogDebug("Subtitle-Disabled Sleep timer reset.");
+                return;
+            }
+            else
+            {
+                LogDebug("Starting Subtitle-Disabled cooldown.");
+            }
+
+            // -------------------- Actual Logic ---------------------------
+
+            // -- Wait on the event with a timeout, allowing for cancellation --
+            // The loop behavior is: Setup the event, wait for the timer, then disable the cooldown
+            //    HOWEVER if the timer was reset, the 'disable cooldown' flag will have been set to true,
+            //    so it will pass over the cooldown disable line and restart to hit the delay again
+            isOnPendingDisabledCooldown = true;
+            while (isOnPendingDisabledCooldown)
+            {
+                _pendingDisabledCooldownTimerLoop_DontDisableCooldown = false;
+                _pendingDisabledCooldownResetEvent.Reset(); // Reset the event for the next wait. In this case it is like filling up the hourglass again
+                _pendingDisabledCooldownResetEvent.WaitOne(millisecondsTimeout: cooldownMs); // Wait on the event, with a timeout. Note: Can also be ended early using Set() on the event
+
+                // After the timer expires or is cancelled in the WaitOne line, the code is 'released' and allowed to continue here
+                if (!_pendingDisabledCooldownTimerLoop_DontDisableCooldown)
+                {
+                    isOnPendingDisabledCooldown = false;
+                    LogVerbose("COOLDOWN ENDED: Subtitle-Disabled Cooldown", ConsoleColor.DarkYellow);
+                    break;
+                }
+            }
+        }
+
+        public void StopPendingDisableCooldownNow()
+        {
+            isOnPendingDisabledCooldown = false;
+            _pendingDisabledCooldownTimerLoop_DontDisableCooldown = false;
+            _pendingDisabledCooldownResetEvent.Set(); // Wake up the sleeping thread
+            LogDebug("Subtitle-Disabled Cooldown timer stopped.");
+        }
+
+        public void RestartPendingDisableCooldownTimer()
+        {
+            _pendingDisabledCooldownTimerLoop_DontDisableCooldown = true;
+            _pendingDisabledCooldownResetEvent.Set(); // Wake up the sleeping thread
+            LogDebug("Subtitle-Disabled Sleep timer reset.");
+        }
+
+        // ---------------------------------------------------------------------
 
         public void StopMonitoring()
         {

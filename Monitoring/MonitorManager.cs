@@ -152,6 +152,13 @@ namespace RewindSubtitleDisplayerForPlex
                 _allMonitors.Add(monitor);
                 LogInfo($"Added new session for {activeSession.DeviceName}. Session Playback ID: {playbackID}", Yellow);
             }
+
+            // If dev setting to disable subtitles on start is enabled, disable them now
+            if (Program.config.DisableSubtitlesOnAppStartup == true)
+            {
+                _ = activeSession.DisableSubtitles();
+                LogDebug($"Forced disable subtitles for new session {playbackID}.", ConsoleColor.Magenta);
+            }
         }
 
         public static List<string> GetMonitoredSessions()
