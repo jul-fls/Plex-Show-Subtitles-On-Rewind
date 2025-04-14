@@ -34,6 +34,22 @@ namespace RewindSubtitleDisplayerForPlex
             _httpClientShortTimeout.Timeout = TimeSpan.FromMilliseconds(shortTimeout); // Will be used between loop iterations which only last a second
         }
 
+        // In certain places we want to ensure we don't overload the server with similar or contradictory requests
+        // So this basically ensures they are sent one at a time
+        public static HttpResponseMessage SendRequestNoCollision(HttpRequestMessage request)
+        {
+            // This method is called from a thread, so we need to use the semaphore to protect the HTTP client
+            _httpClientSemaphore.Wait();
+            try
+            {
+                return _httpClient.SendAsync(request).Result;
+            }
+            finally
+            {
+                _httpClientSemaphore.Release();
+            }
+        }
+
         // Using XmlSerializer to get sessions
         public static async Task<List<PlexSession>?> GetSessionsAsync(bool shortTimeout = false)
         {
@@ -425,7 +441,7 @@ namespace RewindSubtitleDisplayerForPlex
                 request = Utils.AddHttpRequestHeaders(request, headers);
 
                 // Send the command and get the response
-                HttpResponseMessage response = await _httpClient.SendAsync(request);
+                HttpResponseMessage response = SendRequestNoCollision(request);
 
                 // The rest of the method remains unchanged
                 // Check if the response was successful
@@ -447,7 +463,8 @@ namespace RewindSubtitleDisplayerForPlex
                         HttpRequestMessage retryRequest = new HttpRequestMessage(HttpMethod.Get, retryUrl);
                         retryRequest = Utils.AddHttpRequestHeaders(retryRequest, headers);
 
-                        HttpResponseMessage retryResponse = await _httpClient.SendAsync(retryRequest);
+                        HttpResponseMessage retryResponse = SendRequestNoCollision(retryRequest);
+
                         if (retryResponse.IsSuccessStatusCode)
                         {
                             // Process the XML response from the device
@@ -554,6 +571,8 @@ namespace RewindSubtitleDisplayerForPlex
 
         // Command ID tracking
         private static int _commandId = 0;
+        // Replace the lock statement with a SemaphoreSlim to allow asynchronous operations
+        private static readonly SemaphoreSlim _httpClientSemaphore = new SemaphoreSlim(1, 1);
         private static string GetNextCommandId()
         {
             return (++_commandId).ToString();
