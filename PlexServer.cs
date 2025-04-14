@@ -425,7 +425,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
 
             // Add command ID
-            parameters["commandID"] = GetNextCommandId();
+            //parameters["commandID"] = GetNextCommandId();
 
             // Build the query string using JoinArgs
             string queryString = Utils.JoinArgs(parameters);

@@ -12,21 +12,16 @@
 
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
 
-        private static readonly int DefaultCooldownCount = Program.config.CoolDownCount;
-
         private bool _isMonitoring;
         private bool _subtitlesUserEnabled;
         private double _latestWatchedPosition;
         private double _previousPosition; // Use to detect fast forwards
-        private int _cooldownCyclesLeft = 0; // Used after rewinding too long, to prevent detecting rewinds again too quickly
-        private int _cooldownToUse = 0; // Used to store the current max cooldown so it can be reset
         private bool _temporarilyDisplayingSubtitles;
         private readonly double _smallestResolutionSec; // This might be updated depending on available data during refreshes
 
         // After disabling subtitles there is a delay before they actually stop showing, so we need to wait for that
         // Use this to check if subtitles have been disabled yet after we do, to avoid false positive that user enabled them
         // Also track a timeout to assume user enabled them if they keep showing for a long time
-        private bool isPendingSubtitlesDisabled = false;
         private int pendingDisableTimeoutCount = 5;
         private int pendingDisabledTimeoutCyclesLeft = 0;
 
@@ -177,7 +172,6 @@
                         if (success)
                         {
                             _temporarilyDisplayingSubtitles = false;
-                            isPendingSubtitlesDisabled = true;
                             pendingDisabledTimeoutCyclesLeft = pendingDisableTimeoutCount; // Reset the timeout counter
                             break;
                         }
@@ -222,7 +216,7 @@
                 : "Null ";
 
             string expectedShowingSubs;
-            if (isPendingSubtitlesDisabled)
+            if (pendingDisabledTimeoutCyclesLeft > 0)
                 expectedShowingSubs = "Wait.";
             else if (_activeSession.KnownIsShowingSubtitles == true)
                 expectedShowingSubs = PadBool(true, left:false);
@@ -284,7 +278,11 @@
                     if (isFromNotification)
                         discardNextPass = true;
                     else
+                    {
                         discardNextPass = false;
+                        if (pendingDisabledTimeoutCyclesLeft > 0)
+                            pendingDisabledTimeoutCyclesLeft--;
+                    }
 
                     return;
                 }
@@ -299,12 +297,11 @@
                 bool temporarySubtitlesWereEnabledForPass = _temporarilyDisplayingSubtitles; // Store the value before it gets updated to print at the end
                 double _smallestResolution = Math.Max(_activeFrequencySec, _activeSession.SmallestResolutionExpected);
 
-                if (isPendingSubtitlesDisabled)
+                if (pendingDisabledTimeoutCyclesLeft > 0)
                 {
                     // Reset pending subtitles disabled flag if we know they are not showing
                     if (_activeSession.KnownIsShowingSubtitles == false)
                     {
-                        isPendingSubtitlesDisabled = false;
                         pendingDisabledTimeoutCyclesLeft = 0; // Reset the timeout counter
                         LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Resetting pending subtitles disabled flag and reset timeout cycle to 0.");
                     }
@@ -317,7 +314,7 @@
                     else // Pending timeout cycle has reached zero
                     {
                         // If the timeout has expired, we'll manually set the flag to false
-                        isPendingSubtitlesDisabled = false;
+                        pendingDisabledTimeoutCyclesLeft = 0;
                         LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Pending subtitles disabled timeout expired. Resetting flag to false.");
                     }
                 }
@@ -334,7 +331,7 @@
                 }
                 // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them.
                 // In this case again we don't want to stop them, so this is an else-if to prevent it falling through to the else
-                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true && !isPendingSubtitlesDisabled && pendingDisabledTimeoutCyclesLeft > 0)
+                else if (!_temporarilyDisplayingSubtitles && _activeSession.KnownIsShowingSubtitles == true && pendingDisabledTimeoutCyclesLeft > 0)
                 {
                     _subtitlesUserEnabled = true;
                     SetLatestWatchedPosition(positionSec);

@@ -676,9 +676,10 @@ public class ActiveSession
                 subtitleID = AvailableSubtitles[0].Id;
             }
 
-            CommandResult result = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: sendDirectToDevice, subtitleStreamID: subtitleID, activeSession:this);
+            CommandResult result1 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: true, subtitleStreamID: subtitleID, activeSession:this);
+            //CommandResult result2 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: true, subtitleStreamID: subtitleID, activeSession:this);
 
-            if (result.Success)
+            if (result1.Success)
             {
                 // There is a delay from the server even after it accepts the command
                 // So we'll set to null because we can't be sure it's true yet. It will be updated in the next timeline update
@@ -688,7 +689,7 @@ public class ActiveSession
             else
             {
                 // Log the error message
-                LogWarning($"Failed to enable subtitles: {result.Message}");
+                LogWarning($"Failed to enable subtitles: {result1.Message}");
                 return false;
             }
         }
