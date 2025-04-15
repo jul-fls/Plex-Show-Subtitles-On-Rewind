@@ -27,8 +27,7 @@ Once playback reaches the point where you started the rewind, it will **automati
 * **Run Purely in Background**: On Windows use the `-background` launch argument to run it without any console Window. It will sit idle until Plex notifies it that Media is playing.
 
 ## Screenshot
-![window](https://github.com/user-attachments/assets/fa406e71-62a9-4d4b-a8e9-d2cd5ccd8005)
-
+![Console Window Screenshot](https://github.com/user-attachments/assets/c7dc6a08-2f92-4406-85a0-8b34ccd36054)
 
 
 ## Requirements
@@ -57,12 +56,12 @@ Once playback reaches the point where you started the rewind, it will **automati
 ### Optional Command-Line Arguments: 
 
 - Use the `-help` launch argument to list all other available launch arguments, including:
-     - `-stop`: Stops all other running instances of the app. Useful if you launched another instance in background mode, so you don't have to end it via task manager.
      - `-background`: Windows Only: The program runs in the background without showing a console. Alternatively, background mode can be enabled in the settings.ini file.
-     - `-debug` and `-verbose`: See more detailed logging output to the console. Debug contains the highest detail.
+     - `-stop`: Stops all other running instances of the app. Useful if you launched another instance in background mode, so you don't have to end it via task manager.
+     - `-settings-template`: Generate a default settings config file template.
+     - `-no-force-debug`: For development, doesn't force the program into DebugExtra mode when debugging.
+     - `-token-template`: Generate an example token config file.
      - `-allow-duplicate-instance`: New app instance will not close if it detects another is already connected to the same server.
-     - `-token-template`: Generate an example token config file
-     - `-settings-template`: Generate a default settings config file template
      - `-update-settings-file`: Update your old settings file version, to include missing settings (if any) and update any settings descriptions. A backup will be created.
      - `-test-settings`: Load your settings file and show which values are valid, and which are not and therefore will be set to default.
    
