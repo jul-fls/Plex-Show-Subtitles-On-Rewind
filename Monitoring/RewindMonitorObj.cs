@@ -601,6 +601,12 @@ namespace RewindSubtitleDisplayerForPlex
                 return;
             }
 
+            if (Program.config.InitialSessionDelay == 0)
+            {
+                LogDebug("Initial session delay disabled in settings (value is 0), not starting.");
+                return;
+            }
+
             int delay = Program.config.InitialSessionDelay * 1000; // Convert to milliseconds
 
             Task.Run(() =>
