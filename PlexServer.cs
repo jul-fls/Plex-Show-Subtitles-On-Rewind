@@ -56,6 +56,8 @@ namespace RewindSubtitleDisplayerForPlex
         public static async Task<List<PlexResource>> GetResources()
         {
             string responseString;
+            HttpRequestMessage request;
+            HttpResponseMessage response;
             List<PlexResource> resources = [];
 
             Dictionary<string, string> moreHeaders = new()
@@ -63,11 +65,19 @@ namespace RewindSubtitleDisplayerForPlex
                 { "Accept", "application/json" },
             };
 
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://plex.tv/api/v2/resources");
-            request = Utils.AddHttpRequestHeaders(request, moreHeaders);
+            try
+            {
+                request = new HttpRequestMessage(HttpMethod.Get, $"https://plex.tv/api/v2/resources");
+                request = Utils.AddHttpRequestHeaders(request, moreHeaders);
 
-            HttpResponseMessage response = await _httpClient.SendAsync(request);
-            responseString = await response.Content.ReadAsStringAsync();
+                response = await _httpClient.SendAsync(request);
+                responseString = await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error getting resources during HTTP Request: {ex.Message}");
+                return resources;
+            }
 
             if (!response.IsSuccessStatusCode)
             {
@@ -81,14 +91,25 @@ namespace RewindSubtitleDisplayerForPlex
             else
             {
                 // Deserialize the response string to a list of resources
-                List<PlexResource>? returnedResources = JsonSerializer.Deserialize<List<PlexResource>>(responseString);
-                if (returnedResources != null)
+                try
                 {
-                    resources = returnedResources;
+                    List<PlexResource>? returnedResources = JsonSerializer.Deserialize<List<PlexResource>>(responseString);
+                    if (returnedResources != null)
+                    {
+                        resources = returnedResources;
+                    }
+                    else
+                    {
+                        LogError("Failed to deserialize resources.");
+                    }
                 }
-                else
+                catch (JsonException jsonEx)
                 {
-                    LogError("Failed to deserialize resources.");
+                    LogError($"Error deserializing resources: {jsonEx.Message}");
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Unexpected error deserializing resources: {ex.Message}");
                 }
             }
 
