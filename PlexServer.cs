@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -50,6 +51,48 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
+        public static async Task<List<PlexResource>> GetResources()
+        {
+            string responseString;
+            List<PlexResource> resources = [];
+
+            Dictionary<string, string> moreHeaders = new()
+            {
+                { "Accept", "application/json" },
+            };
+
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://plex.tv/api/v2/resources");
+            request = Utils.AddHttpRequestHeaders(request, moreHeaders);
+
+            HttpResponseMessage response = await _httpClient.SendAsync(request);
+            responseString = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string statusCode = ((int)response.StatusCode).ToString();
+                string statusName = response.StatusCode.ToString();
+                string errorText = await response.Content.ReadAsStringAsync();
+                errorText = errorText.Replace("\n", " ");
+                LogError($"Error getting resources: {statusCode} ({statusName}), Error: {errorText}");
+                return resources;
+            }
+            else
+            {
+                // Deserialize the response string to a list of resources
+                List<PlexResource>? returnedResources = JsonSerializer.Deserialize<List<PlexResource>>(responseString);
+                if (returnedResources != null)
+                {
+                    resources = returnedResources;
+                }
+                else
+                {
+                    LogError("Failed to deserialize resources.");
+                }
+            }
+
+            return resources;
+        }
+
         // Using XmlSerializer to get sessions
         public static async Task<List<PlexSession>?> GetSessionsAsync(bool shortTimeout = false)
         {
@@ -57,7 +100,6 @@ namespace RewindSubtitleDisplayerForPlex
 
             try
             {
-                //string response = await httpClientToUse.GetStringAsync($"{_url}/status/sessions");
                 string responseString;
                 HttpResponseMessage response = await httpClientToUse.GetAsync($"{_url}/status/sessions");
                 responseString = await response.Content.ReadAsStringAsync();
@@ -84,6 +126,8 @@ namespace RewindSubtitleDisplayerForPlex
                     }
 
                     //LogDebugExtra($"Found {container.Sessions.Count} active Plex sessions");
+
+                    container.Sessions = SessionHandler.UpdatePlayerPorts(container.Sessions);
 
                     return container.Sessions;
                 }
@@ -277,11 +321,10 @@ namespace RewindSubtitleDisplayerForPlex
         public static async Task<CommandResult> SetStreamsAsync(
             string machineID,
             bool sendDirectToDevice,
+            string mediaType,
             int? audioStreamID = null,
             int? subtitleStreamID = null,
             int? videoStreamID = null,
-            string mediaType = "video",
-            
             ActiveSession? activeSession = null
             )
         {
@@ -322,17 +365,6 @@ namespace RewindSubtitleDisplayerForPlex
         }
 
         // Overload
-        public static async Task<TimelineMediaContainer?> GetTimelineAsync(PlexPlayer player)
-        {
-            return await GetTimelineAsync(player.MachineIdentifier, player.Device, player.DirectUrlPath);
-        }
-
-        // Overload
-        public static async Task<TimelineMediaContainer?> GetTimelineAsync(ActiveSession activeSession)
-        {
-            return await GetTimelineAsync(activeSession.MachineID, activeSession.DeviceName, activeSession.DirectUrlPath);
-        }
-
         public static async Task<TimelineMediaContainer?> GetTimelineAsync(string machineID, string deviceName, string url)
         {
             // Create headers with machine identifier

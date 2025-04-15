@@ -1,4 +1,5 @@
-﻿using System.Xml;
+﻿using System.Text.Json.Serialization;
+using System.Xml;
 using System.Xml.Serialization;
 using static RewindSubtitleDisplayerForPlex.Props;
 
@@ -502,6 +503,102 @@ public class SessionMediaContainer
 {
     [XmlElement(nameof(Video))]
     public List<PlexSession> Sessions { get; set; } = [];
+}
+
+public class PlexResource
+{
+    [JsonPropertyName("name")]
+    public string Key { get; set; } = string.Empty;
+
+    [JsonPropertyName("product")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("productVersion")]
+    public string ProductVersion { get; set; } = string.Empty;
+
+    [JsonPropertyName("platform")]
+    public string Platform { get; set; } = string.Empty;
+
+    [JsonPropertyName("platformVersion")]
+    public string PlatformVersion { get; set; } = string.Empty;
+
+    [JsonPropertyName("device")]
+    public string Device { get; set; } = string.Empty;
+
+    [JsonPropertyName("clientIdentifier")]
+    public string ClientIdentifier { get; set; } = string.Empty;
+
+    [JsonPropertyName("createdAt")]
+    public string CreatedAt { get; set; } = string.Empty;
+
+    [JsonPropertyName("lastSeenAt")]
+    public string LastSeenAt { get; set; } = string.Empty;
+
+    [JsonPropertyName("provides")]
+    public string Provides { get; set; } = string.Empty;
+
+    [JsonPropertyName("ownerId")]
+    public string? OwnerId { get; set; }
+
+    [JsonPropertyName("sourceTitle")]
+    public string? SourceTitle { get; set; }
+
+    [JsonPropertyName("publicAddress")]
+    public string PublicAddress { get; set; } = string.Empty;
+
+    [JsonPropertyName("accessToken")]
+    public string AccessToken { get; set; } = string.Empty;
+
+    [JsonPropertyName("owned")]
+    public bool Owned { get; set; }
+
+    [JsonPropertyName("home")]
+    public bool Home { get; set; }
+
+    [JsonPropertyName("synced")]
+    public bool Synced { get; set; }
+
+    [JsonPropertyName("relay")]
+    public bool Relay { get; set; }
+
+    [JsonPropertyName("presence")]
+    public bool Presence { get; set; }
+
+    [JsonPropertyName("httpsRequired")]
+    public bool HttpsRequired { get; set; }
+
+    [JsonPropertyName("publicAddressMatches")]
+    public bool PublicAddressMatches { get; set; }
+
+    [JsonPropertyName("dnsRebindingProtection")]
+    public bool DnsRebindingProtection { get; set; }
+
+    [JsonPropertyName("connections")]
+    public List<PlexConnection> Connections { get; set; } = [];
+
+    public class PlexConnection
+    {
+        [JsonPropertyName("protocol")]
+        public string Protocol { get; set; } = string.Empty;
+
+        [JsonPropertyName("address")]
+        public string Address { get; set; } = string.Empty;
+
+        [JsonPropertyName("port")]
+        public int Port { get; set; }
+
+        [JsonPropertyName("uri")]
+        public string Uri { get; set; } = string.Empty;
+
+        [JsonPropertyName("local")]
+        public bool Local { get; set; }
+
+        [JsonPropertyName("relay")]
+        public bool Relay { get; set; }
+
+        [JsonPropertyName("IPv6")]
+        public bool IPv6 { get; set; }
+    }
 }
 
 // Class to hold session objects and associated subtitles

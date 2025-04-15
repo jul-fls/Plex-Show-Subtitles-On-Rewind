@@ -6,6 +6,7 @@ namespace RewindSubtitleDisplayerForPlex
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
         private const int _deadSessionGracePeriod = 60; // Seconds
+        private static List<PlexResource> _knownDeviceResources = []; // Resources are info about connected devices to the server / players
 
         // This not only fetches the sessions, but also gets both active and available subtitles
         public static async Task<List<ActiveSession>> ProcessActiveSessions(List<PlexSession> sessionsList)
@@ -30,8 +31,35 @@ namespace RewindSubtitleDisplayerForPlex
             return newActiveSessionList;
         }
 
+        public static List<PlexSession> UpdatePlayerPorts(List<PlexSession> sessionList)
+        {
+
+            foreach (PlexSession session in sessionList)
+            {
+                // Check the resources if any 'connections' -> 'address' matches the IP ('Address' property of Player object) of the session, if so get the 'connections' -> 'port'
+                foreach (PlexResource resource in _knownDeviceResources)
+                {
+                    if (resource.Connections != null && resource.Connections.Count > 0)
+                    {
+                        // In this case 'client identifier' in the response list is the machine id of each
+                        if (resource.ClientIdentifier == session.Player.MachineIdentifier)
+                        {
+                            session.Player.Port = resource.Connections[0].Port.ToString(); // Assume the first connection is the one we want
+                            //session.Player.Address = resource.Connections[0].Address; // This is the IP address of the player
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return sessionList;
+        }
+
         public static async Task<List<ActiveSession>> ClearAndLoadActiveSessionsAsync()
         {
+            List<PlexResource> resources = await PlexServer.GetResources();
+            _knownDeviceResources = resources;
+
             List<PlexSession>? sessionsList = await PlexServer.GetSessionsAsync(shortTimeout:false);
 
             // It will only return null for an error
