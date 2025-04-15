@@ -301,8 +301,24 @@ namespace RewindSubtitleDisplayerForPlex
             if (!string.IsNullOrEmpty(mediaType))
                 parameters["type"] = mediaType;
 
+            // Create headers with machine identifier
+            Dictionary<string, string> headers = new()
+            {
+                { "X-Plex-Target-Client-Identifier", machineID },
+                {"Accept" , "application/json"},
+            };
+
+            if (activeSession != null)
+            {
+                string deviceName = activeSession.DeviceName;
+                if (!string.IsNullOrEmpty(deviceName))
+                {
+                    headers["X-Plex-Device-Name"] = deviceName;
+                }
+            }
+
             // Send the command through the PlexServer
-            return await SendCommandAsync(machineID: machineID, command: "playback/setStreams", sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession:activeSession);
+            return await SendCommandAsync(machineID: machineID, command: "playback/setStreams", headers, sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession:activeSession);
         }
 
         // Overload
@@ -371,7 +387,15 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        public static async Task<CommandResult> SendCommandAsync(string machineID, string command, bool? sendDirectToDevice, Dictionary<string, string>? additionalParams = null, bool needResponse = false, ActiveSession? activeSession = null)
+        public static async Task<CommandResult> SendCommandAsync(
+            string machineID, 
+            string command, 
+            Dictionary<string, string> headers, 
+            bool? sendDirectToDevice, 
+            Dictionary<string, string>? additionalParams = null, 
+            bool needResponse = false, 
+            ActiveSession? activeSession = null
+            )
         {
             string mainUrlBase;
             string? retryUrlBase;
@@ -406,11 +430,7 @@ namespace RewindSubtitleDisplayerForPlex
                 }
             }
 
-            // Create headers with machine identifier
-            Dictionary<string, string> headers = new()
-            {
-                { "X-Plex-Target-Client-Identifier", machineID }
-            };
+
 
             // Build query parameters
             Dictionary<string, object> parameters = [];

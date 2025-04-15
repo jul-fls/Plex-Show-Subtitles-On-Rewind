@@ -677,7 +677,6 @@ public class ActiveSession
             }
 
             CommandResult result1 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: Program.config.SendCommandDirectToDevice, subtitleStreamID: subtitleID, activeSession:this);
-            //CommandResult result2 = await PlexServer.SetSubtitleStreamAsync(machineID: MachineID, sendDirectToDevice: true, subtitleStreamID: subtitleID, activeSession:this);
 
             if (result1.Success)
             {
