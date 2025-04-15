@@ -21,8 +21,8 @@ namespace RewindSubtitleDisplayerForPlex
         // ManualResetEvent for Ctrl+C
         private static readonly ManualResetEvent _ctrlCExitEvent = new ManualResetEvent(false);
         // CancellationTokenSource for graceful shutdown propagation
-        private static readonly CancellationTokenSource _appShutdownCts = new CancellationTokenSource();
-
+        private static readonly CancellationTokenSource _appShutdownCts_Program = new CancellationTokenSource();
+        public static ShutdownProcedure UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
 
         // ===========================================================================================
 
@@ -44,9 +44,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteColor("\n------------ See valid launch args below ------------\n", Yellow);
                 WriteLineSafe(LaunchArgs.AllLaunchArgsInfo + "\n\n");
-                WriteLineSafe("Press Enter to exit.");
-                ReadlineSafe();
-                ExitProgramSafe();
+                WaitPressEnterIfNotBackgroundMode(verb: "Continue Anyway", isForExit: false);
             }
 
             // Load Settings from file early on
@@ -54,16 +52,16 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 WriteLineSafe();
                 SettingsHandler.LoadSettings(printResult: SettingsHandler.PrintResultType.ResultingConfig);
+                UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                 ExitProgramSafe();
             }
 
             // Load settings file and set default values if not present
             config = SettingsHandler.LoadSettings(); // Load settings early on but after debug mode is set by launch args if necessary
-            //if (!debugMode) { debugMode = config.DebugMode; } // Set debug mode from settings, but only if if not already set, as to not override the command line arg
 
             if (config.LogToFile.Value == true)
             {
-                MyLogger.Initialize(); // Initialize the logger if logging to file is enabled
+                MyLogger.Initialize(); // Will only initialize the logger if logging to file is enabled
             }
 
             MyLogger.LogToFile("\n\n--------------------------------------------------- NEW INSTANCE ---------------------------------------------------\n");
@@ -88,14 +86,15 @@ namespace RewindSubtitleDisplayerForPlex
                 else
                     WriteRed("Failed to generate token template file.");
 
-                WriteLineSafe("\nPress Enter to exit.");
-                ReadlineSafe();
+                UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
+                ExitProgramSafe();
             }
 
             // Config Template Generation
             if (LaunchArgs.ConfigTemplate.Check(args))
             {
                 SettingsHandler.GenerateTemplateSettingsFile();
+                UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                 ExitProgramSafe();
             }
 
@@ -103,6 +102,7 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.UpdateSettings.Check(args))
             {
                 SettingsHandler.UpdateSettingsFile(config);
+                UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                 ExitProgramSafe();
             }
 
@@ -117,6 +117,7 @@ namespace RewindSubtitleDisplayerForPlex
                 InstanceCoordinator.SignalShutdown();
                 // Clean up handles for this short-lived instance
                 InstanceCoordinator.Cleanup();
+                UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                 ExitProgramSafe();
             }
             // ---------- End Instance Coordination -----------
@@ -127,6 +128,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(LaunchArgs.AdvancedHelpInfo + "\n\n");
                 WriteLineSafe("Press Enter to exit.");
                 ReadlineSafe();
+                UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                 ExitProgramSafe();
             }
             else // The normal launch message (only if not running background)
@@ -157,6 +159,7 @@ namespace RewindSubtitleDisplayerForPlex
                         if (!isBackgroundMode) { Utils.TimedWaitForEnterKey(15, "exit"); }
 
                         InstanceCoordinator.Cleanup(); // Cleanup handles
+                        UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                         ExitProgramSafe();
                     }
                 }
@@ -173,8 +176,8 @@ namespace RewindSubtitleDisplayerForPlex
                     if (resultTuple == null)
                     {
                         WriteLineSafe("\nFailed to load tokens. Exiting.");
-                        ReadlineSafe();
-                        return; // Will end up in finally block
+                        UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
+                        return; // Will end up in finally block and end up in ExitProgramSafe() anyway
                     }
 
                     PLEX_APP_TOKEN = resultTuple.Value.Item1;
@@ -191,7 +194,7 @@ namespace RewindSubtitleDisplayerForPlex
                 PlexServer.SetupPlexServer(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
 
                 // --- Instantiate and Start Watchdog ---
-                _connectionWatchdog = new ConnectionWatchdog(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER);
+                _connectionWatchdog = new ConnectionWatchdog(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER, _appShutdownCts_Program);
 
                 // Subscribe MonitorManager to the watchdog's event, which will alert us to playing notifications
                 _connectionWatchdog.ForwardPlayingNotificationReceived += MonitorManager.HandlePlayingNotificationReceived;
@@ -203,7 +206,7 @@ namespace RewindSubtitleDisplayerForPlex
                     WriteYellow("\n***** Ctrl+C detected. Initiating shutdown... *****\n");
                     eventArgs.Cancel = true; // Prevent immediate process termination
                     _ctrlCExitEvent.Set(); // Signal the legacy Ctrl+C event
-                    _appShutdownCts.Cancel(); // Signal cancellation token for newer async waits
+                    _appShutdownCts_Program.Cancel(); // Signal cancellation token for newer async waits
                 };
 
 
@@ -214,13 +217,13 @@ namespace RewindSubtitleDisplayerForPlex
                 WaitHandle[] waitHandles;
                 if (instancesAreSetup)
                 {
-                    InstanceCoordinator.StartExistingInstanceListener(config.ServerURL, _appShutdownCts.Token);
-                    WaitHandle shutdownHandle = InstanceCoordinator.GetShutdownWaitHandle();
-                    waitHandles = [_ctrlCExitEvent, _appShutdownCts.Token.WaitHandle, shutdownHandle];
+                    InstanceCoordinator.StartExistingInstanceListener(config.ServerURL, _appShutdownCts_Program.Token);
+                    WaitHandle otherInstanceShutdownHandle = InstanceCoordinator.GetShutdownWaitHandle();
+                    waitHandles = [_ctrlCExitEvent, _appShutdownCts_Program.Token.WaitHandle, otherInstanceShutdownHandle];
                 }
                 else
                 {
-                    waitHandles = [_ctrlCExitEvent, _appShutdownCts.Token.WaitHandle];
+                    waitHandles = [_ctrlCExitEvent, _appShutdownCts_Program.Token.WaitHandle];
                 }
 
                 WriteLineSafe("\nApplication running. Press Ctrl+C to exit.\n");
@@ -236,10 +239,11 @@ namespace RewindSubtitleDisplayerForPlex
                 };
                 LogInfo($"Exit signal received ({exitReason}). Shutting down (this might take several seconds)...", ConsoleColor.Yellow);
 
-                // Ensure cancellation is signaled if not already
-                if (!_appShutdownCts.IsCancellationRequested)
+                // Ensure cancellation is signaled if not already if we make it to this point,
+                // since at this point we are shutting down (because we're beyond the wait handle trigger)
+                if (!_appShutdownCts_Program.IsCancellationRequested)
                 {
-                    _appShutdownCts.Cancel();
+                    _appShutdownCts_Program.Cancel();
                 }
 
             }
@@ -262,10 +266,19 @@ namespace RewindSubtitleDisplayerForPlex
                 //MonitorManager.RemoveAllMonitors(); // Not needed if we're just exiting the app, plus should be already handled
                 LogInfo("    Application exited.");
                 _ctrlCExitEvent.Dispose();
-                _appShutdownCts.Dispose(); // Dispose the cancellation token source
+                _appShutdownCts_Program.Dispose(); // Dispose the cancellation token source
 
                 ExitProgramSafe();
             }
+        }
+
+        // Note not all of these are necessarily used yet, but they are here for future use
+        public enum ShutdownProcedure
+        {
+            ImmediateGraceful,  // Never wait for user input, just exit
+            ImmediateKill,      // Kill the process immediately
+            PreferWaitUserInput // If not in background mode, wait for user input if the console was allocated
+                                //      but not if it was attached since the user will be still able to see any messages
         }
 
         private static void ExitProgramSafe()
@@ -280,7 +293,12 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 Debug.WriteLine($"Error flushing console output: {ex.Message}");
             }
-            SayPressEnterIfConsoleAttached();
+
+            if (UseShutdownProcedure == ShutdownProcedure.PreferWaitUserInput)
+            {
+                WaitPressEnterIfNotBackgroundMode(verb: "Exit", isForExit: true);
+            }
+            
             OS_Handlers.FreeConsoleIfNeeded();
             Environment.Exit(0);
         }

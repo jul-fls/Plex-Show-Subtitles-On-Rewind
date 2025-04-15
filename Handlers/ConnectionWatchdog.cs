@@ -21,14 +21,15 @@ namespace RewindSubtitleDisplayerForPlex
         public event EventHandler? ListenerConnectionLost;
         // Event to notify when a 'playing' event is received from the listener
         public event EventHandler<PlexEventInfo>? ForwardPlayingNotificationReceived;
-        private static readonly CancellationTokenSource _appShutdownCts = new CancellationTokenSource();
+        private readonly CancellationTokenSource _appShutdownCts_Watchdog = new CancellationTokenSource();
 
         // Constructor
-        public ConnectionWatchdog(string plexUrl, string plexToken, string appClientId)
+        public ConnectionWatchdog(string plexUrl, string plexToken, string appClientId, CancellationTokenSource appShutdownCts_Program)
         {
             _plexUrl = plexUrl;
             _plexToken = plexToken;
             _appClientId = appClientId;
+            _appShutdownCts_Watchdog = appShutdownCts_Program;
         }
 
         public void Start()
@@ -214,6 +215,7 @@ namespace RewindSubtitleDisplayerForPlex
 
             DisposeListener(); // Final cleanup
             MonitorManager.RemoveAllMonitors(); // Ensure monitors are fully stopped on final exit
+            _appShutdownCts_Watchdog.Cancel(); // Signal app shutdown if we exit the loop
         }
 
 
@@ -331,6 +333,13 @@ namespace RewindSubtitleDisplayerForPlex
                     {
                         LogDebug("Connection Watcher: Forcing short retry delay due to maintenance mode.");
                         forceShortDelay = true;
+                    }
+                    else if (connectionSuccess == PlexServer.ConnectionResult.Unauthorized || connectionSuccess == PlexServer.ConnectionResult.Forbidden)
+                    {
+                        WriteErrorSuper("Connection Watcher: There seems to be a problem with your authorization to the server.\n" +
+                            $"Try deleting {AuthTokenHandler.AuthStrings.tokenFileName} and going through the auth flow again.");
+                        WriteLineSafe();
+                        return connectionSuccess; // Not actually success
                     }
                     else
                     {

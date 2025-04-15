@@ -152,16 +152,37 @@ internal class Utils
         return enterWasPressed;
     }
 
-    public static void SayPressEnterIfConsoleAttached()
+    // If running in background mode, don't wait for user input.
+    public static void WaitPressEnterIfNotBackgroundMode(string verb, bool isForExit)
     {
-        // If running in background mode, don't wait for user input.
-        if (OS_Handlers.isConsoleAttached)
+        string message = $"\nPress Enter to {verb}...";
+        
+        if (OS_Handlers.isConsoleAttached) // This will only hit on Windows since only there we use AttachConsole
         {
-            Console.WriteLine("\nPress Enter to Exit...");
-            //ReadlineSafe(); // This isn't actually needed for some reason
+            if (isForExit == false)
+            {
+                Console.WriteLine(message);
+                ReadlineSafe();
+            }
+            else if (isForExit == true)
+            {
+                Console.WriteLine(message);
+                //ReadlineSafe(); // When console is attached instead of allocated, this isn't actually needed for some reason when exiting, it would make you press enter twice
+                // In any case, since the console is attached the user will still be able to see the messages without pressing enter
+            }
         }
-    }
+        else if (!Program.isBackgroundMode) // Console was allocated, instead of attached to existing. Or we are not on Windows so just wait for input to be safe.
+        {
+            Console.WriteLine(message);
+            ReadlineSafe();
+        }
+        else
+        {
+            // Otherwise, if we ARE in background mode, we don't need to wait for user input so we can just return.
+        }
 
+        return;
+    }
     public static string? ReadlineSafe()
     {
         // If running in background mode, don't wait for user input.

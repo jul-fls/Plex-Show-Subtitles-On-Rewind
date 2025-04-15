@@ -160,7 +160,7 @@ namespace RewindSubtitleDisplayerForPlex
                 }
                 else
                 {
-                    string statusCode = ((int)response.StatusCode).ToString();
+                    int statusCode = (int)response.StatusCode;
                     string statusName = response.StatusCode.ToString();
                     string errorText = await response.Content.ReadAsStringAsync();
                     errorText = errorText.Replace("\n", " ");
@@ -168,6 +168,7 @@ namespace RewindSubtitleDisplayerForPlex
                     // Try to parse the errorText XML to a ConnectionTestResponse object
                     ConnectionTestResponse? testResponse = XmlResponseParser.ParseConnectionTestResponse(errorText);
 
+                    // If the test response is not null, then it probably wasn't a connection error, but something else, and the server should provide more info in the response we can use
                     if (testResponse != null)
                     {
                         // Show more specific error/status if available
@@ -180,7 +181,7 @@ namespace RewindSubtitleDisplayerForPlex
                         // If it's maintenance, return that specifically so we know to check more often
                         if (testResponse.Code == "503" && String.Equals(testResponse.Title, "maintenance", StringComparison.CurrentCultureIgnoreCase))
                         {
-                            LogDebug($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n");
+                            LogDebug($"Connection failed. Status Code: {statusCode} ({statusName}), Reason: {titleText}{statusText}\n"); // Log maintenance error as debug only since it's sort of expected
                             return ConnectionResult.Maintenance;
                         }
                         else
@@ -189,10 +190,23 @@ namespace RewindSubtitleDisplayerForPlex
                             return ConnectionResult.Failure;
                         }
                     }
+                    // Other types of errors that probably prevent connection in the first place
                     else
                     {
-                        LogWarning($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
-                        return ConnectionResult.Failure;
+                        LogError($"Connection failed. Status Code: {statusCode} ({statusName}), Error: {errorText}\n");
+
+                        if (statusCode == 401)
+                        {
+                            return ConnectionResult.Unauthorized;
+                        }
+                        else if (statusCode == 403)
+                        {
+                            return ConnectionResult.Forbidden;
+                        }
+                        else
+                        {
+                            return ConnectionResult.Failure;
+                        }
                     }
                     
                 }
@@ -235,7 +249,9 @@ namespace RewindSubtitleDisplayerForPlex
             Failure,
             Refused,
             Maintenance,
-            Cancelled
+            Unauthorized,
+            Forbidden,
+            Cancelled, // Our own cancelled exception
         }
 
         [XmlRoot("Response")]

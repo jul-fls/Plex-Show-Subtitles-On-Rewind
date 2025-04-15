@@ -18,7 +18,7 @@ internal partial class AuthResponseJsonContext : JsonSerializerContext
 
 public static class AuthTokenHandler
 {
-    private static class AuthStrings
+    public static class AuthStrings
     {
         public const string TokenPlaceholder = "whatever_your_app_token_is";
         public const string UUIDPlaceholder = "some-unique-uuid-here-xxxx";
