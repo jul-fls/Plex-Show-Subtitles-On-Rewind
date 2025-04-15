@@ -16,7 +16,7 @@ public class ActiveSession
 
     // Settable properties
     public long? LastSeenTimeEpoch { get; set; } = null; // Used to decide when to remove from the active sessions list based on a grace period
-    public bool HasInheritedMonitor { get; set; } = false; // Whether this session already has been inherited from another session to avoid duplicate inheritance
+    public bool ContainsInheritedMonitor { get; set; } = false; // Whether this session already has been inherited from another session to avoid duplicate inheritance
 
     // ------------ Properties related to more accurate timeline data ------------
     // If we are sure subtitles are showing or not, it's true or false, otherwise null
@@ -80,6 +80,16 @@ public class ActiveSession
 
         double positionSec = Math.Round(positionMilliseconds / 1000.0, 2);
         return positionSec;
+    }
+
+    public int GetPlayPositionMilliseconds()
+    {
+        int positionMilliseconds;
+        if (AccurateTimeMs != null)
+            positionMilliseconds = AccurateTimeMs.Value;
+        else
+            positionMilliseconds = Session.ViewOffset;
+        return positionMilliseconds;
     }
 
     public void GetAndApplyTimelineData()

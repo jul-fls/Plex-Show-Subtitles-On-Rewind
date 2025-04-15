@@ -40,6 +40,7 @@ public class Settings
     public SettingInfo<bool> SendCommandDirectToDevice = new(true, "Send_Command_Direct_To_Device");
     public SettingInfo<double> PendingDisabledCooldownSec = new(3, "Pending_Disabled_Cooldown_Seconds"); // Not used yet, but will be for pending disabled state when using event polling mode
     public SettingInfo<bool> DisableSubtitlesOnAppStartup = new(false, "Disable_Subtitles_On_New_Sessions");
+    public SettingInfo<int> InitialSessionDelay = new(10, "Initial_Session_Delay_Seconds"); // Not used yet, but will be for pending disabled state when using event polling mode
 
     // Constructor to set descriptions for each setting
     public Settings()
@@ -91,6 +92,9 @@ public class Settings
             $"\nDefault Value: {PendingDisabledCooldownSec.Value}  |  Possible Values: Any positive number (decimals allowed)";
         DisableSubtitlesOnAppStartup.Description = "(True/False) If true, this app will disable subtitles on the player on app startup and when a new session is detected." +
             $"\nDefault Value: {DisableSubtitlesOnAppStartup.Value}";
+        InitialSessionDelay.Description = "Within about 10 seconds of a player starting a new session, it doesn't respond to subtitle commands correctly, " +
+            "so this delay prevents subs from being activated in that time." +
+            $"\nDefault Value: {InitialSessionDelay.Value}  |  Possible Values: Any positive whole number.";
 
 
         // ---------------- Set default values for section dividers ----------------

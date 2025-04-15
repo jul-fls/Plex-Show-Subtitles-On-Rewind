@@ -1,4 +1,6 @@
-﻿namespace RewindSubtitleDisplayerForPlex
+﻿using System.ComponentModel;
+
+namespace RewindSubtitleDisplayerForPlex
 {
     // Monitors a single session for rewinding
     public class RewindMonitor
@@ -25,6 +27,7 @@
         public string MachineID { get => _activeSession.MachineID; }
 
         private bool isOnMaxRewindCooldown = false;
+        private bool waitedInitialPeriod = false; // Used to check if we waited the initial period before showing subtitles
 
         // After disabling subtitles there is a delay before they actually stop showing, so we need to wait for that
         // Use this to check if subtitles have been disabled yet after we do, to avoid false positive that user enabled them
@@ -75,6 +78,8 @@
             _previousPosition = otherMonitor._previousPosition;
             _temporarilyDisplayingSubtitles = otherMonitor._temporarilyDisplayingSubtitles;
             _smallestResolutionSec = otherMonitor._smallestResolutionSec;
+
+            SimpleSessionStartTimer();
         }
 
         private static string GetTimeString(double seconds)
@@ -104,6 +109,12 @@
         {
             if (discardNextPass)
                 return;
+
+            if (!waitedInitialPeriod)
+            {
+                LogWarning($"{_deviceName} [{PlaybackIDShort}]: Rewind occurred, but cannot start subtitles too soon after the player begins because it won't work right.");
+                return;
+            }
 
             LogInfo($"{_deviceName} [{PlaybackIDShort}]: Rewind occurred for {_activeSession.MediaTitle} - Will stop subtitles at time: {GetTimeString(_latestWatchedPosition)}", Yellow);
             StartSubtitlesWithRetry();
@@ -156,6 +167,16 @@
                         break;
                     }
                 }
+
+                // Test workaround to seek to the same position to force subtitles to show
+                //if (success == true)
+                //{
+                //    int position = _activeSession.GetPlayPositionMilliseconds() - 1000;
+                //    string machineID = _activeSession.MachineID;
+                //    await PlexServer.SeekToTime(position, machineID, true, _activeSession);
+                //    LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: Seeking to {position}ms to force subtitles to show.");
+                //}
+
             });
         }
 
@@ -570,6 +591,26 @@
 
         // ---------------------------------------------------------------------
 
+        // Within about 10 seconds of the player starting a new session, it doesn't respond to subtitle commands correctly
+        // So we need to wait a bit before allowing subtitles
+        private void SimpleSessionStartTimer()
+        {
+            if (waitedInitialPeriod)
+            {
+                LogDebug("Already waited initial period for session start.");
+                return;
+            }
+
+            int delay = Program.config.InitialSessionDelay * 1000; // Convert to milliseconds
+
+            Task.Run(() =>
+            {
+                Thread.Sleep(delay); // Wait 10 seconds
+                waitedInitialPeriod = true;
+                LogDebug("Waited initial period for session start.");
+            });
+        }
+
         public void StopMonitoring()
         {
             _isMonitoring = false;
@@ -602,6 +643,7 @@
                 _previousPosition = _latestWatchedPosition;
                 _isMonitoring = true;
 
+                SimpleSessionStartTimer();
                 MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway
 
                 LogDebug($"Finished setting up monitoring for {_deviceName} and ran first pass.");

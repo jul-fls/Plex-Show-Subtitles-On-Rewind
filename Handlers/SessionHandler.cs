@@ -191,12 +191,12 @@ namespace RewindSubtitleDisplayerForPlex
                     // Compare using MachineID and RatingKey (A unique identifier for the media item. There's also media ID but I'm not sure how unique it is, seen some things it might correspond just to title)
                     ActiveSession? matchingNonDeadSession = newActiveSessionsOnly.FirstOrDefault(s => s.MachineID == deadSession.MachineID && s.Session.RatingKey == deadSession.Session.RatingKey);
 
-                    if (matchingNonDeadSession != null && matchingNonDeadSession.HasInheritedMonitor == false)
+                    if (matchingNonDeadSession != null) //&& matchingNonDeadSession.ContainsInheritedMonitor == false) // I don't think this 2nd check is necessary
                     {
-                        bool transferResult = MonitorManager.TransferMonitorInheritance(deadSession, matchingNonDeadSession);
+                        matchingNonDeadSession = MonitorManager.TransferMonitorInheritance(deadSession, ref matchingNonDeadSession);
 
                         // If the monitor settings transfer was successful, we can remove the dead session now
-                        if (transferResult == true)
+                        if (matchingNonDeadSession != null)
                         {
                             RemoveSession(deadSession);
                             removedSessionsCount++;

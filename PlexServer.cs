@@ -1,6 +1,8 @@
 ﻿using System.ComponentModel;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Numerics;
+using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using System.Xml;
 using System.Xml.Serialization;
@@ -361,7 +363,30 @@ namespace RewindSubtitleDisplayerForPlex
             }
 
             // Send the command through the PlexServer
-            return await SendCommandAsync(machineID: machineID, command: "playback/setStreams", headers, sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession:activeSession);
+            return await SendCommandAsync(command: "playback/setStreams", headers, sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession:activeSession);
+        }
+
+        public static async Task<CommandResult> SeekToTime(
+            int seekTimeMs,
+            string machineID,
+            bool sendDirectToDevice,
+            ActiveSession? activeSession = null
+            )
+        {
+            // Create dictionary for additional parameters
+            Dictionary<string, string> parameters = [];
+
+            parameters["type"] = "video";
+            parameters["offset"] = seekTimeMs.ToString();
+
+            // Create headers with machine identifier
+            Dictionary<string, string> headers = new()
+            {
+                { "X-Plex-Target-Client-Identifier", machineID },
+                {"Accept" , "application/json"},
+            };
+
+            return await SendCommandAsync(command: "playback/seekTo", headers, sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession: activeSession);
         }
 
         // Overload
@@ -420,7 +445,6 @@ namespace RewindSubtitleDisplayerForPlex
         }
 
         public static async Task<CommandResult> SendCommandAsync(
-            string machineID, 
             string command, 
             Dictionary<string, string> headers, 
             bool? sendDirectToDevice, 

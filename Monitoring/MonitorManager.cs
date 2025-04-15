@@ -174,6 +174,8 @@ namespace RewindSubtitleDisplayerForPlex
         public static void RemoveMonitorForSession(string sessionID)
         {
             RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == sessionID);
+            monitor?.StopSubtitlesWithRetry(false); // Stop subtitles if they are running and not user enabled
+
             if (monitor != null)
             {
                 _allMonitors.Remove(monitor);
@@ -185,10 +187,13 @@ namespace RewindSubtitleDisplayerForPlex
         }
 
         // Transfer the monitor from one session to another. Returns true if successful
-        public static bool TransferMonitorInheritance(ActiveSession oldSession, ActiveSession newSession)
+        public static ActiveSession TransferMonitorInheritance(ActiveSession oldSession, ref ActiveSession newSession)
         {
             RewindMonitor? oldMonitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == oldSession.PlaybackID);
-            RewindMonitor? existingMonitorForNewSession = _allMonitors.FirstOrDefault(m => m.PlaybackID == newSession.PlaybackID);
+
+            // Store the PlaybackID of the new session outside the lambda to avoid the CS1628 error
+            string newSessionPlaybackID = newSession.PlaybackID;
+            RewindMonitor? existingMonitorForNewSession = _allMonitors.FirstOrDefault(m => m.PlaybackID == newSessionPlaybackID);
 
             if (oldMonitor != null)
             {
@@ -207,16 +212,16 @@ namespace RewindSubtitleDisplayerForPlex
                 // Add the new monitor. Old session's monitor will be removed when its session is removed
                 _allMonitors.Add(newMonitor);
 
-                newSession.HasInheritedMonitor = true;
+                newSession.ContainsInheritedMonitor = true;
                 LogVerbose($"Transferred {oldSession.DeviceName} monitoring state from {oldSession.PlaybackID} to {newSession.PlaybackID}");
 
-                return true;
             }
             else
             {
                 LogDebug($"No monitor found for session {oldSession.PlaybackID}. Nothing to transfer.");
-                return false;
             }
+
+            return newSession;
         }
 
 
