@@ -93,7 +93,9 @@ namespace RewindSubtitleDisplayerForPlex
                 // Deserialize the response string to a list of resources
                 try
                 {
-                    List<PlexResource>? returnedResources = JsonSerializer.Deserialize<List<PlexResource>>(responseString);
+                    // Use the source-generated context
+                    List<PlexResource>? returnedResources = JsonSerializer.Deserialize(responseString,PlexResourceJsonContext.Default.ListPlexResource);
+
                     if (returnedResources != null)
                     {
                         resources = returnedResources;

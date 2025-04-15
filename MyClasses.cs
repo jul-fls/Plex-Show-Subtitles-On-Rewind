@@ -601,6 +601,13 @@ public class PlexResource
     }
 }
 
+// Need to have source generator for the PlexResource class
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(List<PlexResource>))]
+internal partial class PlexResourceJsonContext : JsonSerializerContext
+{
+}
+
 public class CommandResult(bool success, string responseErrorMessage, XmlDocument? responseXml)
 {
     public bool Success { get; set; } = success;
