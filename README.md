@@ -10,7 +10,7 @@ Once playback reaches the point where you started the rewind, it will **automati
 
 99% of the time you use the rewind button, it's probably because you didn't catch the dialog
 
-## Features
+# Features
 
 * **Monitors All Local Players**: Automatically detects playback sessions from any Plex client on your network connected to your server.
 * **Respects Manual Settings**: If you manually turned subtitles on *before* rewinding, they will stay on.
@@ -20,7 +20,7 @@ Once playback reaches the point where you started the rewind, it will **automati
   * If you fast forward at any point
 * **Use Preferred Subtitles**: In the `settings.ini` file, you can configure how it will choose which subtitle track to display.
 
-# Other Benefits
+## Other Benefits
 
 * **API Integration**: This uses the Plex API directly, the enabling/disabling of subtitles is seamless.
 * **Cross-Platform**: It's a simple console app that can be run on Windows, MacOS, and Linux.
@@ -36,6 +36,12 @@ Once playback reaches the point where you started the rewind, it will **automati
     * For example in the iOS app this can be found under Settings > Remote Control > Advertise As Player
     * Note: The Plex Media Server desktop app strangely does not allow this feature. However the "[HTPC](https://support.plex.tv/articles/htpc-getting-started/)" version of the desktop Plex player does.
 * This may only work if your Plex server is on your local network
+
+## How to Download
+
+1. Look for the "Releases" link on the right side of the page, or [click here](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/releases).
+2. Under the latest release, look in the `Assets` dropdown (expand if necessary) to see the available versions of the app
+   - Refer to the "Which file below do I need?" info in the release notes above the assets
 
 ## Setup
 
