@@ -126,8 +126,6 @@ namespace RewindSubtitleDisplayerForPlex
             if (LaunchArgs.Help.Check(args))
             {
                 WriteLineSafe(LaunchArgs.AdvancedHelpInfo + "\n\n");
-                WriteLineSafe("Press Enter to exit.");
-                ReadlineSafe();
                 UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
                 ExitProgramSafe();
             }
@@ -253,8 +251,8 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(ex.StackTrace);
                 if (!isBackgroundMode)
                 {
-                    WriteLineSafe("\nPress Enter to exit...");
-                    ReadlineSafe();
+                    UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
+                    ExitProgramSafe();
                 }
             }
             finally
