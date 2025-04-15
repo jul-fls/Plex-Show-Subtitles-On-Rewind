@@ -22,6 +22,7 @@ public class Settings
     public SettingInfo<double> MaxRewindSec = new(60, "Max_Rewind_Seconds");
     public SettingInfo<double> MaxRewindCoolDownSec = new(4, "Max_Rewind_Cooldown_Seconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
+    public SettingInfo<bool> PreferExternalSubtitles = new(true, "Prefer_External_Subtitles");
     // -----------------
     public SettingInfo<SectionDivider> StartAdvancedSettings = new(new(), ""); // Placeholder for Advanced Settings section header
 
@@ -63,6 +64,9 @@ public class Settings
             "\nYou can also start a word/phrase with a hyphen (-) to require it NOT match that. So you can exclude 'SDH' subtitles by putting '-SDH' (without quotes)." +
             "\nNote: Not case sensitive, and any quotes and/or leading/trailing spaces for each item will be trimmed off. It uses the subtitle track displayed in Plex." +
             $"\nExample to prefer English non-SDH subtitles:   {SubtitlePreferencePatterns.ConfigName}=english,-sdh";
+        PreferExternalSubtitles.Description = "(True/False) If true, the app will prefer external subtitles over embedded ones, if there are multiple matches to the above preference patterns, or no matches." +
+            $"\nThe above patterns still take priority though. Meaning if the only subtitle tracks matching your above patterns are embedded, it will use those embedded ones." +
+            $"\nDefault Value: {PreferExternalSubtitles.Value}";
 
         // Advanced settings
         ConsoleLogLevel.Description = "The log level to use. DebugExtra contains additional 'noisy' less useful data that is mostly ignored anyway.\n" +
@@ -431,7 +435,7 @@ public static class SettingsHandler
         if (settings.SettingsThatFailedToLoad.Count > 0 && printResult == PrintResultType.FailureSummary)
         {
             string failedSettings = string.Join(", ", settings.SettingsThatFailedToLoad.Select(s => s.Key.ConfigName));
-            WriteErrorSuper($"\nWarning: The following settings failed to load. See errors above and check them in your settings file:");
+            WriteRedSuper($"\nWarning: The following settings failed to load. See errors above and check them in your settings file:");
             WriteRed($"\t\t{failedSettings}\n");
         }
         else if (printResult == PrintResultType.ResultingConfig)

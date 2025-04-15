@@ -228,13 +228,14 @@ public class ActiveSession
     {
         // Check if the user has a preferred subtitle stream
         SubtitleStream? preferredSubtitle = null;
-        List<string> preferredLanguages = Program.config.SubtitlePreferencePatterns.Value;
+        List<string> preferredSubtitlePatterns = Program.config.SubtitlePreferencePatterns.Value;
         List<string> positivePatterns = [];
         List<string> negativePatterns = [];
+        List<SubtitleStream> subtitleTrackCandidates = [];
 
-        if (preferredLanguages.Count > 0 && availableSubtitles.Count > 0)
+        if (preferredSubtitlePatterns.Count > 0 && availableSubtitles.Count > 0)
         {
-            foreach (string pattern in preferredLanguages)
+            foreach (string pattern in preferredSubtitlePatterns)
             {
                 if (pattern.StartsWith('-'))
                     negativePatterns.Add(pattern.Substring(1));
@@ -253,8 +254,29 @@ public class ActiveSession
                 // If it matches all positive patterns and none of the negative patterns, we have a match
                 if (matchesAllPositives && !matchesAnyNegatives)
                 {
-                    preferredSubtitle = subtitle;
-                    break; // We found a preferred subtitle, no need to check further
+                    //preferredSubtitle = subtitle;
+                    subtitleTrackCandidates.Add(subtitle);
+                }
+            }
+
+            // If we have multiple candidates
+            if (subtitleTrackCandidates.Count > 1)
+            {
+                bool preferExternal = Program.config.PreferExternalSubtitles.Value;
+
+                // If external is preferred, add those to a list and get the first one
+                if (preferExternal)
+                {
+                    List<SubtitleStream> externalSubtitles = subtitleTrackCandidates.Where(s => s.IsExternal).ToList();
+
+                    if (externalSubtitles.Count > 0)
+                        preferredSubtitle = externalSubtitles[0];
+                    else
+                        preferredSubtitle = subtitleTrackCandidates[0]; // If no external subtitles were found, just get the first one
+                }
+                else // If no preference, get the first one
+                {
+                    preferredSubtitle = subtitleTrackCandidates[0];
                 }
             }
         }

@@ -242,7 +242,7 @@ public static class AuthTokenHandler
             else
             {
                 WriteLineSafe("----------------------------------------------------------------");
-                WriteErrorSuper("\nThe app does not appear authorized.", noNewLine:true);
+                WriteRedSuper("\nThe app does not appear authorized.", noNewline:true);
                 WriteRed("  Visit this URL and sign in if you haven't already: ");
 
                 WriteGreen($"\n\t{authUrl}");
@@ -379,7 +379,7 @@ public static class AuthTokenHandler
                 {
                     authToken = authTokenAttr.Value;
                     WriteLineSafe("----------------------------------------------------------------");
-                    WriteSuccessSuper("\t    Success!    ");
+                    WriteGreenSuper("\t    Success!    ");
                     WriteLineSafe($"\tSuccessfully created auth token: {authToken}");
                     WriteLineSafe($"\tIt will automatically be stored in the file {AuthStrings.tokenFileName}");
                     WriteLineSafe("----------------------------------------------------------------");

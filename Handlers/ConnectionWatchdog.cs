@@ -336,7 +336,7 @@ namespace RewindSubtitleDisplayerForPlex
                     }
                     else if (connectionSuccess == PlexServer.ConnectionResult.Unauthorized || connectionSuccess == PlexServer.ConnectionResult.Forbidden)
                     {
-                        WriteErrorSuper("Connection Watcher: There seems to be a problem with your authorization to the server.\n" +
+                        WriteRedSuper("Connection Watcher: There seems to be a problem with your authorization to the server.\n" +
                             $"Try deleting {AuthTokenHandler.AuthStrings.tokenFileName} and going through the auth flow again.");
                         WriteLineSafe();
                         return connectionSuccess; // Not actually success

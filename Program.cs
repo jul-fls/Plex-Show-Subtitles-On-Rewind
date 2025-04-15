@@ -109,7 +109,7 @@ namespace RewindSubtitleDisplayerForPlex
             // ------------ Instance Coordination ------------
             instancesAreSetup = InstanceCoordinator.InitializeHandles(); // Setup event wait handles and listeners for instance coordination
             if (!instancesAreSetup)
-                WriteErrorSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
+                WriteRedSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
 
             // Stop other instances if requested
             if (LaunchArgs.Stop.Check(args))
@@ -136,7 +136,9 @@ namespace RewindSubtitleDisplayerForPlex
                     WriteYellow($"Log Level: {Program.config.ConsoleLogLevel}\n");
 
                 WriteLineSafe(LaunchArgs.StandardLaunchArgsInfo);
-                WriteRed("\n" + MyStrings.RequirementEnableRemoteAccess + "\n");
+                WriteSafe("\n\n   "); // Spacing to separate from the above
+                WriteGreenSuper("---- Important Notes: ----");
+                WriteRed(MyStrings.StartupImportantNotes + "\n");
                 WriteLineSafe("------------------------------------------------------------------------\n");
             }
 
@@ -247,7 +249,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
             catch (Exception ex) // Catch errors during initial setup
             {
-                WriteErrorSuper($"Fatal error during startup: {ex.Message}\n");
+                WriteRedSuper($"Fatal error during startup: {ex.Message}\n");
                 WriteLineSafe(ex.StackTrace);
                 if (!isBackgroundMode)
                 {

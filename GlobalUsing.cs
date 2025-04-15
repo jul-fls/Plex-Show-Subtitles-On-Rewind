@@ -41,8 +41,12 @@ namespace RewindSubtitleDisplayerForPlex
         public const string AppNameShort = "Rewind Subtitle Displayer";
         public const string LogFileName = "RewindSubtitleDisplayerForPlex.log";
         public static readonly string AssemblyFileVersion = Utils.Version.GetVersion();
-        
-        public static readonly string RequirementEnableRemoteAccess = "Note: You **MUST** enable the \"Remote Control\" / aka \"Advertise As Player\" option in each player app for this to work.";
+
+        public static readonly string StartupImportantNotes = 
+            "   1. You **MUST** enable the \"Remote Control\" / aka \"Advertise As Player\" option in each player app for this to work.\n" +
+            "   2. Plex seems to be glitchy when enabling EMBEDDED subtitles for parts of the video that haven't buffered yet.\n" +
+            "       > For example, you rewind immediately after starting a video from the middle.\n" +
+            "       > This does NOT seem to be a problem with external subtitles (those from a separate file).\n";
         public static string HeadingTitle => $"\n----------- {AppName} - Version {AssemblyFileVersion} -----------\n";
     }
 

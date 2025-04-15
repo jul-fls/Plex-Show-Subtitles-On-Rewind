@@ -354,9 +354,6 @@ namespace RewindSubtitleDisplayerForPlex
                             SetLatestWatchedPosition(positionSec);
                             StopSubtitlesWithRetry(false);
 
-                            // If they fast forward then get rid of the cooldown
-                            StopMaxRewindCooldownNow();
-
                         }
                         // If they rewind too far, stop showing subtitles, and reset the latest watched position
                         else if (positionSec < _latestWatchedPosition - _maxRewindAmountSec)
@@ -385,7 +382,6 @@ namespace RewindSubtitleDisplayerForPlex
                         if (positionSec > _previousPosition + Math.Max(_smallestResolution + 2, _fastForwardThreshold)) //Setting minimum to 7 seconds to avoid false positives
                         {
                             LogInfo($"{_deviceName} [{PlaybackIDShort}]: Cancelling cooldown - Reason: User fast forwarded during cooldown", Yellow);
-                            SetLatestWatchedPosition(positionSec);
                             StopMaxRewindCooldownNow(); // Reset cooldown
                         }
                         else
@@ -398,6 +394,8 @@ namespace RewindSubtitleDisplayerForPlex
                                 RestartMaxRewindCooldownTimer();
                             }
                         }
+
+                        SetLatestWatchedPosition(positionSec);
                     }
                     // Check if the position has gone back by 2 seconds or more. Using 2 seconds just for safety to be sure.
                     // But don't count it if the rewind amount goes beyond the max.
@@ -475,12 +473,12 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 _maxRewindCooldownTimerLoop_DontDisableCooldown = true;
                 _maxRewindCooldownResetEvent.Set(); // Wake up the sleeping thread
-                LogDebug("Max Rewind Sleep timer reset.");
+                LogDebug("Max Rewind Sleep timer reset.", ConsoleColor.DarkYellow);
                 return;
             }
             else
             {
-                LogDebug("Starting rewind cooldown.");
+                LogDebug("COOLDOWN STARTED: Starting rewind cooldown.", ConsoleColor.DarkYellow);
             }
 
             // -------------------- Actual Logic ---------------------------
@@ -535,6 +533,7 @@ namespace RewindSubtitleDisplayerForPlex
             if (cooldownMs == 0)
             {
                 LogDebug("Subtitle-Disabled Cooldown disabled in settings (value is 0), not starting.");
+                isOnPendingDisabledCooldown = false;
                 return;
             }
 
@@ -543,12 +542,12 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 _pendingDisabledCooldownTimerLoop_DontDisableCooldown = true;
                 _pendingDisabledCooldownResetEvent.Set(); // Wake up the sleeping thread
-                LogDebug("Subtitle-Disabled Sleep timer reset.");
+                LogDebug("Subtitle-Disabled Sleep timer reset.", ConsoleColor.DarkYellow);
                 return;
             }
             else
             {
-                LogDebug("Starting Subtitle-Disabled cooldown.");
+                LogVerbose("COOLDOWN STARTED: Subtitle-Disabled Cooldown", ConsoleColor.DarkYellow);
             }
 
             // -------------------- Actual Logic ---------------------------
@@ -604,6 +603,7 @@ namespace RewindSubtitleDisplayerForPlex
             if (Program.config.InitialSessionDelay == 0)
             {
                 LogDebug("Initial session delay disabled in settings (value is 0), not starting.");
+                waitedInitialPeriod = true;
                 return;
             }
 

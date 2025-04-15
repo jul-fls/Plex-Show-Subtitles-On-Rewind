@@ -164,15 +164,8 @@ internal static partial class Logging
     }
 
     // ------------------------------- COLOR RELATED ---------------------------------
-    public static void WriteErrorSuper(string message, bool noNewLine = false)
-    {
-        WriteWithBackground(message, ConsoleColor.White, ConsoleColor.DarkRed, noNewLine: noNewLine);
-    }
 
-    public static void WriteSuccessSuper(string message, bool noNewLine = false)
-    {
-        WriteWithBackground(message, ConsoleColor.White, ConsoleColor.DarkGreen, noNewLine: noNewLine);
-    }
+    
 
     public static void WriteWithBackground(string message, ConsoleColor foreground, ConsoleColor? background, bool noNewLine = false)
     {
@@ -229,6 +222,10 @@ internal static partial class Logging
     public static void WriteRedSuper(string message, bool noNewline=false)
     {
         WriteWithBackground(message: message, foreground: ConsoleColor.White, background: ConsoleColor.DarkRed, noNewLine: noNewline);
+    }
+    public static void WriteGreenSuper(string message, bool noNewLine = false)
+    {
+        WriteWithBackground(message, ConsoleColor.White, ConsoleColor.DarkGreen, noNewLine: noNewLine);
     }
 
     public static void WriteColorParts(string msg1, string msg2, ConsoleColor? foreground1 = null, ConsoleColor? foreground2 = null)
