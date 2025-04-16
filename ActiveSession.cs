@@ -6,6 +6,7 @@ public class ActiveSession
     private PlexSession _session;
     private List<SubtitleStream> _availableSubtitles;
     private List<SubtitleStream> _activeSubtitles;
+    private SubtitlesHotkeyMonitor _hotkeyMonitor;
 
     public string DeviceName { get; }
     public string MachineID { get; }
@@ -42,6 +43,7 @@ public class ActiveSession
         PreferredSubtitle = GetPreferredSubtitle_BasedOnSettings(availableSubtitles);
 
         GetAndApplyTimelineData(); // Initialize the known subtitle state and view offset if possible
+        _hotkeyMonitor = new SubtitlesHotkeyMonitor(playbackID: PlaybackID, machineID: MachineID); // Initialize the hotkey monitor
     }
 
     // Expressions to access inner properties of the session and player objects more conveniently
@@ -123,7 +125,7 @@ public class ActiveSession
             }
 
             // If we have the timeline info, we can know for sure if subtitles are showing
-            if (timeline.SubtitleStreamID != null && timeline.SubtitleStreamID != "")
+            if (timeline.SubtitleStreamID != null && timeline.SubtitleStreamID != "" && timeline.SubtitleStreamID != "0") // Might be null or 0 depending on the player to represent not showing subs
             {
                 this.KnownIsShowingSubtitles = true; // If we have a subtitle stream ID, we know subtitles are showing
             }

@@ -97,6 +97,8 @@ public class PlexNotificationListener : IDisposable
                 {
                     LogDebug(notificationString, ConsoleColor.Cyan);
 
+                    Task.Run(() => { SubtitlesHotkeyMonitor.ForwardActionToMonitorByID(machineID: playEvent.ClientIdentifier, action: SubtitlesHotkeyMonitor.Action.Play);  }); 
+
                     if (MonitorManager.MonitoringState == MonitoringState.Idle)
                     {
                         LogVerbose("Switching to active monitoring due to playback event.");
@@ -125,10 +127,12 @@ public class PlexNotificationListener : IDisposable
                 {
                     LogDebug(notificationString, ConsoleColor.DarkCyan);
                     LogVerbose("   Playback Paused.");
+                    Task.Run(() => { SubtitlesHotkeyMonitor.ForwardActionToMonitorByID(machineID: playEvent.ClientIdentifier, action: SubtitlesHotkeyMonitor.Action.Pause); });
                 }
                 else if (playState == PlexPlayState.Buffering)
                 {
                     LogDebugExtra(notificationString, ConsoleColor.DarkCyan);
+                    Task.Run(() => { SubtitlesHotkeyMonitor.ForwardActionToMonitorByID(machineID: playEvent.ClientIdentifier, action: SubtitlesHotkeyMonitor.Action.Buffering); });
                 }
                 else if (playState == PlexPlayState.Stopped)
                 {
