@@ -25,6 +25,7 @@ namespace RewindSubtitleDisplayerForPlex
         public bool IsMonitoring => _isMonitoring;
         public ActiveSession AttachedSession => _activeSession;
         public string MachineID { get => _activeSession.MachineID; }
+        public bool SubtitlesAreShowing => (_activeSession.KnownIsShowingSubtitles == true); // || _temporarilyDisplayingSubtitles);
 
         private bool isOnMaxRewindCooldown = false;
         private bool waitedInitialPeriod = false; // Used to check if we waited the initial period before showing subtitles
@@ -131,7 +132,7 @@ namespace RewindSubtitleDisplayerForPlex
             StopSubtitlesWithRetry(false);
         }
 
-        public void StartSubtitlesWithRetry()
+        public void StartSubtitlesWithRetry(bool persist = false)
         {
             int retryCount = 3;
             bool? success = false;
@@ -149,7 +150,8 @@ namespace RewindSubtitleDisplayerForPlex
                     success = await _activeSession.EnableSubtitles();
                     if (success == true)
                     {
-                        _temporarilyDisplayingSubtitles = true;
+                        if (persist == false)
+                            _temporarilyDisplayingSubtitles = true;
                         break;
                     }
                     else if (success == false)

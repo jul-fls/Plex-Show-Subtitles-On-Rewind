@@ -43,7 +43,7 @@ public class ActiveSession
         PreferredSubtitle = GetPreferredSubtitle_BasedOnSettings(availableSubtitles);
 
         GetAndApplyTimelineData(); // Initialize the known subtitle state and view offset if possible
-        _hotkeyMonitor = new SubtitlesHotkeyMonitor(playbackID: PlaybackID, machineID: MachineID); // Initialize the hotkey monitor
+        _hotkeyMonitor = new SubtitlesHotkeyMonitor(playbackID: PlaybackID, machineID: MachineID, this); // Initialize the hotkey monitor
     }
 
     // Expressions to access inner properties of the session and player objects more conveniently

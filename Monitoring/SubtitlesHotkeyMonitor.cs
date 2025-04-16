@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static RewindSubtitleDisplayerForPlex.SubtitlesHotkeyMonitor;
 
 namespace RewindSubtitleDisplayerForPlex;
 
@@ -14,6 +15,7 @@ internal class SubtitlesHotkeyMonitor
 {
     private string PlaybackID;
     private string MachineID;
+    private ActiveSession AttachedActiveSession;
     private static List<SubtitlesHotkeyMonitor> _allHotkeyMonitors = [];
 
     // -------------------------------------
@@ -23,12 +25,17 @@ internal class SubtitlesHotkeyMonitor
     private Action lastAction = Action.None;
     CancellationTokenSource doubleClickCancelTokenSource = new CancellationTokenSource();
 
+    // Options
     private readonly int clickTimeThreshold = 250; // 500 ms threshold for double click detection
+    public HotkeyAction DoubleClickAction { get; set; } = HotkeyAction.None;
+    public HotkeyAction TripleClickAction { get; set; } = HotkeyAction.ToggleSubtitles;
 
-    public SubtitlesHotkeyMonitor(string playbackID, string machineID)
+    // Constructor
+    public SubtitlesHotkeyMonitor(string playbackID, string machineID, ActiveSession activeSession)
     {
         PlaybackID = playbackID;
         MachineID = machineID;
+        AttachedActiveSession = activeSession;
         _allHotkeyMonitors.Add(this);
     }
 
@@ -130,19 +137,38 @@ internal class SubtitlesHotkeyMonitor
 
     public void OnDoubleClick()
     {
+        Action finalAction = lastAction;
         ResetPrevInfo();
         LogDebugExtra("Double click action triggered.", Yellow);
-        lastAction = Action.None; // Reset the last action to None after a double click
+
+        HotkeyActionFunctionDirector(DoubleClickAction);
     }
     public void OnTripleClick()
     {
-        // Cancel the double click operation if it's still waiting
+        // Cancel the pending double click operation if it's still waiting
         doubleClickCancelTokenSource.Cancel();
 
+        Action finalAction = lastAction;
         ResetPrevInfo();
         LogDebugExtra("Triple click action triggered.", Yellow);
+
+        // Perform a restorative action based on the last action, since 3 causes the opposite of the original state
+        if (finalAction == Action.Play || finalAction == Action.Buffering)
+        {
+            // Perform a pause action
+            _ = PlexServer.SendPauseCommand(machineID: MachineID, sendDirectToDevice: true, activeSession: AttachedActiveSession);
+        }
+        else if (finalAction == Action.Pause)
+        {
+            // Perform a play action
+            _ = PlexServer.SendPlayCommand(machineID: MachineID, sendDirectToDevice: true, activeSession: AttachedActiveSession);
+        }
+
+        // Perform the action based on the hotkey action
+        HotkeyActionFunctionDirector(TripleClickAction);
     }
 
+    // -----------------------------------------------------
     private void ResetPrevInfo()
     {
         msOfLastPause = 0;
@@ -172,6 +198,43 @@ internal class SubtitlesHotkeyMonitor
         }
     }
 
+    private static void ToggleSubtitles(string machineID)
+    {
+        RewindMonitor? monitor = MonitorManager.GetMonitorForMachineID(machineID);
+        if (monitor == null)
+        {
+            LogWarning($"No monitor found for machineID: {machineID}");
+            return;
+        }
+
+        // Get the current subtitles state
+        if (monitor.SubtitlesAreShowing)
+        {
+            monitor.StopSubtitlesWithRetry(force: true);
+        }
+        else
+        {
+            monitor.StartSubtitlesWithRetry(persist:true);
+        }
+    }
+
+    private void HotkeyActionFunctionDirector(HotkeyAction hotkeyAction)
+    {
+        // Perform the action based on the hotkey action
+        switch (hotkeyAction)
+        {
+            case HotkeyAction.ToggleSubtitles:
+                ToggleSubtitles(MachineID);
+                break;
+            case HotkeyAction.None:
+                // No action needed
+                break;
+            default:
+                LogWarning($"Unknown hotkey action: {hotkeyAction}");
+                break;
+        }
+    }
+
     //  ------------------------------------------
     public enum Action
     {
@@ -181,7 +244,13 @@ internal class SubtitlesHotkeyMonitor
         None
     }
 
-    public enum HotKeyMode
+    public enum HotkeyAction // What to do when the hotkey is activated
+    {
+        None,
+        ToggleSubtitles
+    }
+
+    public enum HotkeyMode
     {
         DoubleClick,
         TripleClick

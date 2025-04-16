@@ -405,6 +405,36 @@ namespace RewindSubtitleDisplayerForPlex
             return await SendCommandAsync(command: "playback/setStreams", headers, sendDirectToDevice: sendDirectToDevice, additionalParams: parameters, activeSession:activeSession);
         }
 
+        public static async Task<CommandResult> SendPauseCommand(
+            string machineID,
+            bool sendDirectToDevice,
+            ActiveSession? activeSession = null
+            )
+        {
+            // Create headers with machine identifier
+            Dictionary<string, string> headers = new()
+            {
+                { "X-Plex-Target-Client-Identifier", machineID },
+                {"Accept" , "application/json"},
+            };
+            return await SendCommandAsync(command: "playback/pause", headers, sendDirectToDevice: sendDirectToDevice, activeSession: activeSession);
+        }
+
+        public static async Task<CommandResult> SendPlayCommand(
+            string machineID,
+            bool sendDirectToDevice,
+            ActiveSession? activeSession = null
+            )
+        {
+            // Create headers with machine identifier
+            Dictionary<string, string> headers = new()
+            {
+                { "X-Plex-Target-Client-Identifier", machineID },
+                {"Accept" , "application/json"},
+            };
+            return await SendCommandAsync(command: "playback/play", headers, sendDirectToDevice: sendDirectToDevice, activeSession: activeSession);
+        }
+
         public static async Task<CommandResult> SeekToTime(
             int seekTimeMs,
             string machineID,
@@ -438,9 +468,20 @@ namespace RewindSubtitleDisplayerForPlex
                 { "X-Plex-Device-Name", deviceName },
             };
 
+            string newCommandID = GetNextCommandId();
+
+            Dictionary<string, object> parameters = new()
+            {
+                { "wait", "0" },
+                //{"commandID" , newCommandID},
+            };
+
+            string paramString = Utils.JoinArgs(parameters);
+
             // Build the command URL
-            string paramString = "?wait=0";
+            //string paramString = "?wait=1";
             string path = $"{url}/player/timeline/poll{paramString}";
+            LogDebugExtra($"Fetching Timeline Command: {path}");
 
             try
             {
