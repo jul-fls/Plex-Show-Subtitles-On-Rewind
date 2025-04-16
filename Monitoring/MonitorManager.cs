@@ -18,69 +18,13 @@ namespace RewindSubtitleDisplayerForPlex
         private static bool _isRunning = false;
         private static MonitoringState _monitoringState = MonitoringState.Active;
         private static int _idleGracePeriodCount = 0; // Used to allow a few further checks before switching to idle state
-
         private static readonly ManualResetEvent _sleepResetEvent = new ManualResetEvent(false);
 
+        public static MonitoringState MonitoringState => _monitoringState; // Expose the monitoring state for external use
+        public static List<RewindMonitor> AllMonitors => _allMonitors; // Expose the list of monitors for external use  
+
         // This occurs when the server sends a real-time notification about playback state, so we can use this to get instant updates out of phase with the polling
-        public static void HandlePlayingNotificationReceived(object? sender, PlexEventInfo e)
-        {
-            _ = Task.Run(() =>// Handle notifications in a separate thread
-            { 
-                if (e.EventObj is PlayingEvent playEvent && playEvent.StateEnum is PlexPlayState playState)
-                {
-                    string offsetStr = playEvent.ViewOffset is double offset ? $"{Math.Round(offset / 1000).ToString()}s" : "null";
-                    string notificationString = $"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={offsetStr}";
 
-                    // Currently we just use it to wake up from idle since the active polling is frequent enough, but we could use it to update the monitors too
-                    if (playState == PlexPlayState.Playing)
-                    {
-                        LogDebug(notificationString, ConsoleColor.Cyan);
-
-                        if (_monitoringState == MonitoringState.Idle)
-                        {
-                            LogVerbose("Switching to active monitoring due to playback event.");
-                            BreakFromIdle();
-                        }
-
-                        // Only proceed if we have info we can use in the first place
-                        if (playEvent.ViewOffset is double newViewOffset && newViewOffset != 0)
-                        {
-                            if (GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
-                            {
-                                monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
-                                monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
-
-                                // If there's only one active session, restart the timer so it waits long enough for actual new info to come in
-                                if (_allMonitors.Count <= 1)
-                                    RestartPassTimer();
-                            }
-                            else
-                            {
-                                LogDebug($"No monitor found for machine {playEvent.ClientIdentifier}. Cannot update view offset.");
-                            }
-                        }
-                    }
-                    else if (playState == PlexPlayState.Paused)
-                    {
-                        LogDebug(notificationString, ConsoleColor.DarkCyan);
-                        LogVerbose("   Playback Paused.");
-                    }
-                    else if (playState == PlexPlayState.Buffering)
-                    {
-                        LogDebugExtra(notificationString, ConsoleColor.DarkCyan);
-                    }
-                    else if (playState == PlexPlayState.Stopped)
-                    {
-                        LogDebug(notificationString, ConsoleColor.DarkMagenta);
-                        LogVerbose("   Playback Stopped.");
-                    }
-                }
-                else
-                {
-                    LogError($"[Notification] Received 'playing' event but couldn't parse data: {e.RawData}");
-                }
-            });
-        }
 
         public static RewindMonitor? GetMonitorForMachineID(string? machineID)
         {
@@ -150,7 +94,8 @@ namespace RewindSubtitleDisplayerForPlex
                     smallestResolution: smallestResolutionSec
                     );
                 _allMonitors.Add(monitor);
-                LogInfo($"Added new session for {activeSession.DeviceName}. Session Playback ID: {playbackID}", Yellow);
+                LogInfo($"Added new session for {activeSession.DeviceName} | Address: {activeSession.Session.Player.Address}" +
+                    $"\n| Session Playback ID: {playbackID}  |  Machine ID: {activeSession.MachineID}", Yellow);
             }
 
             // If dev setting to disable subtitles on start is enabled, disable them now

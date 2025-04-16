@@ -197,7 +197,7 @@ namespace RewindSubtitleDisplayerForPlex
                 _connectionWatchdog = new ConnectionWatchdog(config.ServerURL, PLEX_APP_TOKEN, PLEX_APP_IDENTIFIER, _appShutdownCts_Program);
 
                 // Subscribe MonitorManager to the watchdog's event, which will alert us to playing notifications
-                _connectionWatchdog.ForwardPlayingNotificationReceived += MonitorManager.HandlePlayingNotificationReceived;
+                _connectionWatchdog.ForwardPlayingNotificationReceived += PlexNotificationListener.HandlePlayingNotificationReceived;
 
 
                 // Set up Ctrl+C handler. This doesn't run now, it just gets registered.
