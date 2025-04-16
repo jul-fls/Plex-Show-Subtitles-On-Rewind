@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RewindSubtitleDisplayerForPlex;
@@ -19,11 +20,10 @@ internal class SubtitlesHotkeyMonitor
     private int msOfLastPause = 0;
     private int msOfLastPlay = 0;
     private int currentTime = 0;
-
     private Action lastAction = Action.None;
+    CancellationTokenSource doubleClickCancelTokenSource = new CancellationTokenSource();
 
-    private int clickTimeThreshold = 500; // 500 ms threshold for double click detection
-    private HotKeyMode hotKeyMode = HotKeyMode.TripleClick;
+    private readonly int clickTimeThreshold = 250; // 500 ms threshold for double click detection
 
     public SubtitlesHotkeyMonitor(string playbackID, string machineID)
     {
@@ -65,52 +65,90 @@ internal class SubtitlesHotkeyMonitor
             lastAction = action;
         }
 
-        if (hotKeyMode == HotKeyMode.DoubleClick)
-        {
-            if ((action == Action.Play || action == Action.Buffering) && pauseTimeDiff < clickTimeThreshold)
-            {
-                // Double click detected
-                OnDoubleClick();
+        // Detect double and triple clicks. All else-ifs because a triple click should not be detected as a double click.
 
-            }
-            else if (action == Action.Pause && playTimeDiff < clickTimeThreshold)
-            {
-                // Double click detected
-                OnDoubleClick();
-            }
-        }
-
-        if (hotKeyMode == HotKeyMode.TripleClick)
-        {
-            if ((action == Action.Play || action == Action.Buffering)   // Current click - Play
+        // ----- Triple Click -----
+        if ((action == Action.Play || action == Action.Buffering)   // Current click - Play
                 && pauseTimeDiff < clickTimeThreshold                   // Last click - Pause
                 && playTimeDiff < clickTimeThreshold)                   // Preceding click - Play
-            {
-                // Triple click detected
-                OnTripleClick();
-            }
-            else if (action == Action.Pause                     // Current click - Pause
-                && playTimeDiff < clickTimeThreshold            // Last click - Play
-                && pauseTimeDiff < (clickTimeThreshold * 2))    // Preceding click - Pause -- Allow twice as much time since it's a triple click
-            {
-                // Triple click detected
-                OnTripleClick();
-            }
+        {
+            OnTripleClick();
+        }
+        else if (action == Action.Pause                     // Current click - Pause
+            && playTimeDiff < clickTimeThreshold            // Last click - Play
+            && pauseTimeDiff < (clickTimeThreshold * 2))    // Preceding click - Pause -- Allow twice as much time since it's a triple click
+        {
+            OnTripleClick();
+        }
+        // ----- Double Click -----
+        else if ((action == Action.Play || action == Action.Buffering) && pauseTimeDiff < clickTimeThreshold)
+        {
+            OnPossibleDoubleClick();
+
+        }
+        else if (action == Action.Pause && playTimeDiff < clickTimeThreshold)
+        {
+            OnPossibleDoubleClick();
         }
 
     } // ----------------- End of OnPlayPauseKeyPress -----------------
 
+    public void OnPossibleDoubleClick()
+    {
+        // This method is called when a possible double click is detected.
+        // It will wait for the clickTimeThreshold before firing the actual OnDoubleClick function. (The time within a third click would have to be)
+        // If a triple click is detected before the threshold time, this method will be cancelled.
+        // Start a new thread to wait for the threshold time
+
+        // -------------------------------------------------------
+        // Cancel any previous waiting operation
+        doubleClickCancelTokenSource.Cancel();
+        // Create a new token source for this operation
+        doubleClickCancelTokenSource = new CancellationTokenSource();
+        CancellationToken token = doubleClickCancelTokenSource.Token;
+
+        // Use Task.Run instead of creating a raw thread
+        Task.Run(async () =>
+        {
+            try
+            {
+                // Use Task.Delay instead of Thread.Sleep
+                await Task.Delay(clickTimeThreshold, token);
+
+                // Check if cancellation was requested
+                if (!token.IsCancellationRequested)
+                {
+                    OnDoubleClick();
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                // Task was canceled, no action needed
+            }
+        });
+    }
+
     public void OnDoubleClick()
     {
-        // Handle double click action here
-        // For example, you might want to skip forward or backward in the video
+        ResetPrevInfo();
         LogDebugExtra("Double click action triggered.", Yellow);
+        lastAction = Action.None; // Reset the last action to None after a double click
     }
     public void OnTripleClick()
     {
-        // Handle triple click action here
-        // For example, you might want to skip forward or backward in the video
+        // Cancel the double click operation if it's still waiting
+        doubleClickCancelTokenSource.Cancel();
+
+        ResetPrevInfo();
         LogDebugExtra("Triple click action triggered.", Yellow);
+    }
+
+    private void ResetPrevInfo()
+    {
+        msOfLastPause = 0;
+        msOfLastPlay = 0;
+        currentTime = 0;
+        lastAction = Action.None;
     }
 
     public static void ForwardActionToMonitorByID(string? machineID, Action action)
