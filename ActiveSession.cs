@@ -171,7 +171,7 @@ public class ActiveSession
         {
             int subtitleID;
 
-            if (PreferredSubtitle != null)
+            if (PreferredSubtitle != null) // Shouldn't be null if there are any available subtitles because the other function handles the default case, but just in case
             {
                 // If we have a preferred subtitle, use that
                 subtitleID = PreferredSubtitle.Id;
@@ -233,34 +233,43 @@ public class ActiveSession
         List<string> negativePatterns = [];
         List<SubtitleStream> subtitleTrackCandidates = [];
 
-        if (preferredSubtitlePatterns.Count > 0 && availableSubtitles.Count > 0)
+        if (availableSubtitles.Count > 0)
         {
-            foreach (string pattern in preferredSubtitlePatterns)
+            // Apply the user's preferred subtitle patterns if any
+            if (preferredSubtitlePatterns.Count > 0)
             {
-                if (pattern.StartsWith('-'))
-                    negativePatterns.Add(pattern.Substring(1));
-                else
-                    positivePatterns.Add(pattern);
-            }
-
-            // Now we can check the available subtitles against the positive and negative patterns. ALL patterns must be satisfied
-            foreach (SubtitleStream subtitle in availableSubtitles)
-            {
-                // Check if the subtitle matches any of the positive patterns
-                bool matchesAllPositives = positivePatterns.All(pattern => subtitle.ExtendedDisplayTitle.Contains(pattern, StringComparison.OrdinalIgnoreCase));
-                // Check to name sure none of the negative patterns match
-                bool matchesAnyNegatives = negativePatterns.Any(pattern => subtitle.ExtendedDisplayTitle.Contains(pattern, StringComparison.OrdinalIgnoreCase));
-
-                // If it matches all positive patterns and none of the negative patterns, we have a match
-                if (matchesAllPositives && !matchesAnyNegatives)
+                foreach (string pattern in preferredSubtitlePatterns)
                 {
-                    //preferredSubtitle = subtitle;
-                    subtitleTrackCandidates.Add(subtitle);
+                    if (pattern.StartsWith('-'))
+                        negativePatterns.Add(pattern.Substring(1));
+                    else
+                        positivePatterns.Add(pattern);
+                }
+
+                // Now we can check the available subtitles against the positive and negative patterns. ALL patterns must be satisfied
+                foreach (SubtitleStream subtitle in availableSubtitles)
+                {
+                    // Check if the subtitle matches any of the positive patterns
+                    bool matchesAllPositives = positivePatterns.All(pattern => subtitle.ExtendedDisplayTitle.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                    // Check to name sure none of the negative patterns match
+                    bool matchesAnyNegatives = negativePatterns.Any(pattern => subtitle.ExtendedDisplayTitle.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+
+                    // If it matches all positive patterns and none of the negative patterns, we have a match
+                    if (matchesAllPositives && !matchesAnyNegatives)
+                    {
+                        //preferredSubtitle = subtitle;
+                        subtitleTrackCandidates.Add(subtitle);
+                    }
                 }
             }
 
+            // if there's only one candidate, we can just use that
+            if (subtitleTrackCandidates.Count == 1)
+            {
+                preferredSubtitle = subtitleTrackCandidates[0];
+            }
             // If we have multiple candidates
-            if (subtitleTrackCandidates.Count > 1)
+            else if (subtitleTrackCandidates.Count > 1)
             {
                 bool preferExternal = Program.config.PreferExternalSubtitles.Value;
 
@@ -277,6 +286,23 @@ public class ActiveSession
                 else // If no preference, get the first one
                 {
                     preferredSubtitle = subtitleTrackCandidates[0];
+                }
+            }
+            // If there are no preferred matching subtitles, we'll pull from the rest. First check if external is preferred
+            else
+            {
+                // If external is preferred, add those to a list and get the first one
+                if (Program.config.PreferExternalSubtitles.Value == true)
+                {
+                    List<SubtitleStream> externalSubtitles = availableSubtitles.Where(s => s.IsExternal).ToList();
+                    if (externalSubtitles.Count > 0)
+                        preferredSubtitle = externalSubtitles[0];
+                    else
+                        preferredSubtitle = availableSubtitles[0]; // If no external subtitles were found, just get the first one
+                }
+                else // If no preference, get the first one
+                {
+                    preferredSubtitle = availableSubtitles[0];
                 }
             }
         }
