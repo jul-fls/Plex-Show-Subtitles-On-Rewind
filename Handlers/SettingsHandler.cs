@@ -4,8 +4,6 @@ using static RewindSubtitleDisplayerForPlex.Settings;
 
 namespace RewindSubtitleDisplayerForPlex;
 
-
-
 // Settings class with default values. Will be updated with values from settings file if it exists
 public class Settings
 {
@@ -18,9 +16,10 @@ public class Settings
 
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
-    public SettingInfo<double> ActiveMonitorFrequencySec = new(1.2, "Active_Monitor_Frequency_Seconds");
     public SettingInfo<double> MaxRewindSec = new(60, "Max_Rewind_Seconds");
-    public SettingInfo<double> MaxRewindCoolDownSec = new(4, "Max_Rewind_Cooldown_Seconds");
+    public SettingInfo<HotkeyAction> DoubleClickHotkeyAction = new(HotkeyAction.ToggleSubtitles, "Double_Click_PlayPause_Action");
+    public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.None, "Triple_Click_PlayPause_Action");
+    public SettingInfo<int> ClickHotkeyTimeThresholdMs = new(250, "Click_Time_Threshold_Milliseconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<bool> PreferExternalSubtitles = new(true, "Prefer_External_Subtitles");
     // -----------------
@@ -30,7 +29,9 @@ public class Settings
     public SettingInfo<bool> LogToFile = new(false, "Log_To_File");
     public SettingInfo<bool> SkipAuth = new(false, "Skip_Auth");
     public SettingInfo<bool> UseEventPolling = new(true, "Use_Event_Polling");
+    public SettingInfo<double> ActiveMonitorFrequencySec = new(1.2, "Active_Monitor_Frequency_Seconds");
     public SettingInfo<double> IdleMonitorFrequency = new(30, "Idle_Monitor_Frequency");
+    public SettingInfo<double> MaxRewindCoolDownSec = new(4, "Max_Rewind_Cooldown_Seconds");
     public AutoSettingInfo<int> ShortTimeoutLimit = new(-int.MaxValue, "Active_Timeout_Milliseconds", isAutoDefault:true); // Identifiable placeholder to know if user setting failed to set when not auto
     public SettingInfo<bool> AllowDuplicateInstance = new(false, "Allow_Duplicate_Instance");
     // -----------------
@@ -51,14 +52,16 @@ public class Settings
             "\nIf https:// doesn't work, you can use http:// but only do that if it's on a local network.";
         CurrentDeviceLabel.Description = "The label you want to appear next to this app's name in your Plex account's authorized devices list." +
             "\nYou can leave this empty or set to whatever you want. Changing it after creating the authorization token will not have an effect.";
-        ActiveMonitorFrequencySec.Description = "How often (in seconds) to check for rewinds during active playback." +
-            "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
-           $"\nDefault Value: {ActiveMonitorFrequencySec.Value}  |  Possible Values: Any positive number (decimals allowed).";
         MaxRewindSec.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
            $"\nDefault Value: {MaxRewindSec.Value}  |  Possible Values: Any positive number (decimals allowed)";
-        MaxRewindCoolDownSec.Description = $"After you rewind further than {MaxRewindSec.ConfigName}, for this many seconds further rewinds will be ignored." +
-            $"\nThis is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
-            $"\nDefault Value: {MaxRewindCoolDownSec.Value}  | Possible Values: Positive number or decimal, or 0";
+        DoubleClickHotkeyAction.Description = "What to do when the play/pause button is double-clicked." +
+           $"\nDefault Value: {DoubleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, None";
+        TripleClickHotkeyAction.Description = "What to do when the play/pause button is triple-clicked." +
+           $"\nDefault Value: {TripleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, None";
+        ClickHotkeyTimeThresholdMs.Description = "The maximum time in milliseconds between each individiual click to be considered for double and triple clicks." +
+            "\nTry 500ms or more if you have trouble activating it. Be aware that a higher threshold could cause higher chance of false positives, " +
+            "\n     because the periodic 'playing' notifications the Plex server sends (every ~5 seconds) are indisinguishable from notifications sent on play button presses." +
+           $"\nDefault {ClickHotkeyTimeThresholdMs}  |  Possible Values: Any positive whole number.";
         SubtitlePreferencePatterns.Description = "This allows you to define a filter for which subtitle track will be chosen. If left empty it will always choose the first subtitle track." +
             "\nIt should be a comma separated list of words or phrases, where it will try to look for any subtitle tracks that have a name that matches ALL the listed phrases." +
             "\nYou can also start a word/phrase with a hyphen (-) to require it NOT match that. So you can exclude 'SDH' subtitles by putting '-SDH' (without quotes)." +
@@ -77,8 +80,14 @@ public class Settings
             "\nNote: Event based polling might not work if this is true. If it doesn't work after going idle, try setting Use_Event_Polling to false.";
         UseEventPolling.Description = "(True/False) Use event polling instead of timer polling. Only disable this if you have issues with maintaining the plex server connection." +
            $"\nDefault Value: {UseEventPolling.Value}";
+        ActiveMonitorFrequencySec.Description = "How often (in seconds) to check for rewinds during active playback." +
+            "\nThe lower this value, the faster it will respond to rewinds. However setting it below 1 second is NOT recommended because most players will only update the timestamp every 1s anyway." +
+           $"\nDefault Value: {ActiveMonitorFrequencySec.Value}  |  Possible Values: Any positive number (decimals allowed).";
         IdleMonitorFrequency.Description = "Only applicable when NOT using event polling mode. How often to check for playback status (in seconds) when no media is playing." +
            $"\nDefault Value: {IdleMonitorFrequency.Value}  |  Possible Values: Any positive number (decimals allowed)";
+        MaxRewindCoolDownSec.Description = $"After you rewind further than {MaxRewindSec.ConfigName}, for this many seconds further rewinds will be ignored." +
+            $"\nThis is so if you are rewinding by clicking the back button many times, it doesn't immediately start showing subtitles after you pass the Max Rewind threshold." +
+            $"\nDefault Value: {MaxRewindCoolDownSec.Value}  | Possible Values: Positive number or decimal, or 0";
         ShortTimeoutLimit.Description = "The maximum time in milliseconds to wait for a response from the server before timing out between checks." +
             "\nShould be shorter than the active frequency (but not required, like for testing). You can also use 'auto' to automatically use 90% of the active frequency." +
             "\nDefault Value: auto  |  Possible Values: Any positive whole number, or \"auto\" (without quotes)";
@@ -225,6 +234,15 @@ public class Settings
             LogError(errorMessage);
             this.SettingsThatFailedToLoad.TryAdd(MaxRewindCoolDownSec, errorMessage);
             MaxRewindCoolDownSec = def.MaxRewindCoolDownSec;
+        }
+
+        // CLick Threshold
+        if (ClickHotkeyTimeThresholdMs < 0)
+        {
+            string errorMessage = $"Error for setting {ClickHotkeyTimeThresholdMs.ConfigName}: Click Threshold must be greater than or equal to 0.\nWill use default value {def.ClickHotkeyTimeThresholdMs}";
+            LogError(errorMessage);
+            this.SettingsThatFailedToLoad.TryAdd(ClickHotkeyTimeThresholdMs, errorMessage);
+            ClickHotkeyTimeThresholdMs = def.ClickHotkeyTimeThresholdMs;
         }
 
         // Subtitle preference

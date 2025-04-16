@@ -6,7 +6,7 @@ public class ActiveSession
     private PlexSession _session;
     private List<SubtitleStream> _availableSubtitles;
     private List<SubtitleStream> _activeSubtitles;
-    private SubtitlesHotkeyMonitor _hotkeyMonitor;
+    private readonly SubtitlesHotkeyMonitor _hotkeyMonitor;
 
     public string DeviceName { get; }
     public string MachineID { get; }

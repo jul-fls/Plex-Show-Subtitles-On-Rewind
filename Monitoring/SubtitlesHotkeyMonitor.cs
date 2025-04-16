@@ -11,7 +11,7 @@ using static RewindSubtitleDisplayerForPlex.SubtitlesHotkeyMonitor;
 namespace RewindSubtitleDisplayerForPlex;
 
 
-internal class SubtitlesHotkeyMonitor
+public class SubtitlesHotkeyMonitor
 {
     private string PlaybackID;
     private string MachineID;
@@ -26,9 +26,9 @@ internal class SubtitlesHotkeyMonitor
     CancellationTokenSource doubleClickCancelTokenSource = new CancellationTokenSource();
 
     // Options
-    private readonly int clickTimeThreshold = 250; // 500 ms threshold for double click detection
-    public HotkeyAction DoubleClickAction { get; set; } = HotkeyAction.None;
-    public HotkeyAction TripleClickAction { get; set; } = HotkeyAction.ToggleSubtitles;
+    private readonly int clickTimeThreshold = Program.config.ClickHotkeyTimeThresholdMs; // 500 ms threshold for double click detection
+    public HotkeyAction DoubleClickAction = Program.config.DoubleClickHotkeyAction;
+    public HotkeyAction TripleClickAction = Program.config.TripleClickHotkeyAction;
 
     // Constructor
     public SubtitlesHotkeyMonitor(string playbackID, string machineID, ActiveSession activeSession)
@@ -236,23 +236,5 @@ internal class SubtitlesHotkeyMonitor
     }
 
     //  ------------------------------------------
-    public enum Action
-    {
-        Play,
-        Pause,
-        Buffering,
-        None
-    }
 
-    public enum HotkeyAction // What to do when the hotkey is activated
-    {
-        None,
-        ToggleSubtitles
-    }
-
-    public enum HotkeyMode
-    {
-        DoubleClick,
-        TripleClick
-    }
 }

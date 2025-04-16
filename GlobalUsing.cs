@@ -33,6 +33,23 @@ namespace RewindSubtitleDisplayerForPlex
         Debug = 4,
         DebugExtra = 5
     }
+    public enum Action
+    {
+        Play,
+        Pause,
+        Buffering,
+        None
+    }
+    public enum HotkeyAction // What to do when the hotkey is activated
+    {
+        None,
+        ToggleSubtitles
+    }
+    public enum HotkeyMode
+    {
+        DoubleClick,
+        TripleClick
+    }
 
     public static class MyStrings
     {
