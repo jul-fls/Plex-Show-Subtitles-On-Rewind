@@ -630,6 +630,20 @@ namespace RewindSubtitleDisplayerForPlex
             _isMonitoring = true;
         }
 
+        public void ToggleMonitoring()
+        {
+            if (_isMonitoring)
+            {
+                StopMonitoring();
+                LogDebug("Stopped monitoring.");
+            }
+            else
+            {
+                RestartMonitoring();
+                LogDebug("Restarted monitoring.");
+            }
+        }
+
         public void SetupMonitoringInitialConditions()
         {
             if (_isMonitoring)
@@ -649,7 +663,11 @@ namespace RewindSubtitleDisplayerForPlex
                 LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
 
                 _previousPosition = _latestWatchedPosition;
-                _isMonitoring = true;
+
+                if (Program.config.ManualModeOnly)
+                    _isMonitoring = false;
+                else
+                    _isMonitoring = true;
 
                 SimpleSessionStartTimer();
                 MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway

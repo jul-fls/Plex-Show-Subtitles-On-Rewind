@@ -18,7 +18,8 @@ public class Settings
     public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
     public SettingInfo<double> MaxRewindSec = new(60, "Max_Rewind_Seconds");
     public SettingInfo<HotkeyAction> DoubleClickHotkeyAction = new(HotkeyAction.ToggleSubtitles, "Double_Click_PlayPause_Action");
-    public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.None, "Triple_Click_PlayPause_Action");
+    public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.ToggleRewindMonitoring, "Triple_Click_PlayPause_Action");
+    public SettingInfo<bool> ManualModeOnly = new(false, "Manual_Mode_Only");
     public SettingInfo<int> ClickHotkeyTimeThresholdMs = new(250, "Click_Time_Threshold_Milliseconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<bool> PreferExternalSubtitles = new(true, "Prefer_External_Subtitles");
@@ -55,9 +56,14 @@ public class Settings
         MaxRewindSec.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
            $"\nDefault Value: {MaxRewindSec.Value}  |  Possible Values: Any positive number (decimals allowed)";
         DoubleClickHotkeyAction.Description = "What to do when the play/pause button is double-clicked." +
-           $"\nDefault Value: {DoubleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, None";
-        TripleClickHotkeyAction.Description = "What to do when the play/pause button is triple-clicked." +
-           $"\nDefault Value: {TripleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, None";
+           $"\n{HotkeyAction.ToggleSubtitles} will manually toggle subtitles immediately. If they are toggled on, they will stay on until toggled off." +
+           $"\n{HotkeyAction.ToggleRewindMonitoring} will toggle whether rewinds from triggering subtitles. You can still use the manual toggle double/triple click hotkey if set." +
+           $"\nDefault Value: {DoubleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, DisableMonitoring, None";
+        TripleClickHotkeyAction.Description = "What to do when the play/pause button is triple-clicked. See same descriptions of options as Double Click setting." +
+           $"\nDefault Value: {TripleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, DisableMonitoring, None";
+        ManualModeOnly.Description = "(True/False) If true, this app will default to NOT automatically toggle subtitles on rewinds." +
+            "\nYou can still toggle subtitles using one of the double or triple click hotkeys. You can also re-enable monitoring using a hotkey." +
+            $"\nDefault Value: {ManualModeOnly.Value}";
         ClickHotkeyTimeThresholdMs.Description = "The maximum time in milliseconds between each individiual click to be considered for double and triple clicks." +
             "\nTry 500ms or more if you have trouble activating it. Be aware that a higher threshold could cause higher chance of false positives, " +
             "\n     because the periodic 'playing' notifications the Plex server sends (every ~5 seconds) are indisinguishable from notifications sent on play button presses." +

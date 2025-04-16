@@ -111,7 +111,11 @@ public class PlexNotificationListener : IDisposable
                         if (MonitorManager.GetMonitorForMachineID(playEvent.ClientIdentifier) is RewindMonitor monitor)
                         {
                             monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
-                            monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
+
+                            if (monitor.IsMonitoring)
+                                monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
+                            else
+                                LogDebug($"Monitor for machine {playEvent.ClientIdentifier} is not active. Not making monitoring pass.");
 
                             // If there's only one active session, restart the timer so it waits long enough for actual new info to come in
                             if (MonitorManager.AllMonitors.Count <= 1)

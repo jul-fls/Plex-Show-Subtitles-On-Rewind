@@ -43,7 +43,8 @@ namespace RewindSubtitleDisplayerForPlex
     public enum HotkeyAction // What to do when the hotkey is activated
     {
         None,
-        ToggleSubtitles
+        ToggleSubtitles,
+        ToggleRewindMonitoring
     }
     public enum HotkeyMode
     {

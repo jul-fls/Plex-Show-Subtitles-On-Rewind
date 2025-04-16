@@ -218,6 +218,18 @@ public class SubtitlesHotkeyMonitor
         }
     }
 
+    private static void DisableMonitoring(string machineID)
+    {
+        RewindMonitor? monitor = MonitorManager.GetMonitorForMachineID(machineID);
+        if (monitor == null)
+        {
+            LogWarning($"No monitor found for machineID: {machineID}");
+            return;
+        }
+        // Disable monitoring
+        monitor.ToggleMonitoring();
+    }
+
     private void HotkeyActionFunctionDirector(HotkeyAction hotkeyAction)
     {
         // Perform the action based on the hotkey action
@@ -228,6 +240,9 @@ public class SubtitlesHotkeyMonitor
                 break;
             case HotkeyAction.None:
                 // No action needed
+                break;
+            case HotkeyAction.ToggleRewindMonitoring:
+                DisableMonitoring(MachineID);
                 break;
             default:
                 LogWarning($"Unknown hotkey action: {hotkeyAction}");
