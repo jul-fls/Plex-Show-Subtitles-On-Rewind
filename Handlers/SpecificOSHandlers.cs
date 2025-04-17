@@ -54,8 +54,8 @@ internal static partial class OS_Handlers
             {
                 string bgMode = "Background mode is not enabled. Allocating console for the process.";
                 // Attempt to attach to the parent process's console.
-                bool attached;
-                attached = WindowsNativeMethods.AttachConsole(ATTACH_PARENT_PROCESS);
+                bool attached = false;
+                //attached = WindowsNativeMethods.AttachConsole(ATTACH_PARENT_PROCESS);
 
                 // If we are not attached to a console, we need to allocate one.
                 if (!attached)

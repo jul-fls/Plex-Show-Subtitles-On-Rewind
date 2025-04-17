@@ -205,7 +205,7 @@ public static class AuthTokenHandler
             authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: appNameIncludingConfig);
 
             WriteLineSafe("\n----------------------------------------------------------------");
-            WriteGreen($"\nPlease visit the following URL to authorize the app: \n\n\t{authUrl}");
+            WriteGreen($"\nPlease visit the following URL to authorize the app. (Select then right click to copy from a console) \n\n\t{authUrl}");
             WriteLineSafe("\n\nTip: After authorizing, you should see it show up in the 'devices' section at:" +
                 "\n     http://<Your Server IP>:<Port>/web/index.html#!/settings/devices/all");
 
