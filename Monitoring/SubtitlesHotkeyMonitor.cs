@@ -19,11 +19,12 @@ public class SubtitlesHotkeyMonitor
     private static List<SubtitlesHotkeyMonitor> _allHotkeyMonitors = [];
 
     // -------------------------------------
-    private int msOfLastPause = 0;
-    private int msOfLastPlay = 0;
-    private int currentTime = 0;
-    private Action lastAction = Action.None;
+    private int _msOfLastPause = 0;
+    private int _msOfLastPlay = 0;
+    //private int currentTime = 0;
+    private Action _lastAction = Action.None;
     CancellationTokenSource doubleClickCancelTokenSource = new CancellationTokenSource();
+    private readonly Lock lockObject = new Lock();
 
     // Options
     private readonly int clickTimeThreshold = Program.config.ClickHotkeyTimeThresholdMs; // 500 ms threshold for double click detection
@@ -49,38 +50,39 @@ public class SubtitlesHotkeyMonitor
         // For the purposes of the hotkey, we'll treat a buffering action the same as playing.
         //  But a playing action immediately following buffering will be ignored
 
-        // ---------------- Ignored Conditions -----------------
+        Action lastAction;
+        int currentTime = Environment.TickCount;
+        int msLastPause;
+        int msLastPlay;
 
-        // The first play in a session should be ignored but we'll still set the lastAction to Play
-        if (action == Action.Play && lastAction == Action.None)
+        lock (lockObject)
         {
-            lastAction = Action.Play;
-            return;
+            lastAction = _lastAction;
+            _lastAction = action;
+
+            // An actual button press should always cause a change, so ignore the periodic play/pause events which are not from the user
+            if (lastAction == action)
+                return;
+
+            msLastPause = _msOfLastPause;
+            msLastPlay = _msOfLastPlay;
+        
+            // If the action is Play or Buffering, update the last play time
+            if (action == Action.Play)
+            {
+                _msOfLastPlay = currentTime;
+            }
+            else if (action == Action.Pause) // If the action is Pause, update the last pause time
+            {
+                _msOfLastPause = currentTime;
+            }
         }
 
-        // An actual button press should always cause a change, so ignore the periodic play/pause events which are not from the user
-        if (lastAction == action)
-            return;
-
-        // -------------------------------------------------------
-        currentTime = Environment.TickCount;
-        int pauseTimeDiff = currentTime - msOfLastPause;
-        int playTimeDiff = currentTime - msOfLastPlay;
-        LogDebugExtra($"Current Time: {currentTime}ms, Last Pause: {msOfLastPause}ms, Last Play: {msOfLastPlay}ms");
-
-        // If the action is Play or Buffering, update the last play time
-        if (action == Action.Play)
-        {
-            msOfLastPlay = currentTime;
-            lastAction = action;
-        }
-        else if (action == Action.Pause) // If the action is Pause, update the last pause time
-        {
-            msOfLastPause = currentTime;
-            lastAction = action;
-        }
+        LogDebugExtra($"Current Time: {currentTime}ms, Last Pause: {msLastPause}ms, Last Play: {msLastPlay}ms");
 
         // Detect double and triple clicks. All else-ifs because a triple click should not be detected as a double click.
+        int pauseTimeDiff = currentTime - msLastPause;
+        int playTimeDiff = currentTime - msLastPlay;
 
         // ----- Triple Click -----
         if (action == Action.Play   // Current click - Play
@@ -88,29 +90,29 @@ public class SubtitlesHotkeyMonitor
             && playTimeDiff < clickTimeThreshold                    // Preceding click - Play
             )                   
         {
-            OnTripleClick();
+            OnTripleClick(finalAction:action);
         }
         else if (action == Action.Pause                     // Current click - Pause
             && playTimeDiff < clickTimeThreshold            // Last click - Play
             && pauseTimeDiff < (clickTimeThreshold * 2)     // Preceding click - Pause -- Allow twice as much time since it's a triple click
             )    
         {
-            OnTripleClick();
+            OnTripleClick(finalAction: action);
         }
         // ----- Double Click -----
         else if ((action == Action.Play) && pauseTimeDiff < clickTimeThreshold)
         {
-            OnPossibleDoubleClick();
+            OnPossibleDoubleClick(finalAction: action);
 
         }
         else if (action == Action.Pause && playTimeDiff < clickTimeThreshold)
         {
-            OnPossibleDoubleClick();
+            OnPossibleDoubleClick(finalAction: action);
         }
 
     } // ----------------- End of OnPlayPauseKeyPress -----------------
 
-    public void OnPossibleDoubleClick()
+    public void OnPossibleDoubleClick(Action finalAction)
     {
         // This method is called when a possible double click is detected.
         // It will wait for the clickTimeThreshold before firing the actual OnDoubleClick function. (The time within a third click would have to be)
@@ -135,7 +137,7 @@ public class SubtitlesHotkeyMonitor
                 // Check if cancellation was requested
                 if (!token.IsCancellationRequested)
                 {
-                    OnDoubleClick();
+                    OnDoubleClick(finalAction: finalAction);
                 }
             }
             catch (TaskCanceledException)
@@ -145,25 +147,23 @@ public class SubtitlesHotkeyMonitor
         });
     }
 
-    public void OnDoubleClick()
+    public void OnDoubleClick(Action finalAction)
     {
-        Action finalAction = lastAction;
         ResetPrevInfo();
         LogVerbose($"Double click action triggered: {DoubleClickAction}", Yellow);
 
         HotkeyActionFunctionDirector(DoubleClickAction);
     }
-    public void OnTripleClick()
+    public void OnTripleClick(Action finalAction)
     {
         // Cancel the pending double click operation if it's still waiting
         doubleClickCancelTokenSource.Cancel();
 
-        Action finalAction = lastAction;
         ResetPrevInfo();
         LogVerbose($"Triple click action triggered: {TripleClickAction}", Yellow);
 
         // Perform a restorative action based on the last action, since 3 causes the opposite of the original state
-        if (finalAction == Action.Play || finalAction == Action.Buffering)
+        if (finalAction == Action.Play)
         {
             // Perform a pause action
             _ = PlexServer.SendPauseCommand(machineID: MachineID, sendDirectToDevice: true, activeSession: AttachedActiveSession);
@@ -181,10 +181,12 @@ public class SubtitlesHotkeyMonitor
     // -----------------------------------------------------
     private void ResetPrevInfo()
     {
-        msOfLastPause = 0;
-        msOfLastPlay = 0;
-        currentTime = 0;
-        lastAction = Action.None;
+        lock (lockObject)
+        {
+            _msOfLastPause = 0;
+            _msOfLastPlay = 0;
+            _lastAction = Action.None;
+        }
     }
 
     public static void ForwardActionToMonitorByID(string? machineID, Action action)
