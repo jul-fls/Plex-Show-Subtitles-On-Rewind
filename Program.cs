@@ -258,8 +258,7 @@ namespace RewindSubtitleDisplayerForPlex
                 WriteLineSafe(ex.StackTrace);
                 if (!isBackgroundMode)
                 {
-                    UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
-                    ExitProgramSafe();
+                    UseShutdownProcedure = ShutdownProcedure.ImmediateGraceful;
                 }
             }
             finally
@@ -284,6 +283,7 @@ namespace RewindSubtitleDisplayerForPlex
             ImmediateKill,      // Kill the process immediately
             PreferWaitUserInput // If not in background mode, wait for user input if the console was allocated
                                 //      but not if it was attached since the user will be still able to see any messages
+            
         }
 
         private static void ExitProgramSafe()
@@ -301,10 +301,19 @@ namespace RewindSubtitleDisplayerForPlex
 
             if (UseShutdownProcedure == ShutdownProcedure.PreferWaitUserInput)
             {
-                WaitPressEnterIfNotBackgroundMode(verb: "Exit", isForExit: true);
+                if (IsContainerized)
+                {
+                    new System.Threading.ManualResetEvent(false).WaitOne(); // Wait indefinitely for user to shut down the container or restart it manually
+                    Console.WriteLine("\nContainerized mode detected. Waiting indefinitely for manual user restart or container shutdown...");
+                }
+                else
+                {
+                    WaitPressEnterIfNotBackgroundMode(verb: "Exit", isForExit: true);
+                }
             }
             
             OS_Handlers.FreeConsoleIfNeeded();
+
             Environment.Exit(0);
         }
 

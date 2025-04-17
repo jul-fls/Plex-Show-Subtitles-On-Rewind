@@ -93,12 +93,10 @@ public static class AuthTokenHandler
         }
         else if (Program.IsContainerized) // Running in docker or another non-interactive environment
         {
-            bool genSuccess = NonInteractiveAuthFlow_GenerateAuth();
-            if (genSuccess)
-            {
-                // Just exit the app, the user will need to run it again after authorizing
-                Environment.Exit(0);
-            }
+            NonInteractiveAuthFlow_GenerateAuth();
+
+            // Nothing more to do, any relevant messages will be printed already
+            new System.Threading.ManualResetEvent(false).WaitOne(); // Wait instead of exiting, so the container doesn't exit and start looping
         }
         else
         {
@@ -151,8 +149,14 @@ public static class AuthTokenHandler
                         appName: MyStrings.AppNameShort
                         );
 
+                    // If auth was a failure, don't exit or else a container will loop
                     if (authSuccess == false)
-                        Environment.Exit(1);
+                    {
+                        if (Program.IsContainerized)
+                            new System.Threading.ManualResetEvent(false).WaitOne();
+                        else
+                            Environment.Exit(1);
+                    }
                 }
 
                 return (tokens.Value.validatedToken, tokens.Value.validatedUUID);
@@ -256,7 +260,7 @@ public static class AuthTokenHandler
         }
         else
         {
-            WriteLineSafe($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.");
+            WriteLineSafe($"Token generation failed. See any error messages above.");
             return false;
         }
     }
