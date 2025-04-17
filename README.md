@@ -1,4 +1,4 @@
-# Rewind Subtitle Displayer For Plex
+# Thio's Rewind Subtitle Displayer For Plex
 
 ## What it Does
 
