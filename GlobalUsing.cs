@@ -55,8 +55,8 @@ namespace RewindSubtitleDisplayerForPlex
     public static class MyStrings
     {
         public const string AppNameDashed = "Rewind-Subtitle-Displayer-For-Plex";
-        public const string AppName = "Rewind Subtitle Displayer For Plex";
-        public const string AppNameShort = "Rewind Subtitle Displayer";
+        public const string AppName = "Thio's Rewind Subtitle Displayer For Plex";
+        public const string AppNameShort = "Thio's Rewind Subtitle Displayer";
         public const string LogFileName = "RewindSubtitleDisplayerForPlex.log";
         public static readonly string AssemblyFileVersion = Utils.Version.GetVersion();
 
