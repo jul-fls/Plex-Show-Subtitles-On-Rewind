@@ -30,24 +30,25 @@ public static class AuthTokenHandler
         public const string configTokenSetting = "AppToken";
         public const string configPinIDSetting = "PinID";
         public const string tokenFileName = "token.config";
-        public static string tokenFileTemplateName = $"{tokenFileName}.example";
-        public static string tokenNote = "    Note: This is not the same Plex token for your account that you see mentioned in other tutorials.\n" +
+        public static readonly string tokenFileTemplateName = $"{tokenFileName}.example";
+        public static readonly string tokenNote = "    Note: This is not the same Plex token for your account that you see mentioned in other tutorials.\n" +
                                          "        This is a token specifically for the individual app.\n" +
                                          "        It will appear in the 'Devices' section of your account and can be revoked whenever you want.";
     }
 
+    public static string TokenFilePath => Path.Combine(BaseConfigsDir, AuthStrings.tokenFileName);
+    public static string TokenTemplatePath => Path.Combine(BaseConfigsDir, AuthStrings.tokenFileTemplateName);
+
     static void CreateTokenFile(string token = AuthStrings.TokenPlaceholder, string uuid = AuthStrings.ClientID_UUID_Placeholder)
     {
-        string tokenFilePath = AuthStrings.tokenFileName;
-        File.WriteAllText(tokenFilePath, 
-            $"{AuthStrings.configTokenSetting}={token}" +
-            $"\n{AuthStrings.configUUIDSetting}={uuid}");
+        File.WriteAllText(TokenFilePath, 
+                $"{AuthStrings.configTokenSetting}={token}" +
+                $"\n{AuthStrings.configUUIDSetting}={uuid}");
     }
 
     static void CreatePendingTokenFile(string pinID, string clientID_UUID, string tempAuthCode)
     {
-        string tokenFilePath = AuthStrings.tokenFileName;
-        File.WriteAllText(tokenFilePath, 
+        File.WriteAllText(TokenFilePath, 
                     $"{AuthStrings.configTokenSetting}={tempAuthCode}\n" +
                     $"{AuthStrings.configUUIDSetting}={clientID_UUID}\n" +
                     $"{AuthStrings.configPinIDSetting}={pinID}\n"
@@ -59,10 +60,9 @@ public static class AuthTokenHandler
         try
         {
             // First check if the template file already exists
-            if (force == true || !File.Exists(AuthStrings.tokenFileTemplateName))
+            if (force == true || !File.Exists(TokenTemplatePath))
             {
-                string tokenFilePath = AuthStrings.tokenFileTemplateName;
-                File.WriteAllText(tokenFilePath, 
+                File.WriteAllText(TokenTemplatePath, 
                     $"{AuthStrings.configTokenSetting}={AuthStrings.TokenPlaceholder}\n" +
                     $"{AuthStrings.configUUIDSetting}={AuthStrings.ClientID_UUID_Placeholder}\n"
                     );
@@ -70,7 +70,7 @@ public static class AuthTokenHandler
             }
             else
             {
-                LogError($"Template file already exists: {AuthStrings.tokenFileTemplateName}.\n");
+                LogError($"Template file already exists: {TokenTemplatePath}.\n");
                 return false;
             }
         }
@@ -84,11 +84,10 @@ public static class AuthTokenHandler
 
     public static (string, string)? LoadTokens()
     {
-        string tokenFilePath = AuthStrings.tokenFileName;
         bool tokenFileExists = false;
 
         // If it doesn't exist, prompt the user to go through the auth flow to create one
-        if (File.Exists(tokenFilePath))
+        if (File.Exists(TokenFilePath))
         {
             tokenFileExists = true;
         }
@@ -138,7 +137,7 @@ public static class AuthTokenHandler
         else if (tokenFileExists == true)
         {
 
-            (string ? validatedToken, string ? validatedUUID, string ? validatedPinID)? tokens = ReadTokenConfig(tokenFilePath);
+            (string ? validatedToken, string ? validatedUUID, string ? validatedPinID)? tokens = ReadTokenConfig(TokenFilePath);
             
             if (tokens.Value.validatedToken != null && tokens.Value.validatedUUID != null)
             {

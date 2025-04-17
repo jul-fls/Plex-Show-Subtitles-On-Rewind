@@ -9,7 +9,7 @@ namespace RewindSubtitleDisplayerForPlex;
 public static class MyLogger // Rename if needed
 {
     // --- Configuration ---
-    private static readonly string LogFilePath = Path.Combine(Environment.CurrentDirectory, MyStrings.LogFileName);
+    private static readonly string LogFilePath = Path.Combine(BaseConfigsDir, MyStrings.LogFileName);
     private static bool IsFileLoggingEnabled => Program.config?.LogToFile ?? false; // Assumes Program.config exists
 
     // --- Core Queuing Components ---

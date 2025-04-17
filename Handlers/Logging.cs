@@ -11,9 +11,6 @@ internal static partial class Logging
     private static readonly Lock ConsoleWriterLock = new Lock();
     private static LogLevel _logLevel => Program.config.ConsoleLogLevel; // Default log level
 
-
-    private static readonly string LogFilePath = Path.Combine(Environment.CurrentDirectory, MyStrings.LogFileName);
-
     private static string GetPrefix(LogLevel level)
     {
         return level switch

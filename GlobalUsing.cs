@@ -16,6 +16,8 @@ namespace RewindSubtitleDisplayerForPlex
         public const ConsoleColor Red = ConsoleColor.Red;
         public const ConsoleColor Yellow = ConsoleColor.Yellow;
 
+        // Put config files in the same directory as the executable, unless it's running in a container then put them in a config directory
+        public static string BaseConfigsDir => Program.IsContainerized ? Path.Combine(Environment.CurrentDirectory, "config") : Environment.CurrentDirectory;
     }
 
     // Enum for active/idle state of the monitoring

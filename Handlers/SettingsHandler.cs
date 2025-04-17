@@ -302,6 +302,9 @@ public static class SettingsHandler
         public const string SettingsFileTemplate = "settings.ini.template";
     }
 
+    public static string SettingsFilePath => Path.Combine(BaseConfigsDir, SettingStrings.SettingsFileName);
+    public static string SettingsFileTemplatePath => Path.Combine(BaseConfigsDir, SettingStrings.SettingsFileTemplate);
+
     public enum PrintResultType
     {
         None,
@@ -354,7 +357,7 @@ public static class SettingsHandler
         }
 
         // Load settings from file
-        foreach (string line in File.ReadAllLines(SettingStrings.SettingsFileName))
+        foreach (string line in File.ReadAllLines(SettingsFilePath))
         {
             // Local function
             static bool checkIsCommentLine(string checkLine)
@@ -571,7 +574,7 @@ public static class SettingsHandler
         }
     }
 
-    private static bool CreateSettingsFile(string fileName, Settings? settingsIn = null)
+    private static bool CreateSettingsFile(string filePath, Settings? settingsIn = null)
     {
         Settings settings;
 
@@ -583,7 +586,7 @@ public static class SettingsHandler
         try
         {
             // Assuming SettingStrings.SettingsFileName is defined elsewhere
-            using StreamWriter sw = File.CreateText(fileName);
+            using StreamWriter sw = File.CreateText(filePath);
 
             // Iterate through fields of the Settings instance
             foreach (System.Reflection.FieldInfo field in typeof(Settings).GetFields())
@@ -658,7 +661,7 @@ public static class SettingsHandler
 
             // sw is automatically disposed/flushed by the using statement
             sw.Close();
-            WriteGreen($"Created settings config file \"{fileName}\"\n");
+            WriteGreen($"Created settings config file \"{filePath}\"\n");
             return true; // Indicate success
         }
         catch (Exception ex)
@@ -673,9 +676,9 @@ public static class SettingsHandler
     // Automatically create settings file if it doesn't exist
     public static bool CreateSettingsFileIfNotExists()
     {
-        if (!File.Exists(SettingStrings.SettingsFileName))
+        if (!File.Exists(SettingsFilePath))
         {
-            CreateSettingsFile(SettingStrings.SettingsFileName);
+            CreateSettingsFile(SettingsFilePath);
             return true; // File was created
         }
         else
@@ -691,14 +694,14 @@ public static class SettingsHandler
     public static bool UpdateSettingsFile(Settings settings)
     {
         // Check if the settings file exists
-        if (File.Exists(SettingStrings.SettingsFileName))
+        if (File.Exists(SettingsFilePath))
         {
             // If it exists, create a backup
-            string backupFileName = SettingStrings.SettingsFileName + ".bak";
+            string backupFileName = SettingsFilePath + ".bak";
             backupFileName = Utils.GetAvailableFileName(backupFileName, returnFullPath: false, mode: Utils.FileNameIterationLocation.Extension);
             try
             {
-                File.Copy(sourceFileName: SettingStrings.SettingsFileName, destFileName: backupFileName, overwrite: true);
+                File.Copy(sourceFileName: SettingsFilePath, destFileName: backupFileName, overwrite: true);
                 WriteGreen($"Backup of settings file created as \"{SettingStrings.SettingsFileName}.bak\"\n");
             }
             catch (Exception ex)
@@ -710,7 +713,7 @@ public static class SettingsHandler
             }
         }
         // Create a new settings file with the updated settings
-        bool result = CreateSettingsFile(fileName: SettingStrings.SettingsFileName, settingsIn: settings);
+        bool result = CreateSettingsFile(filePath: SettingsFilePath, settingsIn: settings);
 
         if (result)
         {
@@ -727,7 +730,7 @@ public static class SettingsHandler
     // Generate a template settings file. Will overwrite the existing one if it exists
     public static void GenerateTemplateSettingsFile()
     {
-        CreateSettingsFile(fileName: SettingStrings.SettingsFileTemplate);
+        CreateSettingsFile(filePath: SettingsFileTemplatePath);
     }
 
 } // --------- End of SettingsHandler ---------
