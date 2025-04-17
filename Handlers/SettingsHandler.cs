@@ -20,7 +20,7 @@ public class Settings
     public SettingInfo<HotkeyAction> DoubleClickHotkeyAction = new(HotkeyAction.ToggleSubtitles, "DoubleClick_PlayPause_Hotkey_Action");
     public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.ToggleRewindMonitoring, "TripleClick_PlayPause_Hotkey_Action");
     public SettingInfo<bool> ManualModeOnly = new(false, "Manual_Mode_Only");
-    public SettingInfo<int> ClickHotkeyTimeThresholdMs = new(250, "Click_Time_Threshold_Milliseconds");
+    public SettingInfo<int> ClickHotkeyTimeThresholdMs = new(400, "Click_Time_Threshold_Milliseconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<bool> PreferExternalSubtitles = new(true, "Prefer_External_Subtitles");
     // -----------------
@@ -59,8 +59,7 @@ public class Settings
            $"\n{HotkeyAction.ToggleSubtitles} will manually toggle subtitles immediately. If they are toggled on, they will stay on until toggled off." +
            $"\n{HotkeyAction.ToggleRewindMonitoring} will toggle whether rewinds from triggering subtitles. You can still use the manual toggle double/triple click hotkey if set." +
            $"\nDefault Value: {DoubleClickHotkeyAction.Value}  |  Possible Values: {HotkeyAction.ToggleSubtitles}, {HotkeyAction.ToggleRewindMonitoring}, {HotkeyAction.None}";
-        //TripleClickHotkeyAction.Description = "What to do when the play/pause button is triple-clicked. See same descriptions of options as Double Click setting." +
-        //$"\nDefault Value: {TripleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, DisableMonitoring, None";
+        TripleClickHotkeyAction.Description = $"Default Value: {TripleClickHotkeyAction.Value}  |  Possible Values: ToggleSubtitles, DisableMonitoring, None";
         ManualModeOnly.Description = "(True/False) If true, this app will default to NOT automatically toggle subtitles on rewinds." +
             "\nYou can still toggle subtitles using one of the double or triple click hotkeys. You can also re-enable monitoring using a hotkey." +
             $"\nDefault Value: {ManualModeOnly.Value}";
