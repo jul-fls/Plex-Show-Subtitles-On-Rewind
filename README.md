@@ -19,6 +19,7 @@ Once playback reaches the point where you started the rewind, it will **automati
   * If you rewind longer than a specified threshold (60 seconds default)
   * If you fast forward at any point
 * **Use Preferred Subtitles**: In the `settings.ini` file, you can configure how it will choose which subtitle track to display.
+* Experimmental: Assign an action to occur when you double or triple click the play pause button, such as manually toggling subtitles.
 
 ## Other Benefits
 
