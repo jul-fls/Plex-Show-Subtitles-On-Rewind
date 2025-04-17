@@ -135,8 +135,8 @@ public class PlexNotificationListener : IDisposable
                 }
                 else if (playState == PlexPlayState.Buffering)
                 {
-                    LogDebugExtra(notificationString, ConsoleColor.DarkCyan);
-                    Task.Run(() => { SubtitlesHotkeyMonitor.ForwardActionToMonitorByID(machineID: playEvent.ClientIdentifier, action: Action.Buffering); });
+                    LogDebugExtra(notificationString);
+                    //Task.Run(() => { SubtitlesHotkeyMonitor.ForwardActionToMonitorByID(machineID: playEvent.ClientIdentifier, action: Action.Buffering); });
                 }
                 else if (playState == PlexPlayState.Stopped)
                 {

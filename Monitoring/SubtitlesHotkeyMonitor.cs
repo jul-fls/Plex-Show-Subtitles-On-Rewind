@@ -50,25 +50,17 @@ public class SubtitlesHotkeyMonitor
         //  But a playing action immediately following buffering will be ignored
 
         // ---------------- Ignored Conditions -----------------
-        // A playing notification always follows a buffering notification, so we need to ignore it. And multiple plays in a row will happen while playing
-        if (action == Action.Play && (lastAction == Action.Buffering || lastAction == Action.Play))
-            return;
 
-        // The first play in a session should be ignored but we'll still set the lastAction to Play,
-        //    or else it will remain None because the initial buffering actions are also ignored and don't set lastAction
+        // The first play in a session should be ignored but we'll still set the lastAction to Play
         if (action == Action.Play && lastAction == Action.None)
         {
             lastAction = Action.Play;
             return;
         }
 
-        // Buffering may happen multiple times in a row so ignore. Also ignore initial session buffering.
-        if (action == Action.Buffering && (lastAction == Action.Buffering || lastAction == Action.None))
+        // An actual button press should always cause a change, so ignore the periodic play/pause events which are not from the user
+        if (lastAction == action)
             return;
-
-        if (action == Action.Pause && (lastAction == Action.Pause || lastAction == Action.Buffering))
-            return;
-
 
         // -------------------------------------------------------
         currentTime = Environment.TickCount;
@@ -77,7 +69,7 @@ public class SubtitlesHotkeyMonitor
         LogDebugExtra($"Current Time: {currentTime}ms, Last Pause: {msOfLastPause}ms, Last Play: {msOfLastPlay}ms");
 
         // If the action is Play or Buffering, update the last play time
-        if (action == Action.Play || action == Action.Buffering)
+        if (action == Action.Play)
         {
             msOfLastPlay = currentTime;
             lastAction = action;
@@ -91,20 +83,22 @@ public class SubtitlesHotkeyMonitor
         // Detect double and triple clicks. All else-ifs because a triple click should not be detected as a double click.
 
         // ----- Triple Click -----
-        if ((action == Action.Play || action == Action.Buffering)   // Current click - Play
-                && pauseTimeDiff < clickTimeThreshold                   // Last click - Pause
-                && playTimeDiff < clickTimeThreshold)                   // Preceding click - Play
+        if (action == Action.Play   // Current click - Play
+            && pauseTimeDiff < clickTimeThreshold                   // Last click - Pause
+            && playTimeDiff < clickTimeThreshold                    // Preceding click - Play
+            )                   
         {
             OnTripleClick();
         }
         else if (action == Action.Pause                     // Current click - Pause
             && playTimeDiff < clickTimeThreshold            // Last click - Play
-            && pauseTimeDiff < (clickTimeThreshold * 2))    // Preceding click - Pause -- Allow twice as much time since it's a triple click
+            && pauseTimeDiff < (clickTimeThreshold * 2)     // Preceding click - Pause -- Allow twice as much time since it's a triple click
+            )    
         {
             OnTripleClick();
         }
         // ----- Double Click -----
-        else if ((action == Action.Play || action == Action.Buffering) && pauseTimeDiff < clickTimeThreshold)
+        else if ((action == Action.Play) && pauseTimeDiff < clickTimeThreshold)
         {
             OnPossibleDoubleClick();
 
