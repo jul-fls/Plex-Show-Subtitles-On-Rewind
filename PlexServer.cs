@@ -610,7 +610,7 @@ namespace RewindSubtitleDisplayerForPlex
                     string message = $"({statusCode}) {statusName}; URL: {mainUrl} \nError: {errorText}";
 
                     CommandResult originalResult = new CommandResult(success: false, responseErrorMessage: message, responseXml: null);
-                    LogDebug($"Command {command} failed to {mainUrlBase}. Status Code: {statusCode} ({statusName}), Error: {errorText}");
+                    LogDebug($"Command failed to {mainUrl}. Status Code: {statusCode} ({statusName}), Error: {errorText}");
 
                     // Retry by sending the command directly to the device (or the server URL if the function call was to send to device directly)
                     if (retryUrlBase != null)
@@ -625,7 +625,7 @@ namespace RewindSubtitleDisplayerForPlex
                         {
                             // Process the XML response from the device
                             string responseData = await retryResponse.Content.ReadAsStringAsync();
-                            LogDebug($"Command fallback successful to address {retryUrlBase} for command {command}. Response: {responseData}");
+                            LogDebug($"Command fallback successful to {retryUrl} for command {command}. Response: {responseData}");
                             return new CommandResult(success: true, responseErrorMessage: "", responseXml: ProcessXMLResponse(responseData));
                         }
                         else
@@ -659,7 +659,7 @@ namespace RewindSubtitleDisplayerForPlex
                 }
                 else
                 {
-                    LogDebugExtra($"Command {command} sent successfully to {mainUrlBase}. Response: {response.StatusCode}");
+                    LogDebugExtra($"Command sent successfully to {mainUrl}. Response: {response.StatusCode}");
                 }
 
                 // If the calling function needs the response XML, get and return that too

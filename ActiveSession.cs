@@ -80,7 +80,7 @@ public class ActiveSession
         else
             positionMilliseconds = Session.ViewOffset;
 
-        double positionSec = Math.Round(positionMilliseconds / 1000.0, 2);
+        double positionSec = Math.Round(positionMilliseconds / 1000.0, 3);
         return positionSec;
     }
 

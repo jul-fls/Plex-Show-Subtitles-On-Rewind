@@ -89,7 +89,7 @@ public class PlexNotificationListener : IDisposable
         {
             if (e.EventObj is PlayingEvent playEvent && playEvent.StateEnum is PlexPlayState playState)
             {
-                string offsetStr = playEvent.ViewOffset is double offset ? $"{Math.Round(offset / 1000).ToString()}s" : "null";
+                string offsetStr = playEvent.ViewOffset is double offset ? $"{Math.Round(value: offset / 1000, digits: 3).ToString()}s" : "null";
                 string notificationString = $"[Notification] Playback Update: Client={playEvent.ClientIdentifier}, Key={playEvent.Key}, State={playEvent.State}, Offset={offsetStr}";
 
                 // Currently we just use it to wake up from idle since the active polling is frequent enough, but we could use it to update the monitors too
@@ -112,7 +112,7 @@ public class PlexNotificationListener : IDisposable
                         {
                             monitor.AttachedSession.UpdateAccurateViewOffsetFromNotification(newViewOffset);
 
-                            if (monitor.IsMonitoring)
+                            if (monitor.IsMonitoringAndNotDead)
                                 monitor.MakeMonitoringPass(isFromNotification: true); // Force a pass with the new offset
                             else
                                 LogDebug($"Monitor for machine {playEvent.ClientIdentifier} is not active. Not making monitoring pass.");

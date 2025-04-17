@@ -13,6 +13,7 @@ namespace RewindSubtitleDisplayerForPlex
         public const int AccurateTimelineResolution = 1; // Assume this resolution if have the accurate timeline data
 
         private static readonly List<RewindMonitor> _allMonitors = [];
+        private static readonly List<RewindMonitor> _deadSessionMonitors = [];
         private static int _globalActiveFrequencyMs = (int)Math.Round(Settings.Default().ActiveMonitorFrequencySec * 1000); // Initial value but will be updated as needed on the fly
         private static int _globalIdleFrequencyMs = (int)Math.Round(Settings.Default().IdleMonitorFrequency * 1000);
         private static bool _isRunning = false;
@@ -94,7 +95,7 @@ namespace RewindSubtitleDisplayerForPlex
                     smallestResolution: smallestResolutionSec
                     );
                 _allMonitors.Add(monitor);
-                LogInfo($"Added new session for {activeSession.DeviceName} | Address: {activeSession.Session.Player.Address}" +
+                LogInfo($"Added new session for {activeSession.DeviceName} | Address: {activeSession.Session.Player.Address} | Initial Offset: {activeSession.GetPlayPositionSeconds()}" +
                     $"\n| Session Playback ID: {playbackID}  |  Machine ID: {activeSession.MachineID}", Yellow);
             }
 
@@ -120,10 +121,25 @@ namespace RewindSubtitleDisplayerForPlex
         {
             RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == sessionID);
             monitor?.StopSubtitlesWithRetry(false); // Stop subtitles if they are running and not user enabled
+            bool wasRemoved = false;
 
             if (monitor != null)
             {
-                _allMonitors.Remove(monitor);
+                // Directly attempt to remove the monitor without checking Contains
+                if (_allMonitors.Remove(monitor))
+                {
+                    wasRemoved = true;
+                }
+
+                if (_deadSessionMonitors.Remove(monitor))
+                {
+                    wasRemoved = true;
+                }
+
+                if (!wasRemoved)
+                {
+                    LogDebug($"Monitor for session {sessionID} couldn't be removed. Not found in either dead sessions or active sessions.");
+                }
             }
             else
             {
@@ -131,40 +147,69 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
+        public static void MarkMonitorDead(string sessionID)
+        {
+            RewindMonitor? monitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == sessionID);
+            if (monitor != null)
+            {
+                monitor.MakeDead(); // Stop monitoring and subtitles if they are running
+                _deadSessionMonitors.Add(monitor);
+                // Directly attempt to remove the monitor without checking Contains
+                _allMonitors.Remove(monitor);
+            }
+            else
+            {
+                LogDebug($"No monitor found for session {sessionID}. Nothing to mark as dead.");
+            }
+        }
+
         // Transfer the monitor from one session to another. Returns true if successful
         public static ActiveSession TransferMonitorInheritance(ActiveSession oldSession, ref ActiveSession newSession)
         {
-            RewindMonitor? oldMonitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == oldSession.PlaybackID);
+            RewindMonitor? oldMonitor = null;
+
+            RewindMonitor? oldDeadMonitor = _deadSessionMonitors.FirstOrDefault(m => m.PlaybackID == oldSession.PlaybackID);
+            if (oldDeadMonitor != null)
+            {
+                oldMonitor = oldDeadMonitor;
+            }
+            else
+            {
+                RewindMonitor? oldActiveMonitor = _allMonitors.FirstOrDefault(m => m.PlaybackID == oldSession.PlaybackID);
+                if (oldActiveMonitor != null)
+                {
+                    oldMonitor = oldActiveMonitor;
+                }
+            }
+
+            if (oldMonitor == null)
+            {
+                LogDebug($"No monitor found for session {oldSession.PlaybackID}. Nothing to transfer.");
+                return newSession; // No monitor to transfer, return the new session unchanged
+            }
 
             // Store the PlaybackID of the new session outside the lambda to avoid the CS1628 error
             string newSessionPlaybackID = newSession.PlaybackID;
+            // Only look in active monitors list, not dead ones
             RewindMonitor? existingMonitorForNewSession = _allMonitors.FirstOrDefault(m => m.PlaybackID == newSessionPlaybackID);
 
-            if (oldMonitor != null)
-            {
-                // Create a new monitor with the same settings as the old one using the duplication constructor
-                RewindMonitor newMonitor = new RewindMonitor(
+            // Create a new monitor with the same settings as the old one using the duplication constructor
+            RewindMonitor newMonitor = new RewindMonitor(
                     otherMonitor: oldMonitor,
                     newSession: newSession
                 );
 
-                // If there's already a monitor for the new session, remove it
-                if (existingMonitorForNewSession != null)
-                {
-                    _allMonitors.Remove(existingMonitorForNewSession);
-                }
-
-                // Add the new monitor. Old session's monitor will be removed when its session is removed
-                _allMonitors.Add(newMonitor);
-
-                newSession.ContainsInheritedMonitor = true;
-                LogVerbose($"Transferred {oldSession.DeviceName} monitoring state from {oldSession.PlaybackID} to {newSession.PlaybackID}");
-
-            }
-            else
+            // If there's already a monitor for the new session, remove it. It might have been created by the previous calling function but we want to create the duplicated one to transfer from.
+            if (existingMonitorForNewSession != null)
             {
-                LogDebug($"No monitor found for session {oldSession.PlaybackID}. Nothing to transfer.");
+                _allMonitors.Remove(existingMonitorForNewSession);
             }
+
+            // Add the new monitor. Old session's monitor will be removed when its session is removed (in SessionHandler RemoveSession function)
+            _allMonitors.Add(newMonitor);
+
+            newSession.ContainsInheritedMonitor = true;
+            LogVerbose($"Transferred {oldSession.DeviceName} monitoring state from {oldSession.PlaybackID} to {newSession.PlaybackID}");
 
             return newSession;
         }
@@ -275,7 +320,7 @@ namespace RewindSubtitleDisplayerForPlex
             bool anyMonitorsActive = false;
             foreach (RewindMonitor monitor in monitorsToRefresh)
             {
-                if (monitor.IsMonitoring)
+                if (monitor.IsMonitoringAndNotDead)
                 {
                     anyMonitorsActive = true;
                     monitor.MakeMonitoringPass();

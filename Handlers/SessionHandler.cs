@@ -5,7 +5,10 @@ namespace RewindSubtitleDisplayerForPlex
     {
         private readonly static List<ActiveSession> _activeSessionList = [];
         private static readonly Lock _lockObject = new Lock();
+
+        private readonly static List<ActiveSession> _deadSessionList = [];
         private const int _deadSessionGracePeriod = 60; // Seconds
+
         private static List<PlexResource> _knownDeviceResources = []; // Resources are info about connected devices to the server / players
 
         // This not only fetches the sessions, but also gets both active and available subtitles
@@ -89,10 +92,6 @@ namespace RewindSubtitleDisplayerForPlex
             bool useShortTimeout = (currentState == MonitoringState.Idle);
             List<PlexSession>? fetchedSessionsList = await PlexServer.GetSessionsAsync(shortTimeout: useShortTimeout);
 
-            // Temporary lists to aid in managing dead sessions
-            List<ActiveSession> existingSessionsPriorToRefresh = _activeSessionList;
-            List<ActiveSession> newActiveSessionsOnly = [];
-
             if (fetchedSessionsList == null)
             {
                 LogWarning("Problem occurred when fetching sessions. fetchedSessionsList returned null. Using existing session list.");
@@ -105,6 +104,26 @@ namespace RewindSubtitleDisplayerForPlex
                     LogDebug($"Server API returned 0 active sessions. {_activeSessionList.Count} were previously tracked.");
             }
 
+            // Find any sessions in active sessions list that are not in the fetched list, by session ID
+            List<ActiveSession> newlyDeadSessions = _activeSessionList.Where(s => !fetchedSessionsList.Any(fs => fs.PlaybackID == s.SessionID)).ToList();
+
+            // Remove the dead sessions from the active session list and add them to the dead session list so they're separated
+            foreach (ActiveSession deadSession in newlyDeadSessions)
+            {
+                if (!_deadSessionList.Contains(deadSession))
+                {
+                    _deadSessionList.Add(deadSession);
+                    _activeSessionList.Remove(deadSession);
+
+                    // Get the monitor associated with the session and remove it
+                    MonitorManager.MarkMonitorDead(deadSession.SessionID);
+                }
+            }
+
+            // Temporary lists to aid in managing dead sessions
+            List<ActiveSession> newActiveSessionsOnly = [];
+
+            // Process the fetched sessions
             List<Task> tasks = [];
             foreach (PlexSession fetchedSession in fetchedSessionsList)
             {
@@ -154,10 +173,7 @@ namespace RewindSubtitleDisplayerForPlex
             int removedSessionsCount = 0;
             if (_activeSessionList.Count > 0)
             {
-                // Find any sessions in active sessions list that are not in the fetched list, by session ID
-                List<ActiveSession> deadSessions = _activeSessionList.Where(s => !fetchedSessionsList.Any(fs => fs.PlaybackID == s.SessionID)).ToList();
-
-                foreach (ActiveSession deadSession in deadSessions)
+                foreach (ActiveSession deadSession in _deadSessionList)
                 {
                     // Get current epoch time in seconds
                     long currentTime = DateTimeOffset.Now.ToUnixTimeSeconds();
@@ -172,11 +188,12 @@ namespace RewindSubtitleDisplayerForPlex
                         if (lastSeenTimeDiff > _deadSessionGracePeriod)
                         {
                             RemoveSession(deadSession);
+                            _deadSessionList.Remove(deadSession);
                             removedSessionsCount++;
                         }
                         else 
                         {
-                            LogDebug($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
+                            //LogDebug($"Missing {deadSession.DeviceName} session (Playback ID: {deadSession.SessionID}) is still within grace period. (Last seen {lastSeenTimeDiff}s ago)");
                         }
                     }
                     // This is the first check it was no longer seen, so set the last seen time to now
@@ -199,6 +216,7 @@ namespace RewindSubtitleDisplayerForPlex
                         if (matchingNonDeadSession != null)
                         {
                             RemoveSession(deadSession);
+                            _deadSessionList.Remove(deadSession);
                             removedSessionsCount++;
                         }
                     }

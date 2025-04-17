@@ -18,6 +18,13 @@ internal class Utils
         return Regex.IsMatch(stringToCheckAgainst, pattern);
     }
 
+    public static void RemovePreviousConsoleLine()
+    {
+        Console.Write("\r");
+        Console.Write(new string(' ', Console.WindowWidth - 1));
+        Console.Write("\r");
+    }
+
     /// <summary>
     /// Returns a query string (used for HTTP URLs) where only the value is URL encoded.
     /// Example return value: '?genre=action&type=1337'.

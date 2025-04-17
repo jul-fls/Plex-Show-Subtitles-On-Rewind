@@ -49,16 +49,32 @@ public class SubtitlesHotkeyMonitor
         // For the purposes of the hotkey, we'll treat a buffering action the same as playing.
         //  But a playing action immediately following buffering will be ignored
 
-        // Ignore buffering action immediately after playing
-        if (action == Action.Play && lastAction == Action.Buffering)
+        // ---------------- Ignored Conditions -----------------
+        // A playing notification always follows a buffering notification, so we need to ignore it. And multiple plays in a row will happen while playing
+        if (action == Action.Play && (lastAction == Action.Buffering || lastAction == Action.Play))
+            return;
+
+        // The first play in a session should be ignored but we'll still set the lastAction to Play,
+        //    or else it will remain None because the initial buffering actions are also ignored and don't set lastAction
+        if (action == Action.Play && lastAction == Action.None)
         {
+            lastAction = Action.Play;
             return;
         }
+
+        // Buffering may happen multiple times in a row so ignore. Also ignore initial session buffering.
+        if (action == Action.Buffering && (lastAction == Action.Buffering || lastAction == Action.None))
+            return;
+
+        if (action == Action.Pause && (lastAction == Action.Pause || lastAction == Action.Buffering))
+            return;
+
 
         // -------------------------------------------------------
         currentTime = Environment.TickCount;
         int pauseTimeDiff = currentTime - msOfLastPause;
         int playTimeDiff = currentTime - msOfLastPlay;
+        LogDebugExtra($"Current Time: {currentTime}ms, Last Pause: {msOfLastPause}ms, Last Play: {msOfLastPlay}ms");
 
         // If the action is Play or Buffering, update the last play time
         if (action == Action.Play || action == Action.Buffering)
@@ -139,7 +155,7 @@ public class SubtitlesHotkeyMonitor
     {
         Action finalAction = lastAction;
         ResetPrevInfo();
-        LogDebugExtra("Double click action triggered.", Yellow);
+        LogVerbose($"Double click action triggered: {DoubleClickAction}", Yellow);
 
         HotkeyActionFunctionDirector(DoubleClickAction);
     }
@@ -150,7 +166,7 @@ public class SubtitlesHotkeyMonitor
 
         Action finalAction = lastAction;
         ResetPrevInfo();
-        LogDebugExtra("Triple click action triggered.", Yellow);
+        LogVerbose($"Triple click action triggered: {TripleClickAction}", Yellow);
 
         // Perform a restorative action based on the last action, since 3 causes the opposite of the original state
         if (finalAction == Action.Play || finalAction == Action.Buffering)
@@ -194,7 +210,7 @@ public class SubtitlesHotkeyMonitor
         }
         else
         {
-            LogWarning($"No monitor found for playbackID trying to forward event to proper hotkey monitor: {machineID}");
+            LogDebug($"No monitor found for playbackID trying to forward event to proper hotkey monitor: {machineID}");
         }
     }
 
@@ -218,7 +234,7 @@ public class SubtitlesHotkeyMonitor
         }
     }
 
-    private static void DisableMonitoring(string machineID)
+    private static void ToggleRewindMonitoring(string machineID)
     {
         RewindMonitor? monitor = MonitorManager.GetMonitorForMachineID(machineID);
         if (monitor == null)
@@ -242,7 +258,7 @@ public class SubtitlesHotkeyMonitor
                 // No action needed
                 break;
             case HotkeyAction.ToggleRewindMonitoring:
-                DisableMonitoring(MachineID);
+                ToggleRewindMonitoring(MachineID);
                 break;
             default:
                 LogWarning($"Unknown hotkey action: {hotkeyAction}");

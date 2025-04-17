@@ -15,6 +15,8 @@ namespace RewindSubtitleDisplayerForPlex
         private readonly int _fastForwardThreshold = 7; // Minimum amount of seconds to consider a fast forward (in seconds)
 
         private bool _isMonitoring;
+        private bool _isDead;
+        private bool _isSetup = false;
         private bool _subtitlesUserEnabled;
         private double _latestWatchedPosition;
         private double _previousPosition; // Use to detect fast forwards
@@ -22,6 +24,7 @@ namespace RewindSubtitleDisplayerForPlex
         private readonly double _smallestResolutionSec; // This might be updated depending on available data during refreshes
 
         public string PlaybackID => _activeSession.Session.PlaybackID;
+        public bool IsMonitoringAndNotDead => ((_isMonitoring == true) && (_isDead == false));
         public bool IsMonitoring => _isMonitoring;
         public ActiveSession AttachedSession => _activeSession;
         public string MachineID { get => _activeSession.MachineID; }
@@ -52,13 +55,42 @@ namespace RewindSubtitleDisplayerForPlex
             _deviceName = _activeSession.DeviceName;
             _idleFrequencySec = idleFrequencySec;
             _isMonitoring = false;
+            _isDead = false;
             _subtitlesUserEnabled = false;
             _latestWatchedPosition = 0;
             _previousPosition = 0;
             _temporarilyDisplayingSubtitles = false;
             _smallestResolutionSec = Math.Max(_activeFrequencySec, smallestResolution);
 
-            SetupMonitoringInitialConditions();
+            // Setup within constructor
+            try
+            {
+                if (_activeSession.KnownIsShowingSubtitles == true)
+                {
+                    _subtitlesUserEnabled = true;
+                }
+
+                _latestWatchedPosition = _activeSession.GetPlayPositionSeconds();
+                LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
+
+                _previousPosition = _latestWatchedPosition;
+
+                if (Program.config.ManualModeOnly)
+                    _isMonitoring = false;
+                else
+                    _isMonitoring = true;
+
+                SimpleSessionStartTimer();
+                MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway
+
+                LogDebug($"Finished setting up monitoring for {_deviceName} and ran first pass.");
+            }
+            catch (Exception e)
+            {
+                LogError($"Error during monitoring setup: {e.Message}");
+                if (Program.config.ConsoleLogLevel >= LogLevel.Debug)
+                    WriteLineSafe(e.StackTrace);
+            }
         }
 
         // Constructor that takes another monitor and creates a new one with the same settings to apply to a new session
@@ -134,7 +166,7 @@ namespace RewindSubtitleDisplayerForPlex
 
         public void StartSubtitlesWithRetry(bool persist = false)
         {
-            int retryCount = 3;
+            int attemptCount = 3;
             bool? success = false;
 
             if (_activeSession.AvailableSubtitles.Count == 0)
@@ -145,7 +177,10 @@ namespace RewindSubtitleDisplayerForPlex
 
             _ = Task.Run(async () =>
             {
-                while (retryCount > 0 && success == false)
+                // Wait an initial period before enabling subtitles to avoid issues with the player not responding
+                //await Task.Delay(250);
+
+                while (attemptCount > 0 && success == false)
                 {
                     success = await _activeSession.EnableSubtitles();
                     if (success == true)
@@ -156,10 +191,10 @@ namespace RewindSubtitleDisplayerForPlex
                     }
                     else if (success == false)
                     {
-                        retryCount--;
-                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: {retryCount} retries remaining to enable subtitles.");
+                        attemptCount--;
+                        LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: {attemptCount} retries remaining to enable subtitles.");
 
-                        if (retryCount > 0)
+                        if (attemptCount > 0)
                             await Task.Delay(150); // Short delay before retrying
                         else
                             LogError($"{_deviceName} [{PlaybackIDShort}]: Failed to enable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
@@ -186,12 +221,12 @@ namespace RewindSubtitleDisplayerForPlex
         {
             if (_temporarilyDisplayingSubtitles || force == true)
             {
-                int retryCount = 3;
+                int attemptCount = 3;
                 bool success = false;
 
                 _ = Task.Run(async () =>
                 {
-                    while (retryCount > 0 && !success)
+                    while (attemptCount > 0 && !success)
                     {
                         success = await _activeSession.DisableSubtitles();
                         if (success)
@@ -202,10 +237,10 @@ namespace RewindSubtitleDisplayerForPlex
                         }
                         else
                         {
-                            retryCount--;
-                            LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: {retryCount} retries remaining to disable subtitles.");
+                            attemptCount--;
+                            LogDebugExtra($"{_deviceName} [{PlaybackIDShort}]: {attemptCount} retries remaining to disable subtitles.");
 
-                            if (retryCount > 0)
+                            if (attemptCount > 0)
                                 await Task.Delay(150); // Short delay before retrying
                             else
                                 LogError($"{_deviceName} [{PlaybackIDShort}]: Failed to disable subtitles for {_activeSession.MediaTitle} after multiple attempts.");
@@ -251,7 +286,7 @@ namespace RewindSubtitleDisplayerForPlex
                 expectedShowingSubs = "Null ";
 
             string msgPart1 = $"           " + prepend + 
-                $"> {_deviceName} [{PlaybackIDShort}]: Position: {Math.Round(positionSec).ToString().PadLeft(5)} " +
+                $"> {_deviceName} [{PlaybackIDShort}]: Position: {positionSec.ToString().PadLeft(7)} " +
                 $"| Latest: {Math.Round(_latestWatchedPosition).ToString().PadLeft(5)} " + // Round to whole number and pad spaces to 4 digits
                 $"| Prev: {Math.Round(_previousPosition).ToString().PadLeft(5)} " +
                 $"|  Actually/Expected Showing Subs: {subtitlesStatus}/{expectedShowingSubs} " +
@@ -625,6 +660,13 @@ namespace RewindSubtitleDisplayerForPlex
             StopSubtitlesWithRetry(false);
         }
 
+        public void MakeDead()
+        {
+            _isDead = true;
+            // Don't stop subtitles here like we do in StopMonitoring() because it might be a new session,
+            //    and the command would just go to the machine and might interfere with the new session
+        }
+
         public void RestartMonitoring()
         {
             _isMonitoring = true;
@@ -632,7 +674,7 @@ namespace RewindSubtitleDisplayerForPlex
 
         public void ToggleMonitoring()
         {
-            if (_isMonitoring)
+            if (IsMonitoringAndNotDead)
             {
                 StopMonitoring();
                 LogDebug("Stopped monitoring.");
@@ -644,42 +686,5 @@ namespace RewindSubtitleDisplayerForPlex
             }
         }
 
-        public void SetupMonitoringInitialConditions()
-        {
-            if (_isMonitoring)
-            {
-                LogDebug("Already monitoring this session");
-                return;
-            }
-
-            try
-            {
-                if (_activeSession.KnownIsShowingSubtitles == true)
-                {
-                    _subtitlesUserEnabled = true;
-                }
-
-                _latestWatchedPosition = _activeSession.GetPlayPositionSeconds();
-                LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
-
-                _previousPosition = _latestWatchedPosition;
-
-                if (Program.config.ManualModeOnly)
-                    _isMonitoring = false;
-                else
-                    _isMonitoring = true;
-
-                SimpleSessionStartTimer();
-                MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway
-
-                LogDebug($"Finished setting up monitoring for {_deviceName} and ran first pass.");
-            }
-            catch (Exception e)
-            {
-                LogError($"Error during monitoring setup: {e.Message}");
-                if (Program.config.ConsoleLogLevel >= LogLevel.Debug)
-                    WriteLineSafe(e.StackTrace);
-            }
-        }
     }
 }
