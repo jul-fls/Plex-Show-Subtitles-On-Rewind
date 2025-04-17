@@ -96,7 +96,7 @@ public static class AuthTokenHandler
             NonInteractiveAuthFlow_GenerateAuth();
 
             // Nothing more to do, any relevant messages will be printed already
-            new System.Threading.ManualResetEvent(false).WaitOne(); // Wait instead of exiting, so the container doesn't exit and start looping
+            Utils.ContainerExitStop(); // Wait instead of exiting, so the container doesn't exit and start looping
         }
         else
         {
@@ -153,9 +153,13 @@ public static class AuthTokenHandler
                     if (authSuccess == false)
                     {
                         if (Program.IsContainerized)
-                            new System.Threading.ManualResetEvent(false).WaitOne();
+                            Utils.ContainerExitStop();
                         else
-                            Environment.Exit(1);
+                        {
+                            Utils.WaitPressEnterIfNotBackgroundMode("exit", isForExit: true);
+                            Environment.Exit(1); // Exit the app
+                        }
+                            
                     }
                 }
 
@@ -267,12 +271,20 @@ public static class AuthTokenHandler
 
     static bool NonInteractiveAuthFlow_CheckAuth(string pinID, string clientID, string tempAuthCode, string appName = MyStrings.AppNameShort)
     {
-        // Load the tokens from the file
-        (string authToken, string clientID)? authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: pinID, appName: appName, clientIdentifier: clientID);
-        if (authResult != null)
+        // Check the auth status of the app using the pinID and clientID
+        (string? authToken, string? clientID, bool? requireNewRequest) authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: pinID, appName: appName, clientIdentifier: clientID);
+
+        if (authResult.requireNewRequest != null && authResult.requireNewRequest == true)
+        {
+            WriteLineSafe("----------------------------------------------------------------");
+            WriteLineSafe("The previous authorization request has expired or was invalid. Generating new request.");
+            NonInteractiveAuthFlow_GenerateAuth();
+            return false;
+        }
+        else if (authResult.authToken != null && authResult.clientID != null)
         {
             // Save the token to the file
-            CreateTokenFile(authResult.Value.authToken, authResult.Value.clientID);
+            CreateTokenFile(authResult.authToken, authResult.clientID);
             return true;
         }
         else
@@ -341,11 +353,11 @@ public static class AuthTokenHandler
         bool authSuccess = false;
         while (authSuccess == false)
         {
-            (string authToken, string clientID)? authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingConfig, clientIdentifier: genResult.ClientIdentifier);
-            if (authResult != null)
+            (string? authToken, string? clientID, bool? requireNewRequest) authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingConfig, clientIdentifier: genResult.ClientIdentifier);
+            if (authResult.authToken != null && authResult.clientID != null)
             {
                 // Save the token to the file
-                CreateTokenFile(authResult.Value.authToken, authResult.Value.clientID);
+                CreateTokenFile(authResult.authToken, authResult.clientID);
                 authSuccess = true;
                 successResult = true;
             }
@@ -436,7 +448,7 @@ public static class AuthTokenHandler
         return userAuthUrl;
     }
 
-    public static (string authToken, string clientID)? GetAuthorizedTokenAfterUserConfirmation(string pinID, string appName, string clientIdentifier, string baseURL = AuthStrings.PlexPinUrl)
+    public static (string? authToken, string? clientID, bool? requireNewRequest) GetAuthorizedTokenAfterUserConfirmation(string pinID, string appName, string clientIdentifier, string baseURL = AuthStrings.PlexPinUrl)
     {
         // Generates url like https://plex.tv/api/v2/pins/{pinID}
         // With headers for X-Plex-Product and X-Plex-Client-Identifier
@@ -456,17 +468,17 @@ public static class AuthTokenHandler
 
             if (!String.IsNullOrEmpty(authToken))
             {
-                return (authToken, clientIdentifier);
+                return (authToken:authToken, clientID:clientIdentifier, requireNewRequest:false);
             }
             else
             {
-                return null;
+                return (authToken: null, clientID: null, requireNewRequest: null);
             }
         }
         else
         {
             WriteLineSafe($"Request failed with status code: {response.StatusCode}");
-            return null;
+            return (authToken: null, clientID: null, requireNewRequest: true);
         }
     }
 
@@ -483,6 +495,9 @@ public static class AuthTokenHandler
             if (pinNode != null && pinNode.Attributes != null)
             {
                 XmlAttribute? authTokenAttr = pinNode.Attributes?["authToken"];
+                //XmlAttribute? expiresIn = pinNode.Attributes?["expiresIn"];     // A string number of seconds
+                //XmlAttribute? trusted = pinNode.Attributes?["trusted"];         // A string number, 0 is untrusted, 1 is trusted
+
                 if (authTokenAttr != null && !string.IsNullOrEmpty(authTokenAttr.Value))
                 {
                     authToken = authTokenAttr.Value;

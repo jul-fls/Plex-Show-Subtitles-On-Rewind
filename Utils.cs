@@ -249,4 +249,9 @@ internal class Utils
         }
     }
 
+    public static void ContainerExitStop()
+    {
+        new System.Threading.ManualResetEvent(false).WaitOne();
+    }
+
 } // ---------- End of Utils Class -----------

@@ -303,7 +303,7 @@ namespace RewindSubtitleDisplayerForPlex
             {
                 if (IsContainerized)
                 {
-                    new System.Threading.ManualResetEvent(false).WaitOne(); // Wait indefinitely for user to shut down the container or restart it manually
+                    Utils.ContainerExitStop(); // Wait indefinitely for user to shut down the container or restart it manually
                     Console.WriteLine("\nContainerized mode detected. Waiting indefinitely for manual user restart or container shutdown...");
                 }
                 else
