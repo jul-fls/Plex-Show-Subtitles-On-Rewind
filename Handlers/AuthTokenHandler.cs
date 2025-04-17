@@ -21,12 +21,14 @@ public static class AuthTokenHandler
     public static class AuthStrings
     {
         public const string TokenPlaceholder = "whatever_your_app_token_is";
-        public const string UUIDPlaceholder = "some-unique-uuid-here-xxxx";
+        public const string ClientID_UUID_Placeholder = "some-unique-uuid-here-xxxx";
+        public const string ClientID_Pending = "pending_auth";
         public const string PlexTvUrl = "https://plex.tv";
         public const string PlexPinUrl = $"{PlexTvUrl}/api/v2/pins";
         public const string UserAuthConfirmationURL = "https://app.plex.tv/auth#?";
         public const string configUUIDSetting = "ClientIdentifier";
         public const string configTokenSetting = "AppToken";
+        public const string configPinIDSetting = "PinID";
         public const string tokenFileName = "token.config";
         public static string tokenFileTemplateName = $"{tokenFileName}.example";
         public static string tokenNote = "    Note: This is not the same Plex token for your account that you see mentioned in other tutorials.\n" +
@@ -34,10 +36,22 @@ public static class AuthTokenHandler
                                          "        It will appear in the 'Devices' section of your account and can be revoked whenever you want.";
     }
 
-    static void CreateTokenFile(string token = AuthStrings.TokenPlaceholder, string uuid = AuthStrings.UUIDPlaceholder)
+    static void CreateTokenFile(string token = AuthStrings.TokenPlaceholder, string uuid = AuthStrings.ClientID_UUID_Placeholder)
     {
         string tokenFilePath = AuthStrings.tokenFileName;
-        File.WriteAllText(tokenFilePath, $"AppToken={token}\nClientIdentifier={uuid}");
+        File.WriteAllText(tokenFilePath, 
+            $"{AuthStrings.configTokenSetting}={token}" +
+            $"\n{AuthStrings.configUUIDSetting}={uuid}");
+    }
+
+    static void CreatePendingTokenFile(string pinID, string clientID_UUID, string tempAuthCode)
+    {
+        string tokenFilePath = AuthStrings.tokenFileName;
+        File.WriteAllText(tokenFilePath, 
+                    $"{AuthStrings.configTokenSetting}={tempAuthCode}\n" +
+                    $"{AuthStrings.configUUIDSetting}={clientID_UUID}\n" +
+                    $"{AuthStrings.configPinIDSetting}={pinID}\n"
+                    );
     }
 
     public static bool CreateTemplateTokenFile(bool force = false)
@@ -48,7 +62,10 @@ public static class AuthTokenHandler
             if (force == true || !File.Exists(AuthStrings.tokenFileTemplateName))
             {
                 string tokenFilePath = AuthStrings.tokenFileTemplateName;
-                File.WriteAllText(tokenFilePath, $"AppToken={AuthStrings.TokenPlaceholder}\nClientIdentifier={AuthStrings.UUIDPlaceholder}");
+                File.WriteAllText(tokenFilePath, 
+                    $"{AuthStrings.configTokenSetting}={AuthStrings.TokenPlaceholder}\n" +
+                    $"{AuthStrings.configUUIDSetting}={AuthStrings.ClientID_UUID_Placeholder}\n"
+                    );
                 return true;
             }
             else
@@ -71,7 +88,20 @@ public static class AuthTokenHandler
         bool tokenFileExists = false;
 
         // If it doesn't exist, prompt the user to go through the auth flow to create one
-        if (!File.Exists(tokenFilePath))
+        if (File.Exists(tokenFilePath))
+        {
+            tokenFileExists = true;
+        }
+        else if (Program.IsContainerized) // Running in docker or another non-interactive environment
+        {
+            bool genSuccess = NonInteractiveAuthFlow_GenerateAuth();
+            if (genSuccess)
+            {
+                // Just exit the app, the user will need to run it again after authorizing
+                Environment.Exit(0);
+            }
+        }
+        else
         {
             // Prompt the user if they want to go through the auth flow to generate a token
             WriteYellow($"\nRequired \"{AuthStrings.tokenFileName}\" file not found. Do you want to go through the necessary authorization flow now?\n");
@@ -98,49 +128,36 @@ public static class AuthTokenHandler
                 CreateTemplateTokenFile();
             }
         }
-        else
-        {
-            tokenFileExists = true;
-        }
 
         // If the token file already exists or was created, read the tokens from the file
+        // This check is here because it might have been created in the block above
         if (tokenFileExists == false)
         {
             return null;
         }
         else if (tokenFileExists == true)
         {
-            // Read tokens from file
-            string[] lines = File.ReadAllLines(tokenFilePath);
-            string? validatedToken = null;
-            string? validatedUUID = null;
 
-
-            foreach (string line in lines)
+            (string ? validatedToken, string ? validatedUUID, string ? validatedPinID)? tokens = ReadTokenConfig(tokenFilePath);
+            
+            if (tokens.Value.validatedToken != null && tokens.Value.validatedUUID != null)
             {
-                if (line.StartsWith($"{AuthStrings.configTokenSetting}="))
+                // Extra step if PinID is found because we need to check if the app is authorized yet
+                if (tokens.Value.validatedPinID != null)
                 {
-                    string rawToken = line.Substring($"{AuthStrings.configTokenSetting}=".Length);
-                    validatedToken = validateToken(rawToken);
+                    bool authSuccess = NonInteractiveAuthFlow_CheckAuth(
+                        pinID: tokens.Value.validatedPinID, 
+                        clientID: tokens.Value.validatedUUID, 
+                        tempAuthCode: tokens.Value.validatedToken, 
+                        appName: MyStrings.AppNameShort
+                        );
 
-                    if (validatedToken == null)
-                        return null;
+                    if (authSuccess == false)
+                        Environment.Exit(1);
                 }
 
-                if (line.StartsWith($"{AuthStrings.configUUIDSetting}="))
-                {
-                    string rawUUID = line.Substring($"{AuthStrings.configUUIDSetting}=".Length);
-                    validatedUUID = validateToken(rawUUID);
+                return (tokens.Value.validatedToken, tokens.Value.validatedUUID);
 
-                    if (validatedUUID == null)
-                        return null;
-                }
-
-                // If both tokens are validated, return them
-                if (validatedToken != null && validatedUUID != null)
-                {
-                    return (validatedToken, validatedUUID);
-                }
             }
         }
 
@@ -149,28 +166,7 @@ public static class AuthTokenHandler
 
         // ---------------- Local Functions ----------------
 
-        // Local function to validate the token
-        static string? validateToken(string token)
-        {
-            // Trim whitespace and check length
-            token = token.Trim();
-
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                LogError($"Auth token is empty or not found. Update {AuthStrings.tokenFileName}.");
-                return null;
-            }
-            else if (token == AuthStrings.TokenPlaceholder || token == AuthStrings.UUIDPlaceholder)
-            {
-                LogError($"Update {AuthStrings.tokenFileName} to use your actual auth token for your plex server.\n" +
-                    "\t\tOr delete the config and run the app again to go through the token generation steps.");
-                return null;
-            }
-            else
-            {
-                return token;
-            }
-        }
+        
     }
 
     public static void ClearLastLine()
@@ -179,6 +175,115 @@ public static class AuthTokenHandler
         WriteSafe(new string(' ', Console.BufferWidth - 1));
         Console.SetCursorPosition(0, Console.CursorTop - 1);
         WriteLineSafe(); // This seems needed to prevent weird overlapping of text
+    }
+
+    public static (string? validatedToken, string? validatedUUID, string? validatedPinID) ReadTokenConfig(string tokenFilePath)
+    {
+        // Read tokens from file
+        string[] lines = File.ReadAllLines(tokenFilePath);
+        string? validatedToken = null;
+        string? validatedUUID = null;
+        string? validatedPinID = null;
+
+
+        foreach (string line in lines)
+        {
+            if (line.StartsWith($"{AuthStrings.configTokenSetting}="))
+            {
+                string rawToken = line.Substring($"{AuthStrings.configTokenSetting}=".Length);
+                validatedToken = validateTokenValue(rawToken);
+            }
+
+            if (line.StartsWith($"{AuthStrings.configUUIDSetting}="))
+            {
+                string rawUUID = line.Substring($"{AuthStrings.configUUIDSetting}=".Length);
+                validatedUUID = validateTokenValue(rawUUID);
+            }
+
+            if (line.StartsWith($"{AuthStrings.configPinIDSetting}="))
+            {
+                string rawPinID = line.Substring($"{AuthStrings.configPinIDSetting}=".Length);
+                validatedPinID = validateTokenValue(rawPinID);
+            }
+        }
+
+        return (validatedToken, validatedUUID, validatedPinID);
+
+        // ----------------- Local function to validate the token -----------------
+        static string? validateTokenValue(string tokenConfigValue)
+        {
+            // Trim whitespace and check length
+            tokenConfigValue = tokenConfigValue.Trim();
+
+            if (string.IsNullOrWhiteSpace(tokenConfigValue))
+            {
+                LogError($"Auth token is empty or not found. Update {AuthStrings.tokenFileName}.");
+                return null;
+            }
+            else if (tokenConfigValue == AuthStrings.TokenPlaceholder || tokenConfigValue == AuthStrings.ClientID_UUID_Placeholder)
+            {
+                LogError($"Update {AuthStrings.tokenFileName} to use your actual auth token for your plex server.\n" +
+                    "\t\tOr delete the config and run the app again to go through the token generation steps.");
+                return null;
+            }
+            else
+            {
+                return tokenConfigValue;
+            }
+        }
+    }
+
+    static bool NonInteractiveAuthFlow_GenerateAuth()
+    {
+        // We'll generate the auth url and display it to the user and tell them to visit it and login
+        // Then just exit the app and not wait for them to press enter, because we can't. Instead tell them to log in and run the app again
+
+        string appNameToUse = MyStrings.AppNameShort;
+
+        // Generate the token request
+        TokenGenResult genResult = GenerateAppTokenRequest(appName: appNameToUse, url: AuthStrings.PlexPinUrl);
+
+        string authUrl;
+        // The code and ID should never be null for a success, but check anyway
+        if (genResult.Success && genResult.Code != null && genResult.PinID != null && genResult.ClientIdentifier != null)
+        {
+            // Generate the auth URL and tell the user to visit it
+            authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: appNameToUse);
+            WriteLineSafe("\n----------------------------------------------------------------");
+            WriteLineSafe($"\nPlease visit the following URL to authorize the app by logging in. Then run the app again. \n\n\t{authUrl}\n\n");
+            WriteLineSafe("-------------------------------------------------");
+            CreatePendingTokenFile(pinID: genResult.PinID, clientID_UUID: genResult.ClientIdentifier, tempAuthCode: genResult.Code);
+            return true;
+        }
+        else
+        {
+            WriteLineSafe($"Token generation failed. Please check the {AuthStrings.tokenFileName} file.");
+            return false;
+        }
+    }
+
+    static bool NonInteractiveAuthFlow_CheckAuth(string pinID, string clientID, string tempAuthCode, string appName = MyStrings.AppNameShort)
+    {
+        // Load the tokens from the file
+        (string authToken, string clientID)? authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: pinID, appName: appName, clientIdentifier: clientID);
+        if (authResult != null)
+        {
+            // Save the token to the file
+            CreateTokenFile(authResult.Value.authToken, authResult.Value.clientID);
+            return true;
+        }
+        else
+        {
+            string authUrl = GenerateAuthURL(clientIdentifier: clientID, code: tempAuthCode, appName: appName);
+
+            WriteLineSafe("----------------------------------------------------------------");
+            WriteRedSuper("\nThe app does not appear authorized.", noNewline: true);
+            WriteRed("  Visit this URL and sign in if you haven't already: ");
+
+            WriteGreen($"\n\t{authUrl}");
+            WriteLineSafe("\nThen run the app again.");
+            return false;
+        }
     }
 
     static bool FullAuthFlow()
@@ -233,16 +338,18 @@ public static class AuthTokenHandler
         bool authSuccess = false;
         while (authSuccess == false)
         {
-            string? authToken = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingConfig, clientIdentifier: genResult.ClientIdentifier);
-            if (authToken != null)
+            (string authToken, string clientID)? authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingConfig, clientIdentifier: genResult.ClientIdentifier);
+            if (authResult != null)
             {
+                // Save the token to the file
+                CreateTokenFile(authResult.Value.authToken, authResult.Value.clientID);
                 authSuccess = true;
                 successResult = true;
             }
             else
             {
                 WriteLineSafe("----------------------------------------------------------------");
-                WriteRedSuper("\nThe app does not appear authorized.", noNewline:true);
+                WriteRedSuper("\nThe app does not appear authorized.", noNewline: true);
                 WriteRed("  Visit this URL and sign in if you haven't already: ");
 
                 WriteGreen($"\n\t{authUrl}");
@@ -315,7 +422,7 @@ public static class AuthTokenHandler
         }
     }
 
-    public static string GenerateAuthURL(string clientIdentifier, string code, string appName)
+    public static string GenerateAuthURL(string clientIdentifier, string code, string appName = MyStrings.AppNameShort)
     {
         // Define the base URL
         string baseUrl = AuthStrings.UserAuthConfirmationURL;
@@ -326,7 +433,7 @@ public static class AuthTokenHandler
         return userAuthUrl;
     }
 
-    public static string? GetAuthorizedTokenAfterUserConfirmation(string pinID, string appName, string clientIdentifier, string baseURL = AuthStrings.PlexPinUrl)
+    public static (string authToken, string clientID)? GetAuthorizedTokenAfterUserConfirmation(string pinID, string appName, string clientIdentifier, string baseURL = AuthStrings.PlexPinUrl)
     {
         // Generates url like https://plex.tv/api/v2/pins/{pinID}
         // With headers for X-Plex-Product and X-Plex-Client-Identifier
@@ -346,9 +453,7 @@ public static class AuthTokenHandler
 
             if (!String.IsNullOrEmpty(authToken))
             {
-                // Save the token to the file
-                CreateTokenFile(authToken, clientIdentifier);
-                return authToken;
+                return (authToken, clientIdentifier);
             }
             else
             {

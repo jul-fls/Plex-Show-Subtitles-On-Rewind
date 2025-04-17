@@ -20,6 +20,7 @@ public static class LaunchArgs
     public static readonly Argument AllowDuplicateInstance = new("allow-duplicate-instance", "New app instance will not close if it detects another is already connected to the same server.", advanced:true);
     public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
     public static readonly Argument TestSettings =    new("test-settings",   "Load the settings file and show which values are valid, and which are not and therefore will use default values.", advanced:true);
+    public static readonly Argument NoInstanceCheck = new("no-instance-check", "This instance will not respond to -stop or other checks by other instances. Mainly for use when containerized.", advanced:true);
 
     // ---------------------------------------------------------------
     public static List<Argument> GetAllArgs() {

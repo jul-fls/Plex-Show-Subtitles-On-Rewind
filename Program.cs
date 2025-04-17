@@ -24,6 +24,8 @@ namespace RewindSubtitleDisplayerForPlex
         private static readonly CancellationTokenSource _appShutdownCts_Program = new CancellationTokenSource();
         public static ShutdownProcedure UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
 
+        public static bool IsContainerized => Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+
         // ===========================================================================================
 
         static void Main(string[] args)
@@ -107,9 +109,12 @@ namespace RewindSubtitleDisplayerForPlex
             }
 
             // ------------ Instance Coordination ------------
-            instancesAreSetup = InstanceCoordinator.InitializeHandles(); // Setup event wait handles and listeners for instance coordination
-            if (!instancesAreSetup)
-                WriteRedSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
+            if (!LaunchArgs.NoInstanceCheck.Check(args) && !IsContainerized)
+            {
+                instancesAreSetup = InstanceCoordinator.InitializeHandles(); // Setup event wait handles and listeners for instance coordination
+                if (!instancesAreSetup)
+                    WriteRedSuper("ERROR: Failed to initialize coordination handles. Certain functions like the -stop parameter will not work.");
+            }
 
             // Stop other instances if requested
             if (LaunchArgs.Stop.Check(args))
