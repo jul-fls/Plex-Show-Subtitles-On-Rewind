@@ -1,0 +1,36 @@
+# docker-compose.yml
+
+# Don't forget to go into your settings.ini file afterwards and set the server url to something like:
+#       http://host.docker.internal:32400
+
+# To Run:
+#       docker-compose up -d
+
+version: '3.8' # Specifies the Compose file version (optional but recommended)
+
+services:
+  plex-rewind-subtitle-displayer:
+    # Use the image you built locally
+    image: thios-plex-rewind-subtitle-displayer
+    container_name: thios_plex_rewind_subtitle_displayer # Optional: sets a predictable container name
+    restart: unless-stopped # Or 'always'. Restarts the container if it stops unexpectedly or Docker restarts.
+
+    # Volume mapping:
+    # This maps a directory named 'config' located in the SAME FOLDER as this
+    # docker-compose.yml file on your host machine to the '/app/config' directory
+    # inside the container.
+    volumes:
+      - ./config:/app/config
+
+    # Add any environment variables needed by your app here, if any.
+    # environment:
+    #   - VARIABLE_NAME=value
+    
+    # Pass command line arguments to the ENTRYPOINT defined in the Dockerfile.
+    # Replace these placeholders with the actual arguments your application needs.
+    # Each argument and its value (if applicable) should be a separate list item.
+    command:
+      #- "-argument1"          # Example: a flag argument
+      #- "value_for_arg1"      # Example: value for the previous argument
+      - "-auth-device-name"
+      - "Docker"
