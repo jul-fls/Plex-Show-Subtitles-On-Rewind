@@ -20,6 +20,7 @@ public class Settings
     public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.ToggleRewindMonitoring, "TripleClick_PlayPause_Hotkey_Action");
     public SettingInfo<bool> ManualModeOnly = new(false, "Manual_Mode_Only");
     public SettingInfo<bool> RememberSubtitlesForTVShowMode = new(false, "Remember_Subtitles_For_TVShow_Mode");
+    public SettingInfo<List<string>> LibrariesToAlwaysEnableSubtitles = new([], "Libraries_To_Always_Enable_Subtitles");
     public SettingInfo<bool> AlwaysEnableSubtitlesMode = new(false, "Always_Enable_Subtitles_Mode");
     public SettingInfo<int> ClickHotkeyTimeThresholdMs = new(400, "Click_Time_Threshold_Milliseconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
@@ -62,9 +63,13 @@ public class Settings
         ManualModeOnly.Description = "(True/False) If true, this app will default to NOT automatically toggle subtitles on rewinds." +
             "\nYou can still toggle subtitles using one of the double or triple click hotkeys. You can also re-enable monitoring using a hotkey." +
             $"\nDefault Value: {ManualModeOnly.Value}";
-        RememberSubtitlesForTVShowMode.Description = "(True/False) If true, this app will remember if you manually enable subtitles at the TV-show level, and re-enable them when any episode of that show is played." +
-            "\nNote: The same remembered shows list will apply across all users and devices. Be aware of this if there are multiple users of your server who watch the same shows." +
+        RememberSubtitlesForTVShowMode.Description = "(True/False) If true, this app will remember if you MANUALLY enable subtitles at the TV-show level. It will enable subs when any episode of that show is played." +
+            $"\nNote 1: The same remembered shows list will apply across all users and devices. Be aware of this if there are multiple users of your server who watch the same shows." +
+            $"\nNote 2: This only remembers the Enabled subtitle state. For example it cannot override the {AlwaysEnableSubtitlesMode.ConfigName} setting or {LibrariesToAlwaysEnableSubtitles.ConfigName} libraries." +
             $"Default value: {RememberSubtitlesForTVShowMode.Value}";
+        LibrariesToAlwaysEnableSubtitles.Description = "A comma separated list of library names where subtitles will be enabled for all shows/movies within it." +
+            $"\nNot case sensitive, and quotes and leading/trailing spaces wil be trimmed off." +
+            $"\nExample:   Movies, TV Shows, Whatever Custom Library Name";
         AlwaysEnableSubtitlesMode.Description = "(True/False) If true, instead of monitoring for rewinds, the app simply will always enable subtitles whenever a new playback session starts." +
             $"\nSubtitles can still be disabled via the {HotkeyAction.ToggleSubtitles} hotkey action, and monitoring can be turned on via the {HotkeyAction.ToggleRewindMonitoring} hotkey action." +
             $"\nThis will also override any other rewind-related monitoring settings. It will also override the {RememberSubtitlesForTVShowMode.ConfigName} setting." +

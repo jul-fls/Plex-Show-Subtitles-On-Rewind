@@ -61,6 +61,7 @@ public enum Props
     sessionKey,
     title,
     grandparentTitle,
+    librarySectionTitle,
     type,
     viewOffset,
     Media,
@@ -168,6 +169,9 @@ public class PlexSession
 
     [XmlAttribute(nameof(grandparentTitle))]
     public string GrandparentTitle { get; set; } = string.Empty;
+
+    [XmlAttribute(nameof(librarySectionTitle))]
+    public string LibrarySectionTitle { get; set; } = string.Empty;
 
     [XmlAttribute(nameof(type))]
     public string Type { get; set; } = string.Empty;

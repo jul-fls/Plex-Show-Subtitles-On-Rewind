@@ -54,6 +54,18 @@ namespace RewindSubtitleDisplayerForPlex
         TripleClick
     }
 
+    public enum SubtitleEnabledReason
+    {
+        UserManual,
+        Rewind,
+        AutoEnableAll,
+        Remembered,
+        UserLibrarySetting,
+
+        Unknown,
+        Null
+    }
+
     public static class MyStrings
     {
         public const string AppNameDashed = "Rewind-Subtitle-Displayer-For-Plex";

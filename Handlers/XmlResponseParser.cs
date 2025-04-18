@@ -164,6 +164,7 @@ public static class XmlResponseParser
             SessionKey = GetAttributeValue(videoElement, nameof(sessionKey)),
             Title = GetAttributeValue(videoElement, nameof(title)),
             GrandparentTitle = GetAttributeValue(videoElement, nameof(grandparentTitle)),
+            LibrarySectionTitle = GetAttributeValue(videoElement, nameof(librarySectionTitle)),
             Type = GetAttributeValue(videoElement, nameof(type)),
             ViewOffset = GetIntAttribute(videoElement, nameof(viewOffset)),
             // RawXml needs to be set externally if needed

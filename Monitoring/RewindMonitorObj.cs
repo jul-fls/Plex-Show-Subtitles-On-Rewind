@@ -16,12 +16,13 @@ namespace RewindSubtitleDisplayerForPlex
 
         private bool _isMonitoring;
         private bool _isDead;
-        private bool _isSetup = false;
         private bool _subtitlesUserEnabled;
         private double _latestWatchedPosition;
         private double _previousPosition; // Use to detect fast forwards
         private bool _temporarilyDisplayingSubtitles;
         private readonly double _smallestResolutionSec; // This might be updated depending on available data during refreshes
+
+        public SubtitleEnabledReason SubsEnabledReason { get; private set; } = SubtitleEnabledReason.Null; // Used to check if subtitles were enabled because of conditions in the settings
 
         public string PlaybackID => _activeSession.Session.PlaybackID;
         public bool IsMonitoringAndNotDead => ((_isMonitoring == true) && (_isDead == false));
@@ -80,20 +81,34 @@ namespace RewindSubtitleDisplayerForPlex
                 else
                     _isMonitoring = true;
 
+                // --------- Cases to start subtitles immediately -----------
                 if (Program.config.AlwaysEnableSubtitlesMode == true)
                 {
-                    StartSubtitlesWithRetry(persist: true); // Start subtitles immediately if in AlwaysEnableSubtitlesMode
+                    StartSubtitlesWithRetry(persist: true);
                     LogDebug($"AlwaysEnableSubtitlesMode is enabled - Starting subtitles immediately for {_activeSession.MediaTitle}");
+                    SubsEnabledReason = SubtitleEnabledReason.AutoEnableAll;
                 }
-                else if (Program.config.RememberSubtitlesForTVShowMode == true)
+                
+                if (Program.config.RememberSubtitlesForTVShowMode == true)
                 {
                     // Check if the show is in the remembered list
                     if (_activeSession.IsRememberedEnabledSubs())
                     {
-                        StartSubtitlesWithRetry(persist: true); // Start subtitles immediately if in AlwaysEnableSubtitlesMode
+                        StartSubtitlesWithRetry(persist: true);
+                        SubsEnabledReason = SubtitleEnabledReason.Remembered;
                         LogDebug($"Remembered subtitles for {_activeSession.MediaTitle} - Starting subtitles immediately.");
                     }
                 }
+
+                if (Program.config.LibrariesToAlwaysEnableSubtitles.Value.Count > 0)
+                {
+                    if (Program.config.LibrariesToAlwaysEnableSubtitles.Value.Contains(_activeSession.Session.LibrarySectionTitle))
+                    {
+                        StartSubtitlesWithRetry(persist: true);
+                        SubsEnabledReason = SubtitleEnabledReason.UserLibrarySetting;
+                    }
+                }
+                // ------------------------------------------------------------
 
                 SimpleSessionStartTimer();
                 MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway
@@ -386,6 +401,8 @@ namespace RewindSubtitleDisplayerForPlex
 
                         if (_activeSession.IsTVShow())
                             MonitorManager.RemoveFromRememberedShows(_activeSession.MediaTitle);
+
+                        SubsEnabledReason = SubtitleEnabledReason.Null;
 
                         LogInfo($"{_deviceName} [{PlaybackIDShort}]: User appears to have disabled subtitles manually.", Yellow);
                         
