@@ -71,7 +71,7 @@ namespace RewindSubtitleDisplayerForPlex
                 }
 
                 _latestWatchedPosition = _activeSession.GetPlayPositionSeconds();
-                LogDebug($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
+                LogDebugExtra($"Before thread start - position: {_latestWatchedPosition} -- Previous: {_previousPosition} -- UserEnabledSubtitles: {_subtitlesUserEnabled}\n");
 
                 _previousPosition = _latestWatchedPosition;
 
@@ -83,6 +83,16 @@ namespace RewindSubtitleDisplayerForPlex
                 if (Program.config.AlwaysEnableSubtitlesMode == true)
                 {
                     StartSubtitlesWithRetry(persist: true); // Start subtitles immediately if in AlwaysEnableSubtitlesMode
+                    LogDebug($"AlwaysEnableSubtitlesMode is enabled - Starting subtitles immediately for {_activeSession.MediaTitle}");
+                }
+                else if (Program.config.RememberSubtitlesForTVShowMode == true)
+                {
+                    // Check if the show is in the remembered list
+                    if (_activeSession.IsRememberedEnabledSubs())
+                    {
+                        StartSubtitlesWithRetry(persist: true); // Start subtitles immediately if in AlwaysEnableSubtitlesMode
+                        LogDebug($"Remembered subtitles for {_activeSession.MediaTitle} - Starting subtitles immediately.");
+                    }
                 }
 
                 SimpleSessionStartTimer();
@@ -368,10 +378,17 @@ namespace RewindSubtitleDisplayerForPlex
                 if (_subtitlesUserEnabled)
                 {
                     SetLatestWatchedPosition(positionSec);
+
                     // If the active subtitles are empty, the user must have disabled them
                     if (_activeSession.KnownIsShowingSubtitles == false)
                     {
                         _subtitlesUserEnabled = false;
+
+                        if (_activeSession.IsTVShow())
+                            MonitorManager.RemoveFromRememberedShows(_activeSession.MediaTitle);
+
+                        LogInfo($"{_deviceName} [{PlaybackIDShort}]: User appears to have disabled subtitles manually.", Yellow);
+                        
                     }
                 }
                 // If we know there are subtitles showing but we didn't enable them, then the user must have enabled them.
@@ -380,7 +397,12 @@ namespace RewindSubtitleDisplayerForPlex
                 {
                     _subtitlesUserEnabled = true;
                     SetLatestWatchedPosition(positionSec);
-                    LogInfo($"{_deviceName} [{PlaybackIDShort}]: User appears to have enabled subtitles manually.", Yellow);
+
+                    if (_activeSession.IsTVShow())
+                        MonitorManager.AddToRememberedShows(_activeSession.MediaTitle);
+
+                    if (Program.config.RememberSubtitlesForTVShowMode == false || !_activeSession.IsRememberedEnabledSubs())
+                        LogInfo($"{_deviceName} [{PlaybackIDShort}]: User appears to have enabled subtitles manually.", Yellow);
                 }
                 // Only further process & check for rewinds if the user hasn't manually enabled subtitles
                 else
@@ -690,6 +712,5 @@ namespace RewindSubtitleDisplayerForPlex
                 LogDebug("Restarted monitoring.");
             }
         }
-
     }
 }

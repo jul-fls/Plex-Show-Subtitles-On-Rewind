@@ -14,6 +14,13 @@ namespace RewindSubtitleDisplayerForPlex
 
         private static readonly List<RewindMonitor> _allMonitors = [];
         private static readonly List<RewindMonitor> _deadSessionMonitors = [];
+
+        // Remember TV Show related
+        private static readonly List<string> RememberedEnabledSubtitlesTVShows = [];
+        private static readonly string RememberedEnabledSubtitlesTVShowsFilePath = Path.Combine(GlobalDefinitions.BaseConfigsDir, MyStrings.RememberTVShowSubtitleListFile);
+        private static readonly Lock RememberedShowsFileLock = new Lock();
+        private static readonly Lock RememberedShowsListLock = new Lock();
+
         private static int _globalActiveFrequencyMs = (int)Math.Round(Settings.Default().ActiveMonitorFrequencySec * 1000); // Initial value but will be updated as needed on the fly
         private static int _globalIdleFrequencyMs = (int)Math.Round(Settings.Default().IdleMonitorFrequency * 1000);
         private static bool _isRunning = false;
@@ -403,5 +410,191 @@ namespace RewindSubtitleDisplayerForPlex
             }
             LogDebug("MonitorManager: All monitors restarted.");
         }
-    }
-}
+
+        
+        public static void CreateRememberedShows_File_IfNotAlready()
+        {
+            string filePath = RememberedEnabledSubtitlesTVShowsFilePath;
+            if (!File.Exists(filePath))
+            {
+                try
+                {
+                    lock (RememberedShowsFileLock)
+                    {
+                        using (StreamWriter sw = File.CreateText(filePath))
+                        {
+                            sw.WriteLine(MyStrings.RememberShowHeaderLines);
+                        }
+                        LogDebug($"Created subtitle remember list file at {filePath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Failed to create subtitle remember list file: {ex.Message}");
+                }
+            }
+            else
+            {
+                LogDebug($"Subtitle remember list file already exists at {filePath}");
+            }
+        }
+
+        // Called when creating the file initially, or after removing a show from the list
+        public static void WriteEntireRememberedShow_File()
+        {
+            string filePath = RememberedEnabledSubtitlesTVShowsFilePath;
+            // If it doesn't exist yet, create it
+            if (!File.Exists(filePath))
+                CreateRememberedShows_File_IfNotAlready();
+            
+            // Header lines should be there already
+            if (File.Exists(filePath) && RememberedEnabledSubtitlesTVShows.Count > 0)
+            {
+                try
+                {
+                    lock (RememberedShowsFileLock)
+                    {
+                        lock (RememberedShowsListLock)
+                        {
+                            using StreamWriter sw = new StreamWriter(filePath, false); // Overwrite the file
+
+                            sw.WriteLine(MyStrings.RememberShowHeaderLines);
+
+                            foreach (string showName in RememberedEnabledSubtitlesTVShows)
+                            {
+                                sw.WriteLine(showName);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Failed to write subtitle remember list file: {ex.Message}");
+                }
+            }
+        }
+
+        public static void AppendToRemembered_File(string mediaTitle)
+        {
+            string filePath = RememberedEnabledSubtitlesTVShowsFilePath;
+            // If it doesn't exist yet, create it
+            if (!File.Exists(filePath))
+                CreateRememberedShows_File_IfNotAlready();
+
+            // Append the new show name to the file
+            try
+            {
+                lock (RememberedShowsFileLock)
+                {
+                    using (StreamWriter sw = File.AppendText(filePath))
+                    {
+                        sw.WriteLine(mediaTitle);
+                    }
+                    LogDebug($"Appended {mediaTitle} to subtitle remember list file.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"Failed to append to subtitle remember list file: {ex.Message}");
+            }
+        }
+        
+        public static void RemoveFromRememberedShows(string mediaTitle)
+        {
+            if (Program.config.RememberSubtitlesForTVShowMode == false)
+                return;
+
+            // --------------------------------------------------------
+
+            lock (RememberedShowsListLock)
+            {
+                if (RememberedEnabledSubtitlesTVShows.Remove(mediaTitle))
+                {
+                    WriteEntireRememberedShow_File(); // We should have the whole list in memory, so just re-write the file
+                    LogDebug($"Removed {mediaTitle} from remembered subtitles list.");
+                }
+                else
+                {
+                    LogDebug($"Show {mediaTitle} is not in the remembered subtitles list.");
+                }
+            }
+        }
+
+
+        public static void AddToRememberedShows(string showName)
+        {
+            if (Program.config.RememberSubtitlesForTVShowMode == false)
+                return;
+
+            // --------------------------------------------------------
+
+            lock (RememberedShowsListLock)
+            {
+                if (!RememberedEnabledSubtitlesTVShows.Contains(showName))
+                {
+                    RememberedEnabledSubtitlesTVShows.Add(showName);
+                    AppendToRemembered_File(showName);
+
+                    LogDebug($"Added {showName} to remembered subtitles list.");
+                }
+                else
+                {
+                    LogDebug($"Show {showName} is already in the remembered subtitles list.");
+                }
+            }
+        }
+
+        // This function should only be called once at startup to load the file into memory, the rest of the time we use the in-memory list
+        public static void LoadRememberedShows_FromFile()
+        {
+            string filePath = RememberedEnabledSubtitlesTVShowsFilePath;
+
+            // Load the file if it exists even if the setting is disabled, in case the user enables it later
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    lock (RememberedShowsFileLock)
+                    {
+                        lock (RememberedShowsListLock)
+                        {
+                            using StreamReader sr = new StreamReader(filePath);
+                            string? line;
+                            while ((line = sr.ReadLine()) != null)
+                            {
+                                if (!line.StartsWith('#')) // Ignore comment lines
+                                {
+                                    RememberedEnabledSubtitlesTVShows.Add(line.Trim());
+                                }
+                            }
+                        }
+                    }
+
+                    LogVerbose($"Loaded subtitle remember list file from {filePath}");
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Failed to load subtitle remember list file: {ex.Message}");
+                }
+            }
+            else if (Program.config.RememberSubtitlesForTVShowMode == true)
+            {
+                LogVerbose($"Subtitle remember list file not found at {filePath}. Creating a new one.");
+                CreateRememberedShows_File_IfNotAlready();
+            }
+        }
+
+        public static bool CheckIfShowRemembered(string mediaTitle)
+        {
+            lock (RememberedShowsListLock)
+            {
+                if (RememberedEnabledSubtitlesTVShows.Contains(mediaTitle))
+                    return true;
+                else
+                    return false;
+            }
+        }
+
+    } // ------------------ End MonitorManager Class -----------------
+
+} // ------------------- End Namespace -----------------

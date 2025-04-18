@@ -166,6 +166,22 @@ public class ActiveSession
         }
     }
 
+    public bool IsTVShow()
+    {
+        if (this.Session.Type == "episode" || this.Session.Type == "season" | this.Session.Type == "show")
+            return true;
+        else
+            return false;
+    }
+
+    public bool IsRememberedEnabledSubs()
+    {
+        if (MonitorManager.CheckIfShowRemembered(this.MediaTitle) == true)
+            return true;
+        else
+            return false;
+    }
+
     // Returns true for success, false for failure, null for no subtitles available
     public async Task<bool?> EnableSubtitles()
     {

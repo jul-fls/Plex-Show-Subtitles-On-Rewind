@@ -183,6 +183,9 @@ namespace RewindSubtitleDisplayerForPlex
             // ======================== Start Main Logic ===========================
             // =====================================================================
 
+            // Load any other settings that are needed
+            MonitorManager.LoadRememberedShows_FromFile();
+
             try
             {
                 if (config.SkipAuth.Value == false) {
