@@ -190,13 +190,24 @@ internal class Utils
 
         return;
     }
-    public static string? ReadlineSafe()
+    public static string? ReadlineSafe(string? promptMessage = null)
     {
         // If running in background mode, don't wait for user input.
         if (!Program.isBackgroundMode)
         {
-            string? message = Console.ReadLine();
-            return message;
+            string? userEntry;
+
+            if (promptMessage != null)
+            {
+                WriteSafe(promptMessage);
+                userEntry = Console.ReadLine();
+            }
+            else
+            {
+                userEntry = Console.ReadLine();
+            }
+
+            return userEntry;
         }
         else
         {

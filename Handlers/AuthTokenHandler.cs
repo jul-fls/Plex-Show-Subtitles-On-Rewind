@@ -14,8 +14,6 @@ internal partial class AuthResponseJsonContext : JsonSerializerContext
 {
 }
 
-
-
 public static class AuthTokenHandler
 {
     public static class AuthStrings
@@ -26,9 +24,12 @@ public static class AuthTokenHandler
         public const string PlexTvUrl = "https://plex.tv";
         public const string PlexPinUrl = $"{PlexTvUrl}/api/v2/pins";
         public const string UserAuthConfirmationURL = "https://app.plex.tv/auth#?";
+
         public const string configUUIDSetting = "ClientIdentifier";
         public const string configTokenSetting = "AppToken";
         public const string configPinIDSetting = "PinID";
+        public const string configAppNameSetting = "AppName";
+
         public const string tokenFileName = "token.config";
         public static readonly string tokenFileTemplateName = $"{tokenFileName}.example";
         public static readonly string tokenNote = "    Note: This is not the same Plex token for your account that you see mentioned in other tutorials.\n" +
@@ -39,6 +40,8 @@ public static class AuthTokenHandler
     public static string TokenFilePath => Path.Combine(BaseConfigsDir, AuthStrings.tokenFileName);
     public static string TokenTemplatePath => Path.Combine(BaseConfigsDir, AuthStrings.tokenFileTemplateName);
 
+    private static string? _userDeviceName = null;
+
     static void CreateTokenFile(string token = AuthStrings.TokenPlaceholder, string uuid = AuthStrings.ClientID_UUID_Placeholder)
     {
         File.WriteAllText(TokenFilePath, 
@@ -46,12 +49,13 @@ public static class AuthTokenHandler
                 $"\n{AuthStrings.configUUIDSetting}={uuid}");
     }
 
-    static void CreatePendingTokenFile(string pinID, string clientID_UUID, string tempAuthCode)
+    static void CreatePendingTokenFile(string pinID, string clientID_UUID, string tempAuthCode, string appNameTouse)
     {
         File.WriteAllText(TokenFilePath, 
                     $"{AuthStrings.configTokenSetting}={tempAuthCode}\n" +
                     $"{AuthStrings.configUUIDSetting}={clientID_UUID}\n" +
-                    $"{AuthStrings.configPinIDSetting}={pinID}\n"
+                    $"{AuthStrings.configPinIDSetting}={pinID}\n" +
+                    $"{AuthStrings.configAppNameSetting}={appNameTouse}"
                     );
     }
 
@@ -82,8 +86,13 @@ public static class AuthTokenHandler
 
     }
 
-    public static (string, string)? LoadTokens()
+    public static (string, string)? LoadTokens(string? deviceNameArg = null)
     {
+        if (!string.IsNullOrWhiteSpace(deviceNameArg))
+        {
+            _userDeviceName = deviceNameArg;
+        }
+
         bool tokenFileExists = false;
 
         // If it doesn't exist, prompt the user to go through the auth flow to create one
@@ -97,6 +106,11 @@ public static class AuthTokenHandler
 
             // Nothing more to do, any relevant messages will be printed already
             Utils.ContainerExitStop(); // Wait instead of exiting, so the container doesn't exit and start looping
+        }
+        else if (Program.isBackgroundMode)
+        {
+            LogError($"Required Token file not found: {AuthStrings.tokenFileName}. Run the app not in background mode to create.");
+            return null;
         }
         else
         {
@@ -135,18 +149,18 @@ public static class AuthTokenHandler
         else if (tokenFileExists == true)
         {
 
-            (string ? validatedToken, string ? validatedUUID, string ? validatedPinID)? tokens = ReadTokenConfig(TokenFilePath);
+            (string? validatedToken, string? validatedUUID, string? validatedPinID, string? appName)? tokens = ReadTokenConfig(TokenFilePath);
             
             if (tokens.Value.validatedToken != null && tokens.Value.validatedUUID != null)
             {
                 // Extra step if PinID is found because we need to check if the app is authorized yet
-                if (tokens.Value.validatedPinID != null)
+                if (tokens.Value.validatedPinID != null && tokens.Value.appName != null)
                 {
                     bool authSuccess = NonInteractiveAuthFlow_CheckAuth(
                         pinID: tokens.Value.validatedPinID, 
                         clientID: tokens.Value.validatedUUID, 
                         tempAuthCode: tokens.Value.validatedToken, 
-                        appName: MyStrings.AppNameShort
+                        appName: tokens.Value.appName
                         );
 
                     // If auth was a failure, don't exit or else a container will loop
@@ -184,13 +198,14 @@ public static class AuthTokenHandler
         WriteLineSafe(); // This seems needed to prevent weird overlapping of text
     }
 
-    public static (string? validatedToken, string? validatedUUID, string? validatedPinID) ReadTokenConfig(string tokenFilePath)
+    public static (string? validatedToken, string? validatedUUID, string? validatedPinID, string? appName) ReadTokenConfig(string tokenFilePath)
     {
         // Read tokens from file
         string[] lines = File.ReadAllLines(tokenFilePath);
         string? validatedToken = null;
         string? validatedUUID = null;
         string? validatedPinID = null;
+        string? validatedAppName = null;
 
 
         foreach (string line in lines)
@@ -212,9 +227,15 @@ public static class AuthTokenHandler
                 string rawPinID = line.Substring($"{AuthStrings.configPinIDSetting}=".Length);
                 validatedPinID = validateTokenValue(rawPinID);
             }
+
+            if (line.StartsWith($"{AuthStrings.configAppNameSetting}="))
+            {
+                string rawAppName = line.Substring($"{AuthStrings.configAppNameSetting}=".Length);
+                validatedAppName = rawAppName;
+            }
         }
 
-        return (validatedToken, validatedUUID, validatedPinID);
+        return (validatedToken, validatedUUID, validatedPinID, validatedAppName);
 
         // ----------------- Local function to validate the token -----------------
         static string? validateTokenValue(string tokenConfigValue)
@@ -245,7 +266,15 @@ public static class AuthTokenHandler
         // We'll generate the auth url and display it to the user and tell them to visit it and login
         // Then just exit the app and not wait for them to press enter, because we can't. Instead tell them to log in and run the app again
 
-        string appNameToUse = MyStrings.AppNameShort;
+        string appNameToUse;
+        if (!string.IsNullOrWhiteSpace(_userDeviceName))
+        {
+            appNameToUse = MyStrings.AppNameShort + $" ({_userDeviceName})";
+        }
+        else
+        {
+            appNameToUse = MyStrings.AppNameShort;
+        }
 
         // Generate the token request
         TokenGenResult genResult = GenerateAppTokenRequest(appName: appNameToUse, url: AuthStrings.PlexPinUrl);
@@ -259,7 +288,7 @@ public static class AuthTokenHandler
             WriteLineSafe("\n----------------------------------------------------------------");
             WriteLineSafe($"\nPlease visit the following URL to authorize the app by logging in. Then run the app again. \n\n\t{authUrl}\n\n");
             WriteLineSafe("-------------------------------------------------");
-            CreatePendingTokenFile(pinID: genResult.PinID, clientID_UUID: genResult.ClientIdentifier, tempAuthCode: genResult.Code);
+            CreatePendingTokenFile(pinID: genResult.PinID, clientID_UUID: genResult.ClientIdentifier, tempAuthCode: genResult.Code, appNameTouse: appNameToUse);
             return true;
         }
         else
@@ -269,7 +298,7 @@ public static class AuthTokenHandler
         }
     }
 
-    static bool NonInteractiveAuthFlow_CheckAuth(string pinID, string clientID, string tempAuthCode, string appName = MyStrings.AppNameShort)
+    static bool NonInteractiveAuthFlow_CheckAuth(string pinID, string clientID, string tempAuthCode, string appName)
     {
         // Check the auth status of the app using the pinID and clientID
         (string? authToken, string? clientID, bool? requireNewRequest) authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: pinID, appName: appName, clientIdentifier: clientID);
@@ -303,26 +332,47 @@ public static class AuthTokenHandler
 
     static bool FullAuthFlow()
     {
-        string appNameIncludingConfig;
-        if (!string.IsNullOrWhiteSpace(Program.config.CurrentDeviceLabel.Value.Trim()))
+        string appNameIncludingUserSetName;
+        string? userDeviceName = null;
+
+        if (string.IsNullOrWhiteSpace(_userDeviceName))
         {
-            appNameIncludingConfig = MyStrings.AppNameShort + $" ({Program.config.CurrentDeviceLabel.Value.Trim()})";
+            // Prompt the user for what they want to name the device
+            WriteLineSafe("\nOptional: Choose a name for the device. It will appear next to the app's name in your account's authorized devices.");
+            WriteLineSafe("Or just hit enter to leave it blank.");
+            string? userInput = ReadlineSafe($"\nEnter a name: ");
+            userInput = userInput?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(userInput))
+            {
+                userDeviceName = userInput;
+            }
         }
         else
         {
-            appNameIncludingConfig = MyStrings.AppNameShort;
+            userDeviceName = _userDeviceName;
+        }
+
+        // Full app name and device name to appear in the Plex account devices list
+        if (!string.IsNullOrWhiteSpace(userDeviceName))
+        {
+            appNameIncludingUserSetName = MyStrings.AppNameShort + $" ({userDeviceName})";
+        }
+        else
+        {
+            appNameIncludingUserSetName = MyStrings.AppNameShort;
         }
 
         bool successResult = false;
         // Generate the token request
-        TokenGenResult genResult = GenerateAppTokenRequest(appName: appNameIncludingConfig, url: AuthStrings.PlexPinUrl);
+        TokenGenResult genResult = GenerateAppTokenRequest(appName: appNameIncludingUserSetName, url: AuthStrings.PlexPinUrl);
 
         string authUrl;
         // The code and ID should never be null for a success, but check anyway
         if (genResult.Success && genResult.Code != null && genResult.PinID != null && genResult.ClientIdentifier != null)
         {
             // Generate the auth URL and tell the user to visit it
-            authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: appNameIncludingConfig);
+            authUrl = GenerateAuthURL(clientIdentifier: genResult.ClientIdentifier, code: genResult.Code, appName: appNameIncludingUserSetName);
 
             WriteLineSafe("\n----------------------------------------------------------------");
             WriteGreen($"\nPlease visit the following URL to authorize the app. (Select then right click to copy from a console) \n\n\t{authUrl}");
@@ -353,7 +403,7 @@ public static class AuthTokenHandler
         bool authSuccess = false;
         while (authSuccess == false)
         {
-            (string? authToken, string? clientID, bool? requireNewRequest) authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingConfig, clientIdentifier: genResult.ClientIdentifier);
+            (string? authToken, string? clientID, bool? requireNewRequest) authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingUserSetName, clientIdentifier: genResult.ClientIdentifier);
             if (authResult.authToken != null && authResult.clientID != null)
             {
                 // Save the token to the file
@@ -437,7 +487,7 @@ public static class AuthTokenHandler
         }
     }
 
-    public static string GenerateAuthURL(string clientIdentifier, string code, string appName = MyStrings.AppNameShort)
+    public static string GenerateAuthURL(string clientIdentifier, string code, string appName)
     {
         // Define the base URL
         string baseUrl = AuthStrings.UserAuthConfirmationURL;

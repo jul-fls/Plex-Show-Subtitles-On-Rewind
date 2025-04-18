@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,12 +22,12 @@ public static class LaunchArgs
     public static readonly Argument UpdateSettings=   new("update-settings-file", "Update your old settings file to include missing settings, if any. A backup will be created.", advanced:true);
     public static readonly Argument TestSettings =    new("test-settings",   "Load the settings file and show which values are valid, and which are not and therefore will use default values.", advanced:true);
     public static readonly Argument NoInstanceCheck = new("no-instance-check", "This instance will not respond to -stop or other checks by other instances. Mainly for use when containerized.", advanced:true);
-
+    public static readonly Argument AuthDeviceName =  new("auth-device-name", "Specify a device name when authorizing in non-interactive mode. Mainly for use when containerized. Include the name after this argument.", advanced:true, hasValue:true);
     // ---------------------------------------------------------------
     public static List<Argument> GetAllArgs() {
         return [
             Background, Stop, ConfigTemplate, Help, // Standard
-            ForceNoDebug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings // Advanced
+            ForceNoDebug, TokenTemplate, AllowDuplicateInstance, UpdateSettings, TestSettings, NoInstanceCheck, AuthDeviceName // Advanced
         ];
     }
 
@@ -47,6 +48,8 @@ public static class LaunchArgs
                 -{LaunchArgs.AllowDuplicateInstance} {t}{LaunchArgs.AllowDuplicateInstance.Description}
                 -{LaunchArgs.UpdateSettings} {t}{LaunchArgs.UpdateSettings.Description}
                 -{LaunchArgs.TestSettings} {tt}{LaunchArgs.TestSettings.Description}
+                -{LaunchArgs.NoInstanceCheck} {tt}{LaunchArgs.NoInstanceCheck.Description}
+                -{LaunchArgs.AuthDeviceName} {tt}{LaunchArgs.AuthDeviceName.Description}
             """;
 
     public static readonly string AllLaunchArgsInfo = StandardLaunchArgsInfo + "\n\n" + AdvancedLaunchArgsInfo;
@@ -76,12 +79,17 @@ public static class LaunchArgs
     // ------------------------- Methods ------------------------------
 
     // Validate the arguments passed to the program. Returns true if all arguments are valid, false if any are invalid.
-    public static bool CheckForUnknownArgs(string[] args)
+    public static bool CheckForUnknownArgsAndValidate(string[] args)
     {
         List<string> unknownArgs = [];
+        List<string> argsWithInvalidValues = [];
+
         List<Argument> allArgs = GetAllArgs();
+        bool wasPreviousValidValueArg = false; // Flag to check if the previous argument was a valid value argument
         foreach (string inputArg in args)
         {
+            int argIndex = Array.IndexOf(args, inputArg);
+
             bool isValid = false;
             // Check with the list of all arguments
             foreach (Argument arg in allArgs)
@@ -89,13 +97,41 @@ public static class LaunchArgs
                 if (arg.Check(new string[] { inputArg }))
                 {
                     isValid = true; // The argument is valid
+
+                    if (arg.HasValue) {
+
+                        // Check if the next argument is a value for this argument
+                        if (argIndex + 1 < args.Length)
+                        {
+                            string value = args[argIndex + 1].Trim();
+                            if (string.IsNullOrWhiteSpace(value) || LaunchArgs.CheckArgumentByString(value))
+                            {
+                                argsWithInvalidValues.Add(inputArg);
+                            }
+                            else
+                            {
+                                wasPreviousValidValueArg = true; // The previous argument was a valid value argument
+                            }
+                        }
+                        else
+                        {
+                            argsWithInvalidValues.Add(inputArg); // Add the argument to unknown args
+                        }
+                    }
                     break; // Break the inner loop
                 }
             }
-            // If the argument is not valid, add it to the list of unknown arguments
-            if (!isValid)
+
+            //if (wasPreviousValidValueArg == true && isValid) // Later handle this where no value is given
+
+            // If possibly not valid, check if it's a value for an argument
+            if (!isValid && wasPreviousValidValueArg)
             {
-                unknownArgs.Add(inputArg);
+                // This is fine and we already validated it
+            }
+            else if (!isValid)
+            {
+               unknownArgs.Add(inputArg);
             }
         }
         // Remove duplicates
@@ -114,12 +150,26 @@ public static class LaunchArgs
         }
     }
 
+    public static bool CheckArgumentByString(string inputArgName)
+    {
+        // Check if the argument is present in the input arguments
+        foreach (Argument arg in GetAllArgs())
+        {
+            if (arg.Check(new string[] { inputArgName }))
+            {
+                return true; // The argument is valid
+            }
+        }
+        return false; // The argument is not valid
+    }
+
     // ========================= Argument Class Type =========================
-    public class Argument(string arg, string description, bool advanced = false)
+    public class Argument(string arg, string description, bool advanced = false, bool hasValue = false)
     {
         public string Arg { get; } = arg;
         public string Description { get; } = description;
-        public bool IsAdvanced { get; set; } = advanced; // Only show advanced arguments when specifically using -help or -? (helpAlt)
+        public bool IsAdvanced { get; } = advanced; // Only show advanced arguments when specifically using -help or -? (helpAlt)
+        public bool HasValue { get; } = hasValue; // Indicates if the argument has a value (e.g. -arg value)
         public List<string> Alts { get; set; } = []; // List of alternative names for the argument
         public List<string> Variations => GetVariations(this);
 
@@ -128,6 +178,58 @@ public static class LaunchArgs
         public bool Check(string[] allInputArgs)
         {
             return allInputArgs.Any(a => this.Variations.Contains(a));
+        }
+
+        public int GetIndexInArgs(string[] allInputArgs)
+        {
+            // Check if the argument is present in the input arguments
+            if (this.Check(allInputArgs))
+            {
+                foreach (string argVariation in this.Variations)
+                {
+                    // Get the index of the argument
+                    int index = Array.IndexOf(allInputArgs, argVariation);
+
+                    if (index == -1)
+                        continue; // Argument not found, skip to the next variation
+                    else
+                        return index; // Return the index of the first found argument
+                }
+            }
+            return -1; // Argument not found
+        }
+
+        // For arguments that are not simply switches, this method will return the value of the argument after it
+        public string? GetArgValue(string[] allInputArgs)
+        {
+            if (!this.HasValue)
+            {
+                return null; // No value expected for this argument
+            }
+
+            // Check if the argument is present in the input arguments
+            if (this.Check(allInputArgs))
+            {
+                // Get the index of the argument
+                int index = this.GetIndexInArgs(allInputArgs);
+                if (index == -1)
+                {
+                    Debug.WriteLine($"Couldn't get arg index despite finding arg valid.");
+                    return null; // This shouldn't happen but just in case
+                }
+
+                // Check if there is a value after the argument
+                if (index + 1 < allInputArgs.Length)
+                {
+                    string value = allInputArgs[index + 1].Trim();
+
+                    if (string.IsNullOrWhiteSpace(value))
+                        return null;
+                    else
+                        return value; // Return the value after the argument
+                }
+            }
+            return null; // No value found
         }
 
         // Get version starting with either hyphen or forward slash

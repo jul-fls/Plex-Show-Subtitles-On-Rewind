@@ -18,6 +18,10 @@
     "Settings Template": {
       "commandName": "Project",
       "commandLineArgs": "-settings-template"
+    },
+    "Set Device Name": {
+      "commandName": "Project",
+      "commandLineArgs": "-auth-device-name test-joe-pc"
     }
   }
 }

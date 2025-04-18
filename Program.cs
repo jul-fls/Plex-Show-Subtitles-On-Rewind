@@ -25,6 +25,7 @@ namespace RewindSubtitleDisplayerForPlex
         public static ShutdownProcedure UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
 
         public static bool IsContainerized => Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        private static List<Argument> FoundValidArgs = [];
 
         // ===========================================================================================
 
@@ -34,6 +35,14 @@ namespace RewindSubtitleDisplayerForPlex
             // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
             // =======================================================================
 
+            foreach (Argument possibleArg in LaunchArgs.GetAllArgs())
+            {
+                if (possibleArg.Check(args))
+                {
+                    FoundValidArgs.Add(possibleArg);
+                }
+            }
+
             // Very first thing is check for background mode. Trying to print anything to console before allocating console prevents anything from showing.
             // Local scope variable to avoid confusion of runBackgroundMode vs isBackgroundMode
             {
@@ -42,7 +51,7 @@ namespace RewindSubtitleDisplayerForPlex
             }
 
             // Check for invalid launch args. False means there are unknown args.
-            if (!LaunchArgs.CheckForUnknownArgs(args))
+            if (!LaunchArgs.CheckForUnknownArgsAndValidate(args))
             {
                 WriteColor("\n------------ See valid launch args below ------------\n", Yellow);
                 WriteLineSafe(LaunchArgs.AllLaunchArgsInfo + "\n\n");
@@ -177,7 +186,14 @@ namespace RewindSubtitleDisplayerForPlex
             try
             {
                 if (config.SkipAuth.Value == false) {
-                    (string, string)? resultTuple = AuthTokenHandler.LoadTokens();
+
+                    string? deviceNameChosen = null;
+                    if (LaunchArgs.AuthDeviceName.Check(args) && LaunchArgs.AuthDeviceName.GetArgValue(args) is string deviceName)
+                    {
+                        deviceNameChosen = deviceName;
+                    }
+
+                    (string, string)? resultTuple = AuthTokenHandler.LoadTokens(deviceNameArg: deviceNameChosen);
                     if (resultTuple == null)
                     {
                         WriteLineSafe("\nFailed to load tokens. Exiting.");
@@ -271,6 +287,7 @@ namespace RewindSubtitleDisplayerForPlex
                 LogInfo("    Application exited.");
                 _ctrlCExitEvent.Dispose();
                 _appShutdownCts_Program.Dispose(); // Dispose the cancellation token source
+                MyLogger.Shutdown(); 
 
                 ExitProgramSafe();
             }

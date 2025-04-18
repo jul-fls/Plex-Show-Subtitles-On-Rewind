@@ -15,7 +15,6 @@ public class Settings
     public SettingInfo<SectionDivider> StandardSettings = new(new(), ""); // Placeholder for Advanced Settings section header
 
     public SettingInfo<string> ServerURL = new("http://127.0.0.1:32400", "Server_URL_And_Port");
-    public SettingInfo<string> CurrentDeviceLabel = new("", "Current_Device_Label");
     public SettingInfo<double> MaxRewindSec = new(60, "Max_Rewind_Seconds");
     public SettingInfo<HotkeyAction> DoubleClickHotkeyAction = new(HotkeyAction.ToggleSubtitles, "DoubleClick_PlayPause_Hotkey_Action");
     public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.ToggleRewindMonitoring, "TripleClick_PlayPause_Hotkey_Action");
@@ -51,8 +50,6 @@ public class Settings
         // Set descriptions in the constructor
         ServerURL.Description = "The full URL of your local server, including http, IP, and port." +
             "\nIf https:// doesn't work, you can use http:// but only do that if it's on a local network.";
-        CurrentDeviceLabel.Description = "The label you want to appear next to this app's name in your Plex account's authorized devices list." +
-            "\nYou can leave this empty or set to whatever you want. Changing it after creating the authorization token will not have an effect.";
         MaxRewindSec.Description = "Rewinding further than this many seconds will cancel the displaying of subtitles." +
            $"\nDefault Value: {MaxRewindSec.Value}  |  Possible Values: Any positive number (decimals allowed)";
         DoubleClickHotkeyAction.Description = "What to do when the play/pause button is double-clicked." +
