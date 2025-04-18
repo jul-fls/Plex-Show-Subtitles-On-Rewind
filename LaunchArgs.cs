@@ -67,13 +67,12 @@ public static class LaunchArgs
     static LaunchArgs()
     {
         Background.Alts = ["b"];
-        //Debug.Alts = ["d"];
-        //Verbose.Alts = ["v"];
         Help.Alts = ["h", "?"];
         Stop.Alts = ["s"];
         UpdateSettings.Alts = ["u"];
         TestSettings.Alts = ["t"];
         ForceNoDebug.Alts = ["nd"];
+        ConfigTemplate.Alts = ["ct", "st"];
     }
 
     // ------------------------- Methods ------------------------------

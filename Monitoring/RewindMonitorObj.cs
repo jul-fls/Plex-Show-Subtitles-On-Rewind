@@ -75,10 +75,15 @@ namespace RewindSubtitleDisplayerForPlex
 
                 _previousPosition = _latestWatchedPosition;
 
-                if (Program.config.ManualModeOnly)
+                if (Program.config.ManualModeOnly == true || Program.config.AlwaysEnableSubtitlesMode == true)
                     _isMonitoring = false;
                 else
                     _isMonitoring = true;
+
+                if (Program.config.AlwaysEnableSubtitlesMode == true)
+                {
+                    StartSubtitlesWithRetry(persist: true); // Start subtitles immediately if in AlwaysEnableSubtitlesMode
+                }
 
                 SimpleSessionStartTimer();
                 MakeMonitoringPass(); // Run the monitoring pass directly instead of in a separate thread since they all need to be updated together anyway

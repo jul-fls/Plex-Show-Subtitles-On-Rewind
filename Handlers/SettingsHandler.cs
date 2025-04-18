@@ -19,6 +19,7 @@ public class Settings
     public SettingInfo<HotkeyAction> DoubleClickHotkeyAction = new(HotkeyAction.ToggleSubtitles, "DoubleClick_PlayPause_Hotkey_Action");
     public SettingInfo<HotkeyAction> TripleClickHotkeyAction = new(HotkeyAction.ToggleRewindMonitoring, "TripleClick_PlayPause_Hotkey_Action");
     public SettingInfo<bool> ManualModeOnly = new(false, "Manual_Mode_Only");
+    public SettingInfo<bool> AlwaysEnableSubtitlesMode = new(false, "Always_Enable_Subtitles_Mode");
     public SettingInfo<int> ClickHotkeyTimeThresholdMs = new(400, "Click_Time_Threshold_Milliseconds");
     public SettingInfo<List<string>> SubtitlePreferencePatterns = new([], "Subtitle_Preference_Patterns");
     public SettingInfo<bool> PreferExternalSubtitles = new(true, "Prefer_External_Subtitles");
@@ -60,6 +61,10 @@ public class Settings
         ManualModeOnly.Description = "(True/False) If true, this app will default to NOT automatically toggle subtitles on rewinds." +
             "\nYou can still toggle subtitles using one of the double or triple click hotkeys. You can also re-enable monitoring using a hotkey." +
             $"\nDefault Value: {ManualModeOnly.Value}";
+        AlwaysEnableSubtitlesMode.Description = "(True/False) If true, instead of monitoring for rewinds, the app simply will always enable subtitles whenever a new playback session starts." +
+            $"\nSubtitles can still be disabled via the {HotkeyAction.ToggleSubtitles} hotkey action, and monitoring can be turned on via the {HotkeyAction.ToggleRewindMonitoring} hotkey action." +
+            $"\nThis will also override any other rewind-related monitoring settings." +
+            $"\nDefault Value: {AlwaysEnableSubtitlesMode.Value}";
         ClickHotkeyTimeThresholdMs.Description = "The maximum time in milliseconds between each individiual click to be considered for double and triple clicks." +
             "\nTry 500ms or more if you have trouble activating it. Be aware that a higher threshold could cause higher chance of false positives, " +
             "\n     because the periodic 'playing' notifications the Plex server sends (every ~5 seconds) are indisinguishable from notifications sent on play button presses." +
@@ -282,6 +287,15 @@ public class Settings
                     }
                 }
             }
+        }
+
+        // Incompatible settings
+        if (AlwaysEnableSubtitlesMode && DisableSubtitlesOnAppStartup)
+        {
+            string warnMessage = $"WARNING: Settings {AlwaysEnableSubtitlesMode.ConfigName} and {DisableSubtitlesOnAppStartup.ConfigName} both should not be true. You should set at least one of them to false.";
+            LogWarning(warnMessage);
+            this.SettingsThatTriggeredWarning.TryAdd(AlwaysEnableSubtitlesMode, warnMessage);
+            this.SettingsThatTriggeredWarning.TryAdd(DisableSubtitlesOnAppStartup, warnMessage);
         }
 
         // If no issues found, return true
