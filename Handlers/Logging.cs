@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -10,6 +12,244 @@ internal static partial class Logging
 {
     private static readonly Lock ConsoleWriterLock = new Lock();
     private static LogLevel _logLevel => Program.config.ConsoleLogLevel; // Default log level
+
+    // --- Core Queuing Components ---
+    private static readonly BlockingCollection<WriteQueueObject> _logQueue = [];
+    private static readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+    // Update the declaration of _consumerTask to make it nullable.  
+    private static Task? _consumerTask;
+
+    private class WriteQueueObject
+    {
+        public WriteMode WriteMode { get; private set; }
+        public LogParams? LogParams { get; private set; } = null;
+        public WriteColorParams? WriteColorParams { get; private set; } = null;
+        public WriteColorPartsParams? WriteColorPartsParams { get; private set; } = null;
+        public WriteWithBackgroundParams? WriteWithBackgroundParams { get; private set; } = null;
+        public string? SimpleMessage { get; private set; } = null; // For WriteSafe and WriteLineSafe
+
+        public WriteQueueObject (
+            WriteMode writeMode,
+
+            // Log
+            string? message = null,
+            LogLevel? level = null,
+            ConsoleColor? logTypeColor = null,
+            ConsoleColor? messageColor = null,
+
+            // WriteColor
+            ConsoleColor? foreground = null,
+            ConsoleColor? background = null,
+            bool? noNewline = null,
+
+            // WriteColorParts
+            string? msg1 = null,
+            string? msg2 = null,
+            ConsoleColor? foreground1 = null,
+            ConsoleColor? foreground2 = null
+        )
+        {
+            WriteMode = writeMode;
+
+            if (writeMode == WriteMode.Log && message != null && level != null)
+            {
+                LogParams = new LogParams(message, (LogLevel)level, logTypeColor, messageColor);
+            }
+            else if (writeMode == WriteMode.WriteColor && message != null && foreground != null)
+            {
+                WriteColorParams = new WriteColorParams(message, (ConsoleColor)foreground, background, noNewline ?? false);
+            }
+            else if (writeMode == WriteMode.WriteColorParts && msg1 != null && msg2 != null)
+            {
+                WriteColorPartsParams = new WriteColorPartsParams(msg1, msg2, foreground1, foreground2);
+            }
+            else if (writeMode == WriteMode.WriteWithBackground && message != null && foreground != null)
+            {
+                WriteWithBackgroundParams = new WriteWithBackgroundParams(message, (ConsoleColor)foreground, background, noNewline ?? false);
+            }
+            else if ((writeMode == WriteMode.WriteSafe || writeMode == WriteMode.WriteLineSafe) && message != null)
+            {
+                SimpleMessage = message;
+            }
+            else
+            {
+                throw new ArgumentException("Invalid parameters for WriteQueueObject");
+            }
+        }
+    }
+
+    public enum WriteMode
+    {
+        Log,
+        WriteSafe,
+        WriteLineSafe,
+        WriteColor,
+        WriteColorParts,
+        WriteWithBackground
+    }
+
+    public class LogParams
+    {
+        public string Message { get; }
+        public LogLevel Level { get; }
+        public ConsoleColor? LogTypeColor { get; }
+        public ConsoleColor? MessageColor { get; }
+        public LogParams(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
+        {
+            Message = message;
+            Level = level;
+            LogTypeColor = logTypeColor;
+            MessageColor = messageColor;
+        }
+    }
+
+    public class WriteColorParams
+    {
+        public string Message { get; }
+        public ConsoleColor Foreground { get; }
+        public ConsoleColor? Background { get; }
+        public bool NoNewline { get; }
+        public WriteColorParams(string message, ConsoleColor foreground, ConsoleColor? background, bool noNewline)
+        {
+            Message = message;
+            Foreground = foreground;
+            Background = background;
+            NoNewline = noNewline;
+        }
+    }
+
+    public class WriteColorPartsParams
+    {
+        public string Message1 { get; }
+        public string Message2 { get; }
+        public ConsoleColor? Foreground1 { get; }
+        public ConsoleColor? Foreground2 { get; }
+        public WriteColorPartsParams(string message1, string message2, ConsoleColor? foreground1, ConsoleColor? foreground2)
+        {
+            Message1 = message1;
+            Message2 = message2;
+            Foreground1 = foreground1;
+            Foreground2 = foreground2;
+        }
+    }
+
+    public class WriteWithBackgroundParams
+    {
+        public string Message { get; }
+        public ConsoleColor Foreground { get; }
+        public ConsoleColor? Background { get; }
+        public bool NoNewline { get; }
+        public WriteWithBackgroundParams(string message, ConsoleColor foreground, ConsoleColor? background, bool noNewline)
+        {
+            Message = message;
+            Foreground = foreground;
+            Background = background;
+            NoNewline = noNewline;
+        }
+    }
+
+    // --- Initialization & Shutdown ---
+    public static void Initialize()
+    {
+        if (_consumerTask != null && !_consumerTask.IsCompleted) return; // Prevent re-initialization
+
+        _consumerTask = Task.Run(() => ProcessLogQueue(_cancellationTokenSource.Token));
+    }
+
+    // --- Background Logger (Consumer) ---
+    private static void ProcessLogQueue(CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (WriteQueueObject message in _logQueue.GetConsumingEnumerable(cancellationToken))
+            {
+                try
+                {
+                    if (message.WriteMode == WriteMode.Log && message.LogParams != null)
+                    {
+                        PrintLogItem(
+                        message: message.LogParams.Message,
+                        level: message.LogParams.Level,
+                        logTypeColor: message.LogParams.LogTypeColor,
+                        messageColor: message.LogParams.MessageColor
+                        );
+                    }
+                    else if (message.WriteMode == WriteMode.WriteColor && message.WriteColorParams != null)
+                    {
+                        PrintWriteColor(
+                            message: message.WriteColorParams.Message,
+                            foreground: message.WriteColorParams.Foreground,
+                            background: message.WriteColorParams.Background,
+                            noNewline: message.WriteColorParams.NoNewline
+                        );
+                    }
+                    else if (message.WriteMode == WriteMode.WriteColorParts && message.WriteColorPartsParams != null)
+                    {
+                        PrintWriteColorParts(
+                            msg1: message.WriteColorPartsParams.Message1,
+                            msg2: message.WriteColorPartsParams.Message2,
+                            foreground1: message.WriteColorPartsParams.Foreground1,
+                            foreground2: message.WriteColorPartsParams.Foreground2
+                        );
+                    }
+                    else if (message.WriteMode == WriteMode.WriteWithBackground && message.WriteWithBackgroundParams != null)
+                    {
+                        PrintWriteWithBackground(
+                            message: message.WriteWithBackgroundParams.Message,
+                            foreground: message.WriteWithBackgroundParams.Foreground,
+                            background: message.WriteWithBackgroundParams.Background,
+                            noNewLine: message.WriteWithBackgroundParams.NoNewline
+                        );
+                    }
+                    else if (message.WriteMode == WriteMode.WriteSafe && message.SimpleMessage != null)
+                    {
+                        PrintWriteSafe(message.SimpleMessage);
+                    }
+                    else if (message.WriteMode == WriteMode.WriteLineSafe && message.SimpleMessage != null)
+                    {
+                        PrintWriteLineSafe(message.SimpleMessage);
+                    }
+                }
+                catch (Exception)
+                {
+                    // Failed to write this message, log to console or ignore
+                    LogError($"Failed to write log message: {message}");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Task was cancelled, exit gracefully
+            LogDebug("Log queue processing was cancelled.");
+        }
+        catch (Exception)
+        {
+            // Unhandled exception in consumer task
+            LogError("An error occurred while processing the log queue.");
+        }
+    }
+
+    // --- Add to the queue with Log object (Producer) ---
+    public static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
+    {
+        try
+        {
+            // Non-blocking add is preferred for fire-and-forget
+            if (!_logQueue.TryAdd(new WriteQueueObject(WriteMode.Log, message: message, level: level, logTypeColor: logTypeColor, messageColor: messageColor)))
+            {
+                PrintLogItem("Log queue is full. Message not added.", LogLevel.Error, Red, Red);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            PrintLogItem("Log queue is completed. Cannot add more messages.", LogLevel.Debug, null, null);
+        }
+        catch (Exception ex)
+        {
+            // Handle other exceptions if needed
+            PrintLogItem($"Failed to add log message to queue: {ex.Message}", LogLevel.Error, Red, Red);
+        }
+    }
 
     private static string GetPrefix(LogLevel level)
     {
@@ -25,7 +265,7 @@ internal static partial class Logging
         };
     }
 
-    private static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
+    private static void PrintLogItem(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
     {
         string prefix = GetPrefix(level);
 
@@ -99,7 +339,7 @@ internal static partial class Logging
         Task.Run(() => FileLogger.LogToFile(logMessage)); // Fire and forget
     }
 
-    public static void WriteSafe(string message)
+    private static void PrintWriteSafe(string message)
     {
         lock (ConsoleWriterLock) // Lock access to the console
         {
@@ -108,13 +348,47 @@ internal static partial class Logging
         }
     }
 
-    public static void WriteLineSafe(string? message = null)
+    private static void PrintWriteLineSafe(string? message = null)
     {
         lock (ConsoleWriterLock) // Lock access to the console
         {
             Console.ResetColor(); // Reset ahead of time just in case
             Console.WriteLine(message);
         }
+    }
+
+    public static void WriteLineSafe(string? message = null)
+    {
+        try
+        {
+            // Non-blocking add is preferred for fire-and-forget
+            if (!_logQueue.TryAdd(new WriteQueueObject(WriteMode.WriteLineSafe, message: message)))
+            {
+                PrintLogItem("Log queue is full. Message not added.", LogLevel.Error, Red, Red);
+            }
+        }
+        catch (Exception ex)
+        {
+            PrintLogItem($"Failed to add log message to queue: {ex.Message}", LogLevel.Error, Red, Red);
+        }
+
+    }
+
+    public static void WriteSafe(string message)
+    {
+        try
+        {
+            // Non-blocking add is preferred for fire-and-forget
+            if (!_logQueue.TryAdd(new WriteQueueObject(WriteMode.WriteSafe, message: message)))
+            {
+                PrintLogItem("Log queue is full. Message not added.", LogLevel.Error, Red, Red);
+            }
+        }
+        catch (Exception ex)
+        {
+            PrintLogItem($"Failed to add log message to queue: {ex.Message}", LogLevel.Error, Red, Red);
+        }
+
     }
 
     public static void LogInfo(string message, ConsoleColor? color = null)
@@ -162,9 +436,23 @@ internal static partial class Logging
 
     // ------------------------------- COLOR RELATED ---------------------------------
 
-    
-
     public static void WriteWithBackground(string message, ConsoleColor foreground, ConsoleColor? background, bool noNewLine = false)
+    {
+        try
+        {
+            // Non-blocking add is preferred for fire-and-forget
+            if (!_logQueue.TryAdd(new WriteQueueObject(WriteMode.WriteWithBackground, message: message, foreground: foreground, background: background, noNewline: noNewLine)))
+            {
+                PrintLogItem("Log queue is full. Message not added.", LogLevel.Error, Red, Red);
+            }
+        }
+        catch (Exception ex)
+        {
+            PrintLogItem($"Failed to add log message to queue: {ex.Message}", LogLevel.Error, Red, Red);
+        }
+    }
+
+    public static void PrintWriteWithBackground(string message, ConsoleColor foreground, ConsoleColor? background, bool noNewLine = false)
     {
         // If there are any newlines in the message, split it and write each line separately.
         // If there are trailing or leading newlines, write them separately not colored.
@@ -172,29 +460,25 @@ internal static partial class Logging
 
         string[] lines = AnyNewlineRegex().Split(message);
 
-        foreach (string line in lines)
+        lock (ConsoleWriterLock) // Lock access to the console
         {
-            if (line.Length == 0)
+            foreach (string line in lines)
             {
-                continue;
-            }
-            else if (line.Trim('\n').Length > 0)
-            {
-                WriteColor(message: line, foreground: foreground, background: background, noNewline: true);
-            }
-            else
-            {
-                lock (ConsoleWriterLock) // Lock access to the console
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+                else if (line.Trim('\n').Length > 0)
+                {
+                    PrintWriteColor(message: line, foreground: foreground, background: background, noNewline: true);
+                }
+                else
                 {
                     Console.WriteLine(); // Write a newline at the end because we've been using noNewline:true
                 }
-
             }
-        }
 
-        if (noNewLine == false)
-        {
-            lock (ConsoleWriterLock)
+            if (noNewLine == false)
             {
                 Console.WriteLine(); // Write a newline at the end because we've been using noNewline:true
             }
@@ -225,7 +509,7 @@ internal static partial class Logging
         WriteWithBackground(message, ConsoleColor.White, ConsoleColor.DarkGreen, noNewLine: noNewLine);
     }
 
-    public static void WriteColorParts(string msg1, string msg2, ConsoleColor? foreground1 = null, ConsoleColor? foreground2 = null)
+    private static void PrintWriteColorParts(string msg1, string msg2, ConsoleColor? foreground1 = null, ConsoleColor? foreground2 = null)
     {
         lock (ConsoleWriterLock)
         {
@@ -258,7 +542,7 @@ internal static partial class Logging
         Task.Run(() => FileLogger.LogToFile(logMessage)); // Fire and forget
     }
 
-    public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
+    private static void PrintWriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
     {
         lock (ConsoleWriterLock) // Lock access to the console
         {
@@ -282,6 +566,41 @@ internal static partial class Logging
         }
 
         Task.Run(() => FileLogger.LogToFile(message)); // Fire and forget
+    }
+
+
+
+    public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
+    {
+        try
+        {
+            // Non-blocking add is preferred for fire-and-forget
+            if (!_logQueue.TryAdd(new WriteQueueObject(WriteMode.WriteColor, message: message, foreground: foreground, background: background, noNewline: noNewline)))
+            {
+                PrintLogItem("Log queue is full. Message not added.", LogLevel.Error, Red, Red);
+            }
+        }
+        catch (Exception ex)
+        {
+            PrintLogItem($"Failed to add log message to queue: {ex.Message}", LogLevel.Error, Red, Red);
+        }
+    }
+
+    public static void WriteColorParts(string msg1, string msg2, ConsoleColor? foreground1 = null, ConsoleColor? foreground2 = null)
+    {
+        try
+        {
+            // Non-blocking add is preferred for fire-and-forget
+            if (!_logQueue.TryAdd(new WriteQueueObject(WriteMode.WriteColorParts, msg1: msg1, msg2: msg2, foreground1: foreground1, foreground2: foreground2)))
+            {
+                PrintLogItem("Log queue is full. Message not added.", LogLevel.Error, Red, Red);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle other exceptions if needed
+            PrintLogItem($"Failed to add log message to queue: {ex.Message}", LogLevel.Error, Red, Red);
+        }
     }
 
     [GeneratedRegex(@"(\r\n|\r|\n)", RegexOptions.Compiled)]

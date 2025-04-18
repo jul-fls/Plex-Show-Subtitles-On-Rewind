@@ -35,6 +35,8 @@ namespace RewindSubtitleDisplayerForPlex
             // ============== STARTUP LOGIC & LAUNCH ARGUMENTS HANDLING ==============
             // =======================================================================
 
+            Logging.Initialize();
+
             foreach (Argument possibleArg in LaunchArgs.GetAllArgs())
             {
                 if (possibleArg.Check(args))
