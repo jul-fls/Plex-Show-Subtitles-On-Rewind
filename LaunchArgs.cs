@@ -154,7 +154,7 @@ public static class LaunchArgs
         // Check if the argument is present in the input arguments
         foreach (Argument arg in GetAllArgs())
         {
-            if (arg.Check(new string[] { inputArgName }))
+            if (arg.Check([inputArgName]))
             {
                 return true; // The argument is valid
             }

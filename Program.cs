@@ -25,7 +25,7 @@ namespace RewindSubtitleDisplayerForPlex
         public static ShutdownProcedure UseShutdownProcedure = ShutdownProcedure.PreferWaitUserInput;
 
         public static bool IsContainerized => Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-        private static List<Argument> FoundValidArgs = [];
+        private static readonly List<Argument> FoundValidArgs = [];
 
         // ===========================================================================================
 

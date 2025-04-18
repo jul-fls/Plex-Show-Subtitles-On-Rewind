@@ -230,7 +230,8 @@ internal static partial class Logging
     }
 
     // --- Add to the queue with Log object (Producer) ---
-    public static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
+    // Log is private since we should be calling the individual log methods
+    private static void Log(string message, LogLevel level, ConsoleColor? logTypeColor, ConsoleColor? messageColor)
     {
         try
         {

@@ -403,11 +403,13 @@ public static class AuthTokenHandler
         bool authSuccess = false;
         while (authSuccess == false)
         {
-            (string? authToken, string? clientID, bool? requireNewRequest) authResult = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingUserSetName, clientIdentifier: genResult.ClientIdentifier);
-            if (authResult.authToken != null && authResult.clientID != null)
+            #pragma warning disable IDE0059 // Unnecessary assignment of a value
+            (string? authToken, string? clientID, bool? requireNewRequest) = GetAuthorizedTokenAfterUserConfirmation(pinID: genResult.PinID, appName: appNameIncludingUserSetName, clientIdentifier: genResult.ClientIdentifier);
+            #pragma warning restore IDE0059
+            if (authToken != null && clientID != null)
             {
                 // Save the token to the file
-                CreateTokenFile(authResult.authToken, authResult.clientID);
+                CreateTokenFile(authToken, clientID);
                 authSuccess = true;
                 successResult = true;
             }

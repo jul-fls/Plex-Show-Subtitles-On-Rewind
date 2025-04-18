@@ -7,6 +7,8 @@ using static RewindSubtitleDisplayerForPlex.Props;
 
 #nullable enable
 
+namespace RewindSubtitleDisplayerForPlex;
+
 public static class XmlResponseParser
 {
     // --- Public Parsing Methods ---
@@ -131,14 +133,13 @@ public static class XmlResponseParser
             PlexMediaItem mediaItem = new PlexMediaItem(itemKey) // Use the passed key
             {
                 Title = GetAttributeValue(mediaNode, nameof(title)),
-                Type = GetAttributeValue(mediaNode, nameof(type)) ?? mediaNode.Name.LocalName // Fallback to node name if 'type' attribute is missing
+                Type = GetAttributeValue(mediaNode, nameof(type)) ?? mediaNode.Name.LocalName, // Fallback to node name if 'type' attribute is missing
+                                                                                               // Parse nested Media elements
+                Media = mediaNode.Elements(nameof(Media))
+                                           .Select(ParseMedia) // Use the helper
+                                           .Where(m => m != null)
+                                           .ToList()! // Non-null asserted
             };
-
-            // Parse nested Media elements
-            mediaItem.Media = mediaNode.Elements(nameof(Media))
-                                       .Select(ParseMedia) // Use the helper
-                                       .Where(m => m != null)
-                                       .ToList()!; // Non-null asserted
 
             return mediaItem;
         }
@@ -241,13 +242,13 @@ public static class XmlResponseParser
             Duration = GetIntAttribute(mediaElement, nameof(duration)),
             VideoCodec = GetAttributeValue(mediaElement, nameof(videoCodec)),
             AudioCodec = GetAttributeValue(mediaElement, nameof(audioCodec)),
-            Container = GetAttributeValue(mediaElement, nameof(container))
-        };
+            Container = GetAttributeValue(mediaElement, nameof(container)),
 
-        media.Parts = mediaElement.Elements(nameof(Part))
-                                .Select(ParseMediaPart)
-                                .Where(p => p != null)
-                                .ToList()!; // Non-null asserted
+            Parts = mediaElement.Elements(nameof(Part))
+                                    .Select(ParseMediaPart)
+                                    .Where(p => p != null)
+                                    .ToList()! // Non-null asserted
+        };
 
         return media;
     }
@@ -261,13 +262,13 @@ public static class XmlResponseParser
             Id = GetAttributeValue(partElement, nameof(id)),
             Key = GetAttributeValue(partElement, nameof(key)),
             Duration = GetIntAttribute(partElement, nameof(duration)),
-            File = GetAttributeValue(partElement, nameof(file))
-        };
+            File = GetAttributeValue(partElement, nameof(file)),
 
-        part.AllStreams = partElement.Elements(nameof(Props.Stream))
-                                    .Select(ParseStreamData)
-                                    .Where(s => s != null)
-                                    .ToList()!; // Non-null asserted
+            AllStreams = partElement.Elements(nameof(Props.Stream))
+                                        .Select(ParseStreamData)
+                                        .Where(s => s != null)
+                                        .ToList()! // Non-null asserted
+        };
         // Subtitles list is calculated based on AllStreams, no direct parsing needed here.
 
         return part;
