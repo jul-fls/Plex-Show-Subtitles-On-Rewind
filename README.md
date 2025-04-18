@@ -10,24 +10,37 @@ Once playback reaches the point where you started the rewind, it will **automati
 
 99% of the time you use the rewind button, it's probably because you didn't catch the dialog
 
-# Features
+# Key Rewind-Detection Features
 
-* **Monitors All Local Players**: Automatically detects playback sessions from any Plex client on your network connected to your server.
 * **Respects Manual Settings**: If you manually turned subtitles on *before* rewinding, they will stay on.
 * **Temporary Subtitle Display**: Enables the first available subtitle track *only* for the duration you rewound. Then seamlessly disables them again.
 * **Smart-Cancellation**: Automatic disabling of temporary subtitles again on certain conditions:
   * If you rewind longer than a specified threshold (60 seconds default)
   * If you fast forward at any point
 * **Use Preferred Subtitles**: In the `settings.ini` file, you can configure how it will choose which subtitle track to display.
-* Experimental: Assign an action to occur when you double or triple click the play pause button, such as manually toggling subtitles.
 
-## Other Benefits
+# Additional Features & Modes
 
-* **API Integration**: This uses the Plex API directly, the enabling/disabling of subtitles is seamless.
-* **Cross-Platform**: It's a simple console app that can be run on Windows, MacOS, and Linux.
-* **Run Purely in Background**: On Windows use the `-background` launch argument to run it without any console Window. It will sit idle until Plex notifies it that Media is playing.
+* **Play/Pause button Double & Triple Click hotkey actions**: Manually toggle subtitles, or toggle rewind monitoring overall
+   - Note: Because of how the Apple TV's Plex app works, these hotkeys can only be triggered if the media is paused first. This is not an issue on the mobile apps.
+* **Manually Only Mode**: The app will not automatically enable subtitles on rewind. Instead you can just use the double or triple click hotkeys
+* **Coming Soon: Subtitles Always On Mode**: Automatically enable subtitles whenever you start watching anything.
+* **Coming Soon: Remember Subtitles Per TV Show Mode**: It will remember when you manually enable subtitles while watching a particular show, and automatically enable subtitles whenever you start watching any other episodes of that show
 
-## Screenshot
+## Frequently Asked Questions:
+### **Q:** Do I need to install this on every device where I'm watching?
+
+**A:** No, you only need to have it run on one computer/server/NAS on your local network. It will centrally manage the connection to your Plex server and any playing devices. It doesn't even necessarily need to be on the same computer as your Plex server.
+
+### **Q:** Is there docker support?
+
+**A:** Yes but at the moment you'll need to set it up with some manual steps. There are instructions [here](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/blob/master/Docker/Docker%20Instructions.md) and also see [this wiki article](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/wiki/Running-it-On-a-NAS-in-Docker) for specific instructions for setup in Docker on a NAS
+
+### **Q: What platforms are supported?**
+
+**A:** The app is cross-platform with dedicated versions for **Windows**, **MacOS** (both Intel and Apple Silicon), and **Linux** (both x86 and arm64)
+
+# Screenshot
 ![Console Window Screenshot](https://github.com/user-attachments/assets/c7dc6a08-2f92-4406-85a0-8b34ccd36054)
 
 
@@ -59,6 +72,12 @@ Once playback reaches the point where you started the rewind, it will **automati
     - Also if prompted, go through the authorization flow to allow the app to communicate with your server.
 3.  Leave it running in the background. It will automatically monitor sessions and go idle to minimize resources when there aren't any active playback sessions.
 
+## Other Benefits
+
+* **API Integration**: This uses the Plex API directly, the enabling/disabling of subtitles is seamless.
+* **Monitors All Local Players**: Automatically detects playback sessions from any Plex client on your network connected to your server.
+* **Cross-Platform**: It's a simple console app that can be run on Windows, MacOS, and Linux.
+* **Run Purely in Background**: On Windows use the `-background` launch argument to run it without any console Window. It will sit idle until Plex notifies it that Media is playing.
  
 ### Optional Command-Line Arguments: 
 
@@ -71,4 +90,6 @@ Once playback reaches the point where you started the rewind, it will **automati
      - `-allow-duplicate-instance`: New app instance will not close if it detects another is already connected to the same server.
      - `-update-settings-file`: Update your old settings file version, to include missing settings (if any) and update any settings descriptions. A backup will be created.
      - `-test-settings`: Load your settings file and show which values are valid, and which are not and therefore will be set to default.
+     - `-no-instance-check`: `This instance will not respond to -stop or other checks by other instances.`
+     - `-auth-device-name`: Specify a device name when authorizing in non-interactive mode. Mainly for use when containerized. Include the name after this argument.
    
