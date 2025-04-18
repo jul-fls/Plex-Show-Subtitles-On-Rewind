@@ -96,7 +96,7 @@ internal static partial class Logging
         // Log to file
         string logMessage = $"{prefix}{message}";
         logMessage = logMessage.Trim();
-        Task.Run(() => MyLogger.LogToFile(logMessage)); // Fire and forget
+        Task.Run(() => FileLogger.LogToFile(logMessage)); // Fire and forget
     }
 
     public static void WriteSafe(string message)
@@ -255,7 +255,7 @@ internal static partial class Logging
 
         // Log to file
         string logMessage = $"{msg1}{msg2}";
-        Task.Run(() => MyLogger.LogToFile(logMessage)); // Fire and forget
+        Task.Run(() => FileLogger.LogToFile(logMessage)); // Fire and forget
     }
 
     public static void WriteColor(string message, ConsoleColor foreground, ConsoleColor? background = null, bool noNewline = false)
@@ -281,7 +281,7 @@ internal static partial class Logging
             }
         }
 
-        Task.Run(() => MyLogger.LogToFile(message)); // Fire and forget
+        Task.Run(() => FileLogger.LogToFile(message)); // Fire and forget
     }
 
     [GeneratedRegex(@"(\r\n|\r|\n)", RegexOptions.Compiled)]

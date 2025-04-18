@@ -342,7 +342,7 @@ namespace RewindSubtitleDisplayerForPlex
                 else
                     WriteLineSafe(msgPart1 + msgPart2);
 
-                Task.Run(() => MyLogger.LogToFile(msgPart1 + msgPart2));
+                Task.Run(() => FileLogger.LogToFile(msgPart1 + msgPart2));
             }
         }
 

@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace RewindSubtitleDisplayerForPlex;
-public static class MyLogger // Rename if needed
+public static class FileLogger // Rename if needed
 {
     // --- Configuration ---
     private static readonly string LogFilePath = Path.Combine(BaseConfigsDir, MyStrings.LogFileName);

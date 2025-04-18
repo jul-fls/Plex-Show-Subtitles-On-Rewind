@@ -72,10 +72,10 @@ namespace RewindSubtitleDisplayerForPlex
 
             if (config.LogToFile.Value == true)
             {
-                MyLogger.Initialize(); // Will only initialize the logger if logging to file is enabled
+                FileLogger.Initialize(); // Will only initialize the logger if logging to file is enabled
             }
 
-            MyLogger.LogToFile("\n\n--------------------------------------------------- NEW INSTANCE ---------------------------------------------------\n");
+            FileLogger.LogToFile("\n\n--------------------------------------------------- NEW INSTANCE ---------------------------------------------------\n");
             
             if (!LaunchArgs.ForceNoDebug.Check(args))
             {
@@ -290,7 +290,7 @@ namespace RewindSubtitleDisplayerForPlex
                 LogInfo("    Application exited.");
                 _ctrlCExitEvent.Dispose();
                 _appShutdownCts_Program.Dispose(); // Dispose the cancellation token source
-                MyLogger.Shutdown(); 
+                FileLogger.Shutdown(); 
 
                 ExitProgramSafe();
             }
