@@ -6,18 +6,31 @@
 # Use the official .NET runtime dependencies image for Debian 12 (Bookworm) Slim.
 # This uses glibc and should be more compatible with standard linux-x64 builds.
 ARG DOTNET_VERSION=9.0 # Adjust if needed
-FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}-bookworm-slim
+# Stage 1: build with the full .NET SDK
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-bookworm AS builder
+WORKDIR /src
 
-# Set the working directory inside the container
+# Copy just the csproj and restore first to leverage caching
+COPY *.sln .
+COPY RewindSubtitleDisplayerForPlex/*.csproj ./RewindSubtitleDisplayerForPlex/
+RUN dotnet restore
+
+# Copy everything else & publish
+COPY . .
+RUN dotnet publish \
+    --configuration Release \
+    --runtime linux-x64 \
+    --self-contained false \
+    --output /app/publish
+
+# Stage 2: runtime image
+FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}-bookworm-slim
 WORKDIR /app
 
-# Copy the pre-compiled self-contained binary into the image's /app directory
-COPY RewindSubtitleDisplayerForPlex_*_linux-x64 /app/RewindSubtitleDisplayerForPlex
+# Copy the published binary and supporting files
+COPY --from=builder /app/publish .
 
-# Make the binary executable
-RUN chmod +x /app/RewindSubtitleDisplayerForPlex
+# Make sure the entrypoint is executable
+RUN chmod +x RewindSubtitleDisplayerForPlex*
 
-# VOLUME instruction removed - we will mount directly to /app via docker run
-
-# Set the entrypoint to run the application executable
-ENTRYPOINT ["/app/RewindSubtitleDisplayerForPlex"]
+ENTRYPOINT ["./RewindSubtitleDisplayerForPlex"]
