@@ -11,8 +11,8 @@ FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-bookworm-slim AS builder
 WORKDIR /src
 
 # Copy just the csproj and restore first to leverage caching
-COPY *.sln .
-COPY RewindSubtitleDisplayerForPlex/*.csproj ./RewindSubtitleDisplayerForPlex/
+COPY ../*.sln .
+COPY ../*.csproj ./RewindSubtitleDisplayerForPlex/
 RUN dotnet restore
 
 # Copy everything else & publish
