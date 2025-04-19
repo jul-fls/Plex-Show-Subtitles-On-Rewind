@@ -10,12 +10,14 @@ ARG DOTNET_VERSION=9.0 # Adjust if needed
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-bookworm-slim AS builder
 WORKDIR /src
 
-# Copy just the csproj and restore first to leverage caching
+# # Copy just the csproj and restore first to leverage caching
+
 COPY *.sln .
-COPY *.csproj ./RewindSubtitleDisplayerForPlex/
+COPY *.csproj ./
+RUN ls -la .
 RUN dotnet restore
 
-# Copy everything else & publish
+# # Copy everything else & publish
 COPY . .
 RUN dotnet publish \
     --configuration Release \
@@ -23,7 +25,7 @@ RUN dotnet publish \
     --self-contained false \
     --output /app/publish
 
-# Stage 2: runtime image
+# # Stage 2: runtime image
 FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}-bookworm-slim
 WORKDIR /app
 
