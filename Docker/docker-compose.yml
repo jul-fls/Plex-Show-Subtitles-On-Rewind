@@ -21,16 +21,6 @@ services:
     # inside the container.
     volumes:
       - ./config:/app/config
-
-    # Add any environment variables needed by your app here, if any.
-    # environment:
-    #   - VARIABLE_NAME=value
-    
-    # Pass command line arguments to the ENTRYPOINT defined in the Dockerfile.
-    # Replace these placeholders with the actual arguments your application needs.
-    # Each argument and its value (if applicable) should be a separate list item.
     command:
-      #- "-argument1"          # Example: a flag argument
-      #- "value_for_arg1"      # Example: value for the previous argument
       - "-auth-device-name"
       - "Docker"
