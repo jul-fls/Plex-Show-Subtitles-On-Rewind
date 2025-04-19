@@ -10,6 +10,15 @@ Once playback reaches the point where you started the rewind, it will **automati
 
 99% of the time you use the rewind button, it's probably because you didn't catch the dialog
 
+# Additional Features & Modes
+
+* **Play/Pause button Double & Triple Click hotkey actions**: Manually toggle subtitles, or toggle rewind monitoring overall
+   - Note: Because of how the Apple TV's Plex app works, these hotkeys can only be triggered if the media is paused first. This is not an issue on the mobile apps.
+* **Manually Only Mode**: The app will not automatically enable subtitles on rewind. Instead you can just use the double or triple click hotkeys
+* **Subtitles Always On Mode**: Automatically enable subtitles whenever you start watching anything.
+* **Remember Subtitles Per TV Show Mode**: It will remember when you manually enable subtitles while watching a particular show, and automatically enable subtitles whenever you start watching any other episodes of that show
+* **Always Show Subtitles For Specific Libraries**: In the settings enter a list of Library names, and any media within those libraries will have subtitles enabled upon playing.
+
 # Key Rewind-Detection Features
 
 * **Respects Manual Settings**: If you manually turned subtitles on *before* rewinding, they will stay on.
@@ -18,14 +27,6 @@ Once playback reaches the point where you started the rewind, it will **automati
   * If you rewind longer than a specified threshold (60 seconds default)
   * If you fast forward at any point
 * **Use Preferred Subtitles**: In the `settings.ini` file, you can configure how it will choose which subtitle track to display.
-
-# Additional Features & Modes
-
-* **Play/Pause button Double & Triple Click hotkey actions**: Manually toggle subtitles, or toggle rewind monitoring overall
-   - Note: Because of how the Apple TV's Plex app works, these hotkeys can only be triggered if the media is paused first. This is not an issue on the mobile apps.
-* **Manually Only Mode**: The app will not automatically enable subtitles on rewind. Instead you can just use the double or triple click hotkeys
-* **Coming Soon: Subtitles Always On Mode**: Automatically enable subtitles whenever you start watching anything.
-* **Coming Soon: Remember Subtitles Per TV Show Mode**: It will remember when you manually enable subtitles while watching a particular show, and automatically enable subtitles whenever you start watching any other episodes of that show
 
 ## Frequently Asked Questions:
 ### **Q:** Do I need to install this on every device where I'm watching?
