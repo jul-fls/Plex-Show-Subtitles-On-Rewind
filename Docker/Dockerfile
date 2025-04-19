@@ -7,7 +7,7 @@
 # This uses glibc and should be more compatible with standard linux-x64 builds.
 ARG DOTNET_VERSION=9.0 # Adjust if needed
 # Stage 1: build with the full .NET SDK
-FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-bookworm AS builder
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-bookworm-slim AS builder
 WORKDIR /src
 
 # Copy just the csproj and restore first to leverage caching
