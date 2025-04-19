@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rid: [linux-x64, linux-arm64, macos-x64, macos-arm64, win-x64]    # add macos‑x64, win‑x64, etc. if you want
+        rid: [linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
         with:
           files: |
             publish/${{ matrix.rid }}/RewindSubtitleDisplayerForPlex*
-            
+
   docker:
     needs: build
     runs-on: ubuntu-latest
